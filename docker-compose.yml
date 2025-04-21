@@ -1,0 +1,10 @@
+version: "3.8"
+
+services:
+  web:
+    build: .
+    env_file:    # apunta a tu .env en la raíz
+      - .env
+    ports:
+      - "8000:8000"
+    restart: always

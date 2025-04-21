@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>TokenWatcher Generator</title>
+  <style>
+    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 2rem; }
+    h1 { margin-bottom: 1rem; }
+    p { max-width: 600px; text-align: center; }
+    label { display: block; margin: .5rem 0; }
+    input { width: 320px; padding: .5rem; font-size: 1rem; }
+    button { margin-top: 1rem; padding: .7rem 1.2rem; font-size: 1rem; cursor: pointer; }
+    pre { margin-top: 1.5rem; background: #f5f5f5; padding: 1rem; width: 90%; max-width: 700px; height: 400px; overflow: auto; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>TokenWatcher Generator</h1>
+  <p>Rellena tus claves y obtén al instante el script completo de TokenWatcher con monitoreo y notificaciones integradas. Sin registros, sin backend.</p>
+
+  <label>Etherscan API Key:<br>
+    <input id="apiKey" type="text" placeholder="Tu Etherscan API Key">
+  </label>
+
+  <label>Slack Webhook URL:<br>
+    <input id="webhook" type="text" placeholder="https://hooks.slack.com/services/...">
+  </label>
+
+  <button onclick="generate()">Generar script completo</button>
+
+  <pre id="output"></pre>
+
+  <script>
+  function generate() {
+    const apiKey = document.getElementById('apiKey').value.trim();
+    const webhook = document.getElementById('webhook').value.trim();
+    const code = `#!/usr/bin/env python3
+"""
+TokenWatcher: Escanea bloques de Ethereum y notifica tokens con volumen alto.
+Credenciales inyectadas directamente.
+"""
+
+import requests
+import time
+
+# ———————— CONFIGURACIÓN ————————
+ETHERSCAN_API_KEY   = "${apiKey}"
+SLACK_WEBHOOK_URL   = "${webhook}"
+VOLUME_THRESHOLD_WEI = 1 * 10**18  # 1 ETH
+POLL_INTERVAL       = 60           # en segundos
+# ————————————————————————————
+
+def get_latest_block():
+    """Devuelve el número del bloque más reciente en Ethereum."""
+    url = "https://api.etherscan.io/api"
+    params = {
+        "module": "proxy",
+        "action": "eth_blockNumber",
+        "apikey": ETHERSCAN_API_KEY
+    }
+    result = requests.get(url, params=params).json()
+    return int(result["result"], 16)
+
+def get_token_transfers(block_number):
+    """
+    Obtiene todas las transferencias de tokens en un bloque específico
+    y devuelve siempre una lista (filtra errores).
+    """
+    url = "https://api.etherscan.io/api"
+    params = {
+        "module": "account",
+        "action": "tokentx",
+        "startblock": block_number,
+        "endblock": block_number,
+        "sort": "asc",
+        "apikey": ETHERSCAN_API_KEY
+    }
+    response = requests.get(url, params=params).json()
+    result = response.get("result", [])
+    if not isinstance(result, list):
+        return []
+    return result
+
+def send_slack_notification(message: str):
+    """Envía un mensaje simple a Slack vía webhook."""
+    payload = {"text": message}
+    requests.post(SLACK_WEBHOOK_URL, json=payload)
+
+def main():
+    """Bucle principal: comprueba bloques nuevos y notifica si superan el umbral."""
+    last_block = get_latest_block()
+    print(f"▶️  Iniciando monitor en bloque {last_block}")
+
+    while True:
+        latest_block = get_latest_block()
+        if latest_block > last_block:
+            for block in range(last_block + 1, latest_block + 1):
+                transfers = get_token_transfers(block)
+                volumes = {}
+                
+                for tx in transfers:
+                    if not isinstance(tx, dict):
+                        continue
+                    token = tx.get("tokenSymbol", "UNKNOWN")
+                    value = int(tx.get("value", 0))
+                    volumes[token] = volumes.get(token, 0) + value
+                
+                for token, vol in volumes.items():
+                    if vol >= VOLUME_THRESHOLD_WEI:
+                        eth_vol = vol / 1e18
+                        msg = f"💡 Token *{token}* superó {eth_vol:.2f} ETH en el bloque {block}."
+                        print("Notificando:", msg)
+                        send_slack_notification(msg)
+            
+            last_block = latest_block
+        
+        time.sleep(POLL_INTERVAL)
+
+if __name__ == "__main__":
+    main()
+`;
+    document.getElementById('output').textContent = code;
+  }
+  </script>
+</body>
+</html>

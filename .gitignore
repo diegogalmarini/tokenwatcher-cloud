@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.db
+
+# Virtualenv
+venv/
+.venv/
+
+# Env file
+.env
+
+# IDEs
+.vscode/
+*.suo
