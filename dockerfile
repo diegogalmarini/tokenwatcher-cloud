@@ -21,9 +21,5 @@ COPY . .
 EXPOSE 8000
 
 # comando de arranque: gunicorn con workers UVicorn
-CMD ["gunicorn", 
-     "-k", "uvicorn.workers.UvicornWorker", 
-     "api.app.main:app", 
-     "--bind", "0.0.0.0:8000", 
-     "--workers", "1", 
-     "--timeout", "120"]
+CMD ["gunicorn","-k","uvicorn.workers.UvicornWorker","api.app.main:app","--bind","0.0.0.0:8000","--workers","1","--timeout","120"]
+
