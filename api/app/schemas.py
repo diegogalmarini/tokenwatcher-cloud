@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 # — Watchers —
 class WatcherBase(BaseModel):
@@ -53,3 +53,11 @@ class TransportRead(TransportBase):
 
     class Config:
         from_attributes = True
+
+# — Tokens (nuevo endpoint) —
+class TokenRead(BaseModel):
+    contract: str
+    volume: int
+
+    class Config:
+        orm_mode = True

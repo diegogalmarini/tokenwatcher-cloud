@@ -1,3 +1,5 @@
+# api/app/main.py
+
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
@@ -7,7 +9,7 @@ from fastapi_utils.tasks import repeat_every
 from . import crud, models, schemas, watcher
 from .config import SessionLocal, engine, settings
 
-# Crea tablas si no existen
+# crea tablas si no existen
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -97,7 +99,13 @@ def delete_transport(transport_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Transport no encontrado")
     return t
 
-# — Polling on‑chain + notificaciones —
+# — Volumen total de tokens para un contrato (nuevo) —
+@app.get("/tokens/{contract_address}", response_model=schemas.TokenRead, tags=["Tokens"])
+def read_token_volume(contract_address: str, db: Session = Depends(get_db)):
+    volume = crud.get_volume(db, contract_address)
+    return {"contract": contract_address, "volume": volume}
+
+# — Polling + notificaciones —
 @app.on_event("startup")
 @repeat_every(seconds=settings.POLL_INTERVAL, wait_first=True)
 def periodic_poll():

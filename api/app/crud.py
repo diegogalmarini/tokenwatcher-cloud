@@ -1,6 +1,7 @@
 # api/app/crud.py
 
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from . import models, schemas
 
 # — Watchers CRUD —
@@ -14,7 +15,7 @@ def create_watcher(db: Session, w: schemas.WatcherCreate):
 def get_watcher(db: Session, watcher_id: int):
     return db.query(models.Watcher).filter(models.Watcher.id == watcher_id).first()
 
-def get_watchers(db: Session, skip: int=0, limit: int=100):
+def get_watchers(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Watcher).offset(skip).limit(limit).all()
 
 def update_watcher(db: Session, watcher_id: int, w: schemas.WatcherCreate):
@@ -43,10 +44,10 @@ def create_event(db: Session, e: schemas.TokenEventCreate):
     db.refresh(db_e)
     return db_e
 
-def get_events(db: Session, skip: int=0, limit: int=100):
+def get_events(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.TokenEvent).offset(skip).limit(limit).all()
 
-def get_events_for_watcher(db: Session, watcher_id: int, skip: int=0, limit: int=100):
+def get_events_for_watcher(db: Session, watcher_id: int, skip: int = 0, limit: int = 100):
     return (
         db.query(models.TokenEvent)
         .filter(models.TokenEvent.watcher_id == watcher_id)
@@ -62,7 +63,7 @@ def create_transport(db: Session, t: schemas.TransportCreate):
     db.refresh(db_t)
     return db_t
 
-def get_transports(db: Session, watcher_id: int=None, skip: int=0, limit: int=100):
+def get_transports(db: Session, watcher_id: int = None, skip: int = 0, limit: int = 100):
     q = db.query(models.Transport)
     if watcher_id is not None:
         q = q.filter(models.Transport.watcher_id == watcher_id)
@@ -75,3 +76,12 @@ def delete_transport(db: Session, transport_id: int):
     db.delete(db_t)
     db.commit()
     return db_t
+
+# — Volumen total de tokens para un contrato —
+def get_volume(db: Session, contract_address: str) -> int:
+    total = (
+        db.query(func.coalesce(func.sum(models.TokenEvent.volume), 0))
+        .filter(models.TokenEvent.contract == contract_address)
+        .scalar()
+    )
+    return int(total or 0)
