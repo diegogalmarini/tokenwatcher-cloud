@@ -1,63 +1,65 @@
-# api/app/schemas.py
-
-from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, List
+from pydantic import BaseModel
 
 # — Watchers —
+
 class WatcherBase(BaseModel):
-    name: str
-    contract: str
+    name:      str
+    contract:  str
     threshold: float
 
 class WatcherCreate(WatcherBase):
     pass
 
 class WatcherRead(WatcherBase):
-    id: int
+    id:         int
     created_at: datetime
     updated_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
+
 
 # — TokenEvents —
+
 class TokenEventBase(BaseModel):
-    watcher_id: int
-    contract: str
-    volume: float
-    tx_hash: str
+    watcher_id:   int
+    contract:     str
+    volume:       float
+    tx_hash:      str
+    block_number: int                     # ← NUEVO
 
 class TokenEventCreate(TokenEventBase):
     pass
 
 class TokenEventRead(TokenEventBase):
-    id: int
+    id:        int
     timestamp: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
+
 
 # — Transports —
+
 class TransportBase(BaseModel):
     watcher_id: int
-    type: str
-    address: str
+    type:       str
+    address:    str
 
 class TransportCreate(TransportBase):
     pass
 
 class TransportRead(TransportBase):
-    id: int
+    id:         int
     created_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
-# — Tokens (nuevo endpoint) —
+
+# — Tokens (volumen agregado) —
+
 class TokenRead(BaseModel):
     contract: str
-    volume: int
-
-    class Config:
-        orm_mode = True
+    volume:   int
