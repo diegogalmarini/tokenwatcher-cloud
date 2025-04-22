@@ -45,13 +45,8 @@ class Transport(Base):
     __tablename__ = "transports"
     id         = Column(Integer, primary_key=True, index=True)
     watcher_id = Column(Integer, ForeignKey("watchers.id"), nullable=False)
-    type       = Column(String,  nullable=False)   # "slack" | "discord" | "email" | ...
-    address    = Column(String,  nullable=False)   # webhook URL, email address, etc.
+    type       = Column(String,  nullable=False)
+    address    = Column(String,  nullable=False)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
     watcher    = relationship("Watcher", back_populates="transports")
-
-
-if __name__ == "__main__":
-    Base.metadata.create_all(bind=engine)
-    print("✅ Tablas (watchers, token_events, transports) creadas con éxito")
