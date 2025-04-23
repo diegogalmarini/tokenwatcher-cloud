@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 class WatcherBase(BaseModel):
     name: str
@@ -17,12 +17,14 @@ class WatcherRead(WatcherBase):
     class Config:
         orm_mode = True
 
+# ----------------------------------------------
+
 class TokenEventBase(BaseModel):
     watcher_id: int
     contract: str
     volume: float
     tx_hash: str
-    block_number: int  # <-- nuevo
+    block_number: int
 
 class TokenEventCreate(TokenEventBase):
     pass
@@ -33,6 +35,8 @@ class TokenEventRead(TokenEventBase):
 
     class Config:
         orm_mode = True
+
+# ----------------------------------------------
 
 class TransportBase(BaseModel):
     watcher_id: int
@@ -49,6 +53,7 @@ class TransportRead(TransportBase):
     class Config:
         orm_mode = True
 
+# Para la ruta /tokens/{contract}
 class TokenRead(BaseModel):
     contract: str
     volume: int

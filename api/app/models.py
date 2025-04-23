@@ -1,9 +1,7 @@
 from datetime import datetime
-from sqlalchemy import (
-    Column, Integer, String, Float,
-    DateTime, ForeignKey
-)
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
 from sqlalchemy.orm import relationship, declarative_base
+from .config import engine
 
 Base = declarative_base()
 
@@ -34,7 +32,7 @@ class TokenEvent(Base):
     contract     = Column(String,  nullable=False)
     volume       = Column(Float,   nullable=False)
     tx_hash      = Column(String,  nullable=False)
-    block_number = Column(Integer, nullable=False)    # <-- nuevo
+    block_number = Column(Integer, nullable=False)
     timestamp    = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
 
     watcher      = relationship("Watcher", back_populates="events")
