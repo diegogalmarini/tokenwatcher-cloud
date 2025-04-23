@@ -3,20 +3,26 @@
 import requests
 from .config import settings
 
-def notify_slack(webhook: str, text: str):
-    requests.post(webhook, json={"text": text}, timeout=5)
-
 def notify(watcher, event):
     """
-    Construye y envía el mensaje a cada transport configurado.
+    Envía a Slack una notificación de un TokenEvent.
+    Toma la URL de settings.SLACK_WEBHOOK_URL.
     """
-    msg = (
-        f"*Watcher*: {watcher.name}\n"
-        f"*Contract*: {watcher.contract}\n"
-        f"*Volume*: {event.volume:.4f} ETH\n"
-        f"*Tx*: https://etherscan.io/tx/{event.tx_hash}"
+    url = settings.SLACK_WEBHOOK_URL
+    if not url:
+        print("[DEBUG] ⚠️ No SLACK_WEBHOOK_URL configurada, saltando notify.")
+        return
+
+    # Construimos el mensaje
+    text = (
+        f"*Watcher:* {watcher.name}\n"
+        f"*Contract:* `{event.contract}`\n"
+        f"*Volume:* {event.volume:.4f} ETH\n"
+        f"*Tx:* https://etherscan.io/tx/{event.tx_hash}"
     )
-    for t in watcher.transports:
-        if t.type.lower() == "slack":
-            notify_slack(t.address, msg)
-        # aquí podrías añadir Discord, Email, Telegram…
+    payload = {"text": text}
+
+    # Posteamos a Slack
+    resp = requests.post(url, json=payload)
+    if resp.status_code != 200:
+        print(f"[DEBUG] ⚠️ Slack devolvió {resp.status_code}: {resp.text}")
