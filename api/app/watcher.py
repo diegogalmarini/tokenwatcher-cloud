@@ -41,7 +41,7 @@ def poll_and_notify(
     Recorre cada Watcher, busca nuevas transacciones, filtra por threshold,
     registra TokenEvent y dispara notificación vía notifier.
     """
-    from . import notifier  # import aquí para romper posibles ciclos
+    from . import notifier  # import dentro de la función para evitar loops
 
     print("🔄 [DEBUG] ▶ poll_and_notify start")
     watchers = get_watchers()
@@ -72,6 +72,7 @@ def poll_and_notify(
                     "tx_hash":      tx["hash"],
                     "block_number": int(tx["blockNumber"]),
                 }
+                # Aquí `create_event` ya incluye la sesión y el Pydantic model
                 evt = create_event(payload)
                 print(f"   ✅ [DEBUG] Created event id={evt.id}")
 
@@ -79,30 +80,35 @@ def poll_and_notify(
                 try:
                     notifier.notify(w, evt)
                 except Exception as e:
-                    # Capturamos y registramos el error sin romper el cron
                     print(f"   ❌ [ERROR] notifier.notify() falló: {e!r}")
                 else:
                     print("   ✅ [DEBUG] Notification done")
 
-        # Para no pasarnos del API rate limit
         time.sleep(settings.POLL_INTERVAL or 1)
 
     print("🔄 [DEBUG] ▶ poll_and_notify end")
 
 
 if __name__ == "__main__":
-    # Este bloque se ejecuta cuando Render corre: python -m api.app.watcher
+    # Cuando Render lanza: python -m api.app.watcher
     from .config import SessionLocal
-    from .crud import get_watchers, create_event
 
+    # Creamos la sesión
     db = SessionLocal()
+
     print("■■■■■■■■■■■■■■■■■■■■■■■■■■■■")
     print("▶ [DEBUG] Arrancando cron poll_and_notify")
+
+    # Importamos todo de crud para que no haya confusiones de nombres
+    import crud as _crud
+
+    # Pasamos un lambda que llama _crud.create_event(db, TokenEventCreate)
     poll_and_notify(
         db=db,
-        get_watchers=lambda: get_watchers(db),
-        create_event=lambda data: create_event(schemas.TokenEventCreate(**data)),
+        get_watchers=lambda: _crud.get_watchers(db),
+        create_event=lambda data: _crud.create_event(db, schemas.TokenEventCreate(**data)),
     )
+
     db.close()
     print("▶ [DEBUG] cron terminado")
     print("■■■■■■■■■■■■■■■■■■■■■■■■■■■■")
