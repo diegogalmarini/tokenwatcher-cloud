@@ -4,7 +4,7 @@ import time
 import requests
 from typing import Callable, List, Dict
 
-from . import schemas, crud
+from . import schemas
 from .config import settings
 
 ETHERSCAN_API = "https://api.etherscan.io/api"
@@ -41,7 +41,7 @@ def poll_and_notify(
     Recorre cada Watcher, busca nuevas transacciones, filtra por threshold,
     registra TokenEvent y dispara notificación vía notifier.
     """
-    from . import notifier  # import dentro de la función para evitar loops
+    from . import notifier  # import aquí dentro para evitar ciclos
 
     print("🔄 [DEBUG] ▶ poll_and_notify start")
     watchers = get_watchers()
@@ -50,7 +50,7 @@ def poll_and_notify(
     for w in watchers:
         print(f"▶ [DEBUG] Procesando watcher id={w.id} nombre={w.name!r} threshold={w.threshold}")
         # Determinar bloque desde el que empezar
-        last_events = crud.get_events_for_watcher(db, w.id, skip=0, limit=1)
+        last_events = get_events_for_watcher(db, w.id, skip=0, limit=1)
         if last_events:
             start_block = int(last_events[-1].block_number) + 1
         else:
@@ -72,7 +72,6 @@ def poll_and_notify(
                     "tx_hash":      tx["hash"],
                     "block_number": int(tx["blockNumber"]),
                 }
-                # Aquí `create_event` ya incluye la sesión y el Pydantic model
                 evt = create_event(payload)
                 print(f"   ✅ [DEBUG] Created event id={evt.id}")
 
@@ -89,24 +88,23 @@ def poll_and_notify(
     print("🔄 [DEBUG] ▶ poll_and_notify end")
 
 
+# -------------------------------------------------------
+# Bloque principal que Render invoca con `python -m api.app.watcher`
+# -------------------------------------------------------
 if __name__ == "__main__":
-    # Cuando Render lanza: python -m api.app.watcher
-    from .config import SessionLocal
+    # Importar aquí con ruta absoluta
+    from api.app.config import SessionLocal
+    from api.app.crud import get_watchers, get_events_for_watcher, create_event
 
-    # Creamos la sesión
     db = SessionLocal()
 
     print("■■■■■■■■■■■■■■■■■■■■■■■■■■■■")
     print("▶ [DEBUG] Arrancando cron poll_and_notify")
 
-    # Importamos todo de crud para que no haya confusiones de nombres
-    import crud as _crud
-
-    # Pasamos un lambda que llama _crud.create_event(db, TokenEventCreate)
     poll_and_notify(
         db=db,
-        get_watchers=lambda: _crud.get_watchers(db),
-        create_event=lambda data: _crud.create_event(db, schemas.TokenEventCreate(**data)),
+        get_watchers=lambda: get_watchers(db),
+        create_event=lambda data: create_event(db, schemas.TokenEventCreate(**data)),
     )
 
     db.close()
