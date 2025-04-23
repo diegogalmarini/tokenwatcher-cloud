@@ -4,8 +4,8 @@ import time
 import requests
 from typing import Callable, List, Dict
 
-from . import schemas
-from .config import settings
+from api.app import schemas, crud, notifier
+from api.app.config import settings, SessionLocal
 
 ETHERSCAN_API = "https://api.etherscan.io/api"
 
@@ -34,79 +34,62 @@ def fetch_transfers(contract: str, start_block: int = 0) -> List[Dict]:
 
 def poll_and_notify(
     db,
-    create_event: Callable[[Dict], schemas.TokenEventCreate],
-    get_watchers: Callable[[], List],
+    get_watchers: Callable[[], List[crud.Watcher]],
 ):
     """
     Recorre cada Watcher, busca nuevas transacciones, filtra por threshold,
     registra TokenEvent y dispara notificación vía notifier.
     """
-    from . import notifier  # import aquí dentro para evitar ciclos
-
-    print("🔄 [DEBUG] ▶ poll_and_notify start")
+    print("🔄 [DEBUG] ▶ Arrancando cron poll_and_notify")
     watchers = get_watchers()
     print(f"🔄 [DEBUG] ▶ Watchers en BD: {len(watchers)}")
 
     for w in watchers:
-        print(f"▶ [DEBUG] Procesando watcher id={w.id} nombre={w.name!r} threshold={w.threshold}")
+        print(f"[DEBUG] ▶ Procesando watcher id={w.id} nombre={w.name!r} threshold={w.threshold}")
         # Determinar bloque desde el que empezar
-        last_events = get_events_for_watcher(db, w.id, skip=0, limit=1)
+        last_events = crud.get_events_for_watcher(db, w.id, skip=0, limit=1)
         if last_events:
             start_block = int(last_events[-1].block_number) + 1
         else:
             start_block = settings.START_BLOCK or 0
-        print(f"   ▶ [DEBUG] start_block para watcher {w.id} = {start_block}")
+        print(f"[DEBUG]    start_block para watcher {w.id} = {start_block}")
 
         txs = fetch_transfers(w.contract, start_block=start_block)
-        print(f"   ▶ [DEBUG] encontrados {len(txs)} txs desde bloque {start_block}")
+        print(f"[DEBUG]    encontrados {len(txs)} txs desde bloque {start_block}")
 
         for tx in txs:
             amt = float(tx["value"]) / 10**18
-            print(f"   ▶ [DEBUG] tx @block={tx['blockNumber']} amount={amt:.6f}")
+            print(f"[DEBUG]    tx @block={tx['blockNumber']} amount={amt:.6f}")
             if amt >= w.threshold:
-                print("   ✅ [DEBUG] above threshold, creando evento")
-                payload = {
-                    "watcher_id":   w.id,
-                    "contract":     w.contract,
-                    "volume":       amt,
-                    "tx_hash":      tx["hash"],
-                    "block_number": int(tx["blockNumber"]),
-                }
-                evt = create_event(payload)
-                print(f"   ✅ [DEBUG] Created event id={evt.id}")
-
-                print("   🔔 [DEBUG] Notifying Slack…")
-                try:
-                    notifier.notify(w, evt)
-                except Exception as e:
-                    print(f"   ❌ [ERROR] notifier.notify() falló: {e!r}")
-                else:
-                    print("   ✅ [DEBUG] Notification done")
+                print(f"✅ [DEBUG]    above threshold, creando evento")
+                payload = schemas.TokenEventCreate(
+                    watcher_id=w.id,
+                    contract=w.contract,
+                    volume=amt,
+                    tx_hash=tx["hash"],
+                    block_number=int(tx["blockNumber"]),
+                )
+                # guardamos en BD
+                evt = crud.create_event(db, payload)
+                print(f"[DEBUG]    ✅ Created event id={evt.id}")
+                print(f"🔔 [DEBUG]    Notifying Slack…")
+                notifier.notify(w, evt)
+                print(f"✅ [DEBUG]    Notification done")
 
         time.sleep(settings.POLL_INTERVAL or 1)
 
     print("🔄 [DEBUG] ▶ poll_and_notify end")
 
 
-# -------------------------------------------------------
-# Bloque principal que Render invoca con `python -m api.app.watcher`
-# -------------------------------------------------------
 if __name__ == "__main__":
-    # Importar aquí con ruta absoluta
-    from api.app.config import SessionLocal
-    from api.app.crud import get_watchers, get_events_for_watcher, create_event
-
+    # Este bloque se ejecuta cuando Render corre: python -m api.app.watcher
     db = SessionLocal()
-
-    print("■■■■■■■■■■■■■■■■■■■■■■■■■■■■")
-    print("▶ [DEBUG] Arrancando cron poll_and_notify")
-
+    print("■" * 40)
+    print("[DEBUG] ▶ Arrancando cron poll_and_notify (main)")
     poll_and_notify(
         db=db,
-        get_watchers=lambda: get_watchers(db),
-        create_event=lambda data: create_event(db, schemas.TokenEventCreate(**data)),
+        get_watchers=lambda: crud.get_watchers(db),
     )
-
     db.close()
-    print("▶ [DEBUG] cron terminado")
-    print("■■■■■■■■■■■■■■■■■■■■■■■■■■■■")
+    print("[DEBUG] ▶ cron terminado")
+    print("■" * 40)
