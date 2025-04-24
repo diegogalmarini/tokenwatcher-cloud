@@ -1,4 +1,4 @@
-# api/app/watcher.py
+# src/api/app/watcher.py
 
 import time
 import requests
@@ -11,10 +11,6 @@ ETHERSCAN_API = "https://api.etherscan.io/api"
 
 
 def fetch_transfers(contract: str, start_block: int = 0) -> List[Dict]:
-    """
-    Llama a Etherscan y devuelve la lista de transfers ERC-20
-    desde `start_block` hasta latest.
-    """
     params = {
         "module": "account",
         "action": "tokentx",
@@ -24,10 +20,10 @@ def fetch_transfers(contract: str, start_block: int = 0) -> List[Dict]:
         "sort": "asc",
         "apikey": settings.ETHERSCAN_API_KEY,
     }
-    resp = requests.get(ETHERSCAN_API, params=params)
+    resp = requests.get(ETHERSCAN_API, params=params, timeout=10)
     data = resp.json()
     if data.get("status") != "1":
-        print(f"⚠️ [DEBUG] Etherscan no devolvió transfers status=1: {data.get('message')}")
+        print(f"⚠️ [DEBUG] Etherscan no devolvió transfers: {data.get('message')}")
         return []
     return data["result"]
 
@@ -37,26 +33,21 @@ def poll_and_notify(
     create_event: Callable[[Dict], schemas.TokenEventCreate],
     get_watchers: Callable[[], List],
 ):
-    """
-    Recorre cada Watcher, busca nuevas transacciones, filtra por threshold,
-    registra TokenEvent y dispara notificación vía notifier.
-    """
     print("🔄 [DEBUG] ▶ poll_and_notify start")
     watchers = get_watchers()
     print(f"🔄 [DEBUG] ▶ Watchers en BD: {len(watchers)}")
 
     for w in watchers:
         print(f"▶ [DEBUG] Procesando watcher id={w.id} nombre={w.name!r} threshold={w.threshold}")
-        # Determinar bloque desde el que empezar
         last_events = crud.get_events_for_watcher(db, w.id, skip=0, limit=1)
         if last_events:
             start_block = int(last_events[-1].block_number) + 1
         else:
             start_block = settings.START_BLOCK or 0
-        print(f"   ▶ [DEBUG] start_block para watcher {w.id} = {start_block}")
+        print(f"   ▶ [DEBUG] start_block={start_block}")
 
-        txs = fetch_transfers(w.contract, start_block=start_block)
-        print(f"   ▶ [DEBUG] encontrados {len(txs)} txs desde bloque {start_block}")
+        txs = fetch_transfers(w.contract, start_block)
+        print(f"   ▶ [DEBUG] encontrados {len(txs)} txs")
 
         for tx in txs:
             amt = float(tx["value"]) / 10**18
@@ -73,21 +64,11 @@ def poll_and_notify(
                 evt = create_event(payload)
                 print(f"   ✅ [DEBUG] Created event id={evt.id}")
 
-                print("   🔔 [DEBUG] Notifying channels…")
-                # Slack
+                print("   🔔 [DEBUG] Notificando canales…")
                 try:
-                    notifier.notify_slack(w, evt)
+                    notifier.notify(w, evt)
                 except Exception as e:
-                    print(f"   ❌ [ERROR] Slack notify failed: {e!r}")
-                else:
-                    print("   ✅ [DEBUG] Slack notification done")
-                # Discord (si tienes integrado)
-                try:
-                    notifier.notify_discord(w, evt)
-                except Exception as e:
-                    print(f"   ❌ [ERROR] Discord notify failed: {e!r}")
-                else:
-                    print("   ✅ [DEBUG] Discord notification done")
+                    print(f"   ❌ [ERROR] notifier.notify() falló: {e!r}")
 
         time.sleep(settings.POLL_INTERVAL or 1)
 
@@ -95,21 +76,15 @@ def poll_and_notify(
 
 
 if __name__ == "__main__":
-    # Este bloque se ejecuta cuando Render corre: python -m api.app.watcher
     from api.app.config import SessionLocal
     from api.app.crud import get_watchers, create_event
 
     db = SessionLocal()
-
-    print("■■■■■■■■■■■■■■■■■■■■■■■■■■■■")
     print("▶ [DEBUG] Arrancando cron poll_and_notify")
-
     poll_and_notify(
         db=db,
         get_watchers=lambda: get_watchers(db),
         create_event=lambda data: create_event(db, schemas.TokenEventCreate(**data)),
     )
-
     db.close()
     print("▶ [DEBUG] cron terminado")
-    print("■■■■■■■■■■■■■■■■■■■■■■■■■■■■")
