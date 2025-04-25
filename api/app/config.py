@@ -1,18 +1,30 @@
-# api/app/config.py
-
 import os
 from pydantic_settings import BaseSettings
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 class Settings(BaseSettings):
+    # Credenciales y endpoints principales
     ETHERSCAN_API_KEY: str
     SLACK_WEBHOOK_URL: str
     DISCORD_WEBHOOK_URL: str
+    DATABASE_URL: str = "sqlite:///./watchers.db"
+
+    # Polling
     POLL_INTERVAL: int = 30
     MAX_BLOCK_RANGE: int = 10000
     START_BLOCK: int = 0
-    DATABASE_URL: str = "sqlite:///./watchers.db"
+
+    # Retry / backoff para notificaciones
+    NOTIFY_MAX_RETRIES: int = 3
+    NOTIFY_BACKOFF_BASE: float = 1.0
+
+    # Batching de alertas
+    SLACK_BATCH_SIZE: int = 5
+    DISCORD_BATCH_SIZE: int = 5
+
+    # URL base para enlaces Etherscan
+    ETHERSCAN_TX_URL: str = "https://etherscan.io/tx"
 
     class Config:
         env_file = os.path.join(os.path.dirname(__file__), '..', '.env')
@@ -21,7 +33,6 @@ class Settings(BaseSettings):
 settings = Settings()
 
 # Motor y sesión de SQLAlchemy
-# Solo pasamos check_same_thread si es SQLite:
 if settings.DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
         settings.DATABASE_URL,

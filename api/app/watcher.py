@@ -1,5 +1,3 @@
-# src/api/app/watcher.py
-
 import time
 import requests
 from typing import Callable, List, Dict
@@ -39,7 +37,7 @@ def poll_and_notify(
 ):
     """
     Recorre cada Watcher, busca nuevas transacciones, filtra por threshold,
-    registra TokenEvent y dispara notificación vía notifier.notify().
+    registra TokenEvent y acumula los eventos para enviarlos en batch.
     """
     print("🔄 [DEBUG] ▶ poll_and_notify start")
     watchers = get_watchers()
@@ -58,6 +56,9 @@ def poll_and_notify(
         txs = fetch_transfers(w.contract, start_block=start_block)
         print(f"   ▶ [DEBUG] encontrados {len(txs)} txs desde bloque {start_block}")
 
+        # Lista de eventos para batch
+        evts: List[schemas.TokenEventRead] = []
+
         for tx in txs:
             amt = float(tx["value"]) / 10**18
             print(f"   ▶ [DEBUG] tx @block={tx['blockNumber']} amount={amt:.6f}")
@@ -72,15 +73,14 @@ def poll_and_notify(
                 }
                 evt = create_event(payload)
                 print(f"   ✅ [DEBUG] Created event id={evt.id}")
+                evts.append(evt)
 
-                print("   🔔 [DEBUG] Notificando canales…")
-                try:
-                    notifier.notify(w, evt)
-                except Exception as e:
-                    print(f"   ❌ [ERROR] notifier.notify() falló: {e!r}")
-                else:
-                    print("   ✅ [DEBUG] Notification done")
+        # Envío en batch si hay eventos nuevos
+        if evts:
+            print("   🔔 [DEBUG] Notificando canales…")
+            notifier.notify_channels(w, evts)
 
+        # Espera para respetar rate limits
         time.sleep(settings.POLL_INTERVAL or 1)
 
     print("🔄 [DEBUG] ▶ poll_and_notify end")
