@@ -1,133 +1,122 @@
 # api/app/notifier.py
 
 import time
-import logging
-from typing import List, Dict, Any
+import math
 import requests
-from .schemas import TokenEventRead
+from typing import List, Dict, Any
 from .config import settings
 
-logger = logging.getLogger("notifier")
+def _backoff_sleep(attempt: int) -> None:
+    """Sleep exponential backoff: base * 2**(attempt-1)."""
+    delay = settings.NOTIFY_BACKOFF_BASE * (2 ** (attempt - 1))
+    print(f"⚠️ [WARN] retry {attempt}/{settings.NOTIFY_MAX_RETRIES} after {delay}s")
+    time.sleep(delay)
 
-
-def _post_with_retry(
-    url: str,
-    payload: Dict[str, Any],
-    headers: Dict[str, str] = None,
-    max_retries: int = None,
-    backoff_base: float = None,
-):
-    """Envía POST a `url` con retry + backoff exponencial."""
-    retries = 0
-    max_retries = max_retries or settings.NOTIFY_MAX_RETRIES  # e.g. 3
-    backoff_base = backoff_base or settings.NOTIFY_BACKOFF_BASE  # e.g. 1.0
-    while True:
-        try:
-            resp = requests.post(url, json=payload, headers=headers, timeout=10)
-            resp.raise_for_status()
-            return resp
-        except requests.HTTPError as e:
-            status = getattr(e.response, "status_code", None)
-            # sólo retry en 429 o 5xx
-            if status == 429 or (status and 500 <= status < 600):
-                if retries < max_retries:
-                    delay = backoff_base * (2**retries)
-                    logger.warning(f"Rate limited ({url}), retry {retries+1}/{max_retries} after {delay}s")
-                    time.sleep(delay)
-                    retries += 1
-                    continue
-            # si no es retryable o agotamos retries:
-            logger.error(f"Notify failed ({url}): {e!r}")
-            raise
-
-
-def _chunked(items: List[Any], size: int) -> List[List[Any]]:
-    """Divide lista en trozos de `size`."""
-    return [items[i : i + size] for i in range(0, len(items), size)]
-
-
-def notify_slack_batch(watcher: Any, events: List[TokenEventRead]):
+def notify_slack_blockkit(watcher: Any, events: List[Dict]) -> None:
     """
-    Envía un único mensaje a Slack con hasta SLACK_BATCH_SIZE alertas.
-    Usamos bloques (blocks) para formatear cada evento.
+    Envía hasta SLACK_BATCH_SIZE eventos usando Slack Block Kit.
     """
+    blocks: List[Dict[str, Any]] = []
+
+    # Header
+    blocks.append({
+        "type": "header",
+        "text": {"type": "plain_text", "text": f":rotating_light: TokenWatcher Alert: {watcher.name}", "emoji": True}
+    })
+    # Divider
+    blocks.append({"type": "divider"})
+
+    # Por cada evento, añadir sección con fields
+    for evt in events:
+        etherscan_url = f"{settings.ETHERSCAN_TX_URL}/{evt.tx_hash}"
+        when = evt.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+        blocks.append({
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*Contract:*\n```{watcher.contract}```"},
+                {"type": "mrkdwn", "text": f"*Volume:*\n{evt.volume:.4f} ETH"},
+                {"type": "mrkdwn", "text": f"*Block:*\n{evt.block_number}"},
+                {"type": "mrkdwn", "text": f"*When:*\n{when}"},
+                {"type": "mrkdwn", "text": f"*Tx:*\n<{etherscan_url}|Ver en Etherscan>"},
+            ]
+        })
+        blocks.append({"type": "divider"})
+
+    payload = {"blocks": blocks}
+
     url = settings.SLACK_WEBHOOK_URL
-    batch_size = settings.SLACK_BATCH_SIZE or len(events)
-    for chunk in _chunked(events, batch_size):
-        blocks = [
-            {"type": "header", "text": {"type": "plain_text", "text": f":rotating_light: TokenWatcher Alert: {watcher.name}"}}
-        ]
-        for e in chunk:
-            blocks.extend([
-                {"type": "section", "fields": [
-                    {"type": "mrkdwn", "text": f"*Contract:*\n```{e.contract}```"},
-                    {"type": "mrkdwn", "text": f"*Volume:*\n{e.volume:.4f} ETH"},
-                    {"type": "mrkdwn", "text": f"*Block:*\n{e.block_number}"},
-                    {"type": "mrkdwn", "text": f"*When:*\n{e.timestamp.strftime('%Y-%m-%d %H:%M:%S UTC')}"},
-                    {"type": "mrkdwn", "text": f"*Tx:*\n<{settings.ETHERSCAN_TX_URL}/{e.tx_hash}|Ver en Etherscan>"}
-                ]},
-                {"type": "divider"},
-            ])
-        payload = {"blocks": blocks}
-        _post_with_retry(url, payload)
+    for attempt in range(1, settings.NOTIFY_MAX_RETRIES + 1):
+        resp = requests.post(url, json=payload)
+        if resp.ok:
+            print("✅ [DEBUG] Slack notified")
+            return
+        else:
+            print(f"⚠️ [WARN] Slack rate limited ({resp.status_code}), retrying…")
+            _backoff_sleep(attempt)
+    raise RuntimeError(f"Slack notify failed after {settings.NOTIFY_MAX_RETRIES} attempts")
 
-
-def notify_discord_batch(watcher: Any, events: List[TokenEventRead]):
+def notify_discord_embed(watcher: Any, events: List[Dict]) -> None:
     """
-    Envía un único embed a Discord con hasta DISCORD_BATCH_SIZE campos.
+    Envía hasta DISCORD_BATCH_SIZE eventos usando embeds de Discord.
     """
-    url = settings.DISCORD_WEBHOOK_URL
-    batch_size = settings.DISCORD_BATCH_SIZE or len(events)
-    for chunk in _chunked(events, batch_size):
+    embeds: List[Dict[str, Any]] = []
+    for evt in events:
+        etherscan_url = f"{settings.ETHERSCAN_TX_URL}/{evt.tx_hash}"
+        when = evt.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")
         embed = {
             "title": f"🚨 Alert: {watcher.name}",
-            "color": 0xDD2222,
-            "fields": [],
-            "footer": {"text": "TokenWatcher-Cloud"},
-            "timestamp": None  # Discord rellenará al recibir
+            "color": 0xE03E2F,  # rojo token
+            "fields": [
+                {"name": "Contract", "value": f"`{watcher.contract}`", "inline": False},
+                {"name": "Volume",   "value": f"{evt.volume:.4f} ETH",    "inline": True},
+                {"name": "Block",    "value": f"{evt.block_number}",      "inline": True},
+                {"name": "When",     "value": when,                       "inline": False},
+                {"name": "Tx",       "value": f"[Ver en Etherscan]({etherscan_url})", "inline": False},
+            ],
+            "footer": {"text": "TokenWatcher-Cloud"}
         }
-        for e in chunk:
-            embed["fields"].append({
-                "name": "Contract",
-                "value": f"`{e.contract}`",
-                "inline": True
-            })
-            embed["fields"].append({
-                "name": "Volume",
-                "value": f"{e.volume:.4f} ETH",
-                "inline": True
-            })
-            embed["fields"].append({
-                "name": "Block",
-                "value": str(e.block_number),
-                "inline": True
-            })
-            embed["fields"].append({
-                "name": "Tx",
-                "value": f"[Ver en Etherscan]({settings.ETHERSCAN_TX_URL}/{e.tx_hash})",
-                "inline": False
-            })
-        payload = {"embeds": [embed]}
-        _post_with_retry(url, payload)
+        embeds.append(embed)
 
+    payload = {"embeds": embeds[:settings.DISCORD_BATCH_SIZE]}
 
-def notify_channels(watcher: Any, events: List[TokenEventRead]):
+    url = settings.DISCORD_WEBHOOK_URL
+    for attempt in range(1, settings.NOTIFY_MAX_RETRIES + 1):
+        resp = requests.post(url, json=payload)
+        if resp.ok:
+            print("✅ [DEBUG] Discord notified")
+            return
+        else:
+            print(f"⚠️ [WARN] Discord rate limited ({resp.status_code}), retrying…")
+            _backoff_sleep(attempt)
+    raise RuntimeError(f"Discord notify failed after {settings.NOTIFY_MAX_RETRIES} attempts")
+
+def notify(watcher: Any, event: Any) -> None:
     """
-    Punto único de entrada: envía batch a todos los canales configurados.
+    Función unificada: lee nuevos eventos sin procesar de la BD,
+    los agrupa y llama por lotes a Slack y Discord.
     """
-    errors = []
-    try:
-        notify_slack_batch(watcher, events)
-        logger.debug("Slack notified")
-    except Exception as e:
-        errors.append(f"Slack: {e!r}")
-    try:
-        notify_discord_batch(watcher, events)
-        logger.debug("Discord notified")
-    except Exception as e:
-        errors.append(f"Discord: {e!r}")
+    # importar crud aquí para evitar ciclo
+    from . import crud
+    db = crud.get_db_session()
+    pending = crud.get_unnotified_events(db, watcher.id)
+    if not pending:
+        return
 
-    if errors:
-        logger.error(f"[ERROR] Notification errors: {errors}")
-    else:
-        logger.debug("[DEBUG] Notification done")
+    # Procesar en batches
+    for i in range(0, len(pending), settings.SLACK_BATCH_SIZE):
+        batch = pending[i : i + settings.SLACK_BATCH_SIZE]
+        try:
+            notify_slack_blockkit(watcher, batch)
+        except Exception as e:
+            print(f"[ERROR] Slack notify failed: {e!r}")
+
+    for i in range(0, len(pending), settings.DISCORD_BATCH_SIZE):
+        batch = pending[i : i + settings.DISCORD_BATCH_SIZE]
+        try:
+            notify_discord_embed(watcher, batch)
+        except Exception as e:
+            print(f"[ERROR] Discord notify failed: {e!r}")
+
+    # Marcar como notificados
+    crud.mark_events_notified(db, [e.id for e in pending])
+    print("✅ [DEBUG] Notification done")
