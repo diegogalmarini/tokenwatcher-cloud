@@ -39,7 +39,16 @@ if settings.DATABASE_URL.startswith("sqlite"):
         connect_args={"check_same_thread": False}
     )
 else:
-    engine = create_engine(settings.DATABASE_URL)
+    # Asegúrate de que tu DATABASE_URL no termina ya en "?sslmode=…"
+    db_url = settings.DATABASE_URL
+    if "sslmode=" not in db_url:
+        db_url = db_url + "?sslmode=require"
+
+    engine = create_engine(
+        db_url,
+        pool_pre_ping=True,                # revalida conexiones muertas antes de usarlas
+        connect_args={"sslmode": "require"}# para psycopg2
+    )
 
 SessionLocal = sessionmaker(
     autocommit=False,
