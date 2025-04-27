@@ -10,8 +10,7 @@ class Settings(BaseSettings):
     ETHERSCAN_API_KEY: str
     SLACK_WEBHOOK_URL: str
     DISCORD_WEBHOOK_URL: str
-    # Pon aquí tu Internal Database URL (ver paso 2 abajo)
-    DATABASE_URL: str
+    DATABASE_URL: str = "sqlite:///./watchers.db"
 
     # Polling
     POLL_INTERVAL: int = 30
@@ -30,7 +29,7 @@ class Settings(BaseSettings):
     ETHERSCAN_TX_URL: str = "https://etherscan.io/tx"
 
     class Config:
-        env_file = os.path.join(os.path.dirname(__file__), "..", ".env")
+        env_file = os.path.join(os.path.dirname(__file__), '..', '.env')
         env_file_encoding = "utf-8"
 
 settings = Settings()
@@ -42,12 +41,16 @@ if settings.DATABASE_URL.startswith("sqlite"):
         connect_args={"check_same_thread": False}
     )
 else:
-    # Asegúrate de usar la INTERNAL_DATABASE_URL de Render aquí
-    # y forzar SSL + pre_ping
+    # asegurarnos de añadir sslmode=require y pool_pre_ping
+    db_url = settings.DATABASE_URL
+    if "sslmode" not in db_url:
+        sep = "&" if "?" in db_url else "?"
+        db_url = f"{db_url}{sep}sslmode=require"
+
     engine = create_engine(
-        settings.DATABASE_URL + "?sslmode=require",
+        db_url,
         pool_pre_ping=True,
-        connect_args={"sslmode": "require"},
+        connect_args={"sslmode": "require"}
     )
 
 SessionLocal = sessionmaker(
