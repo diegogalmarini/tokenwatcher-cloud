@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     ETHERSCAN_API_KEY: str
     SLACK_WEBHOOK_URL: str
     DISCORD_WEBHOOK_URL: str
-    DATABASE_URL: str = "sqlite:///./watchers.db"
+    # Pon aquí tu Internal Database URL (ver paso 2 abajo)
+    DATABASE_URL: str
 
     # Polling
     POLL_INTERVAL: int = 30
@@ -29,7 +30,7 @@ class Settings(BaseSettings):
     ETHERSCAN_TX_URL: str = "https://etherscan.io/tx"
 
     class Config:
-        env_file = os.path.join(os.path.dirname(__file__), '..', '.env')
+        env_file = os.path.join(os.path.dirname(__file__), "..", ".env")
         env_file_encoding = "utf-8"
 
 settings = Settings()
@@ -41,15 +42,12 @@ if settings.DATABASE_URL.startswith("sqlite"):
         connect_args={"check_same_thread": False}
     )
 else:
-    # Si no tienes sslmode en la URL, lo añadimos
-    db_url = settings.DATABASE_URL
-    if "sslmode" not in db_url:
-        db_url = db_url.rstrip("/") + "?sslmode=require"
-
+    # Asegúrate de usar la INTERNAL_DATABASE_URL de Render aquí
+    # y forzar SSL + pre_ping
     engine = create_engine(
-        db_url,
-        pool_pre_ping=True,               # revalida cada conexión antes de usarla
-        connect_args={"sslmode": "require"}  # para psycopg2 en Render
+        settings.DATABASE_URL + "?sslmode=require",
+        pool_pre_ping=True,
+        connect_args={"sslmode": "require"},
     )
 
 SessionLocal = sessionmaker(
