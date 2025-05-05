@@ -3,28 +3,25 @@ import os
 import sys
 import json
 import logging
+import tempfile
 from datetime import datetime, timedelta
 
-# ---- ESTE BLOQUE HACE QUE Python encuentre tu paquete api/ ----
-# Sitúa el directorio raíz del proyecto (uno arriba de scripts/) en sys.path
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
-# ----------------------------------------------------------------
+# ---- AÑADE ROOT al path para encontrar tu paquete api/ ----
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+# ---------------------------------------------------------
 
 import boto3
 from sqlalchemy import text
-from sqlalchemy.orm import Session
-
-# Ahora sí, podemos importar:
 from api.app.config import engine, SessionLocal
 
-# Configuración de logging
+# Logging
 logger = logging.getLogger("cleanup_and_archive")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 def main():
-    # Lectura de variables de entorno
+    # Vars de entorno
     DATABASE_URL = os.getenv("DATABASE_URL")
     S3_BUCKET    = os.getenv("S3_BUCKET")
     AWS_REGION   = os.getenv("AWS_REGION", "us-east-1")
@@ -33,33 +30,50 @@ def main():
         logger.error("Faltan variables de entorno: DATABASE_URL y/o S3_BUCKET")
         return
 
-    # Calculamos el cutoff de hace 1 día
+    # cutoff hace 1 día
     cutoff = datetime.utcnow() - timedelta(days=1)
     logger.info(f"Archiving events older than {cutoff.isoformat()}")
 
-    # Abrimos sesión contra Postgres
+    # 1) Crear cursor server-side para no cargar todo en RAM
+    raw_conn = engine.raw_connection()
+    cur = raw_conn.cursor(name="archive_cursor")
+    cur.itersize = 1000
+    cur.execute(
+        "SELECT * FROM token_events WHERE timestamp < %s",
+        (cutoff,)
+    )
+
+    # 2) Escribir JSON por trozos a un temp file
+    tmp = tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".json")
+    tmp.write("[")
+    first = True
+
+    # Cabeceras
+    cols = [d[0] for d in cur.description]
+
+    for record in cur:
+        row = dict(zip(cols, record))
+        if not first:
+            tmp.write(",")
+        tmp.write(json.dumps(row))
+        first = False
+
+    tmp.write("]")
+    tmp.flush()
+    tmp.close()
+    cur.close()
+    raw_conn.close()
+
+    key = f"token_events/{cutoff.strftime('%Y-%m-%d_%H%M%S')}.json"
+    logger.info(f"Uploading to S3: s3://{S3_BUCKET}/{key}")
+
+    # 3) Subir con boto3 usando multipart si hace falta
+    s3 = boto3.client("s3", region_name=AWS_REGION)
+    s3.upload_file(tmp.name, S3_BUCKET, key)
+    logger.info("Upload a S3 completado.")
+
+    # 4) Eliminar viejos de la DB
     with SessionLocal() as session:
-        # 1) Seleccionar eventos antiguos
-        rows = session.execute(
-            text("SELECT * FROM token_events WHERE timestamp < :cutoff"),
-            {"cutoff": cutoff}
-        ).all()
-
-        if not rows:
-            logger.info("No hay eventos para archivar.")
-            return
-
-        # 2) Serializar a JSON
-        payload = [dict(row._mapping) for row in rows]
-        key = f"token_events/{cutoff.strftime('%Y-%m-%d_%H%M%S')}.json"
-        logger.info(f"Preparando {len(payload)} eventos para S3: s3://{S3_BUCKET}/{key}")
-
-        # 3) Subir a S3
-        s3 = boto3.client("s3", region_name=AWS_REGION)
-        s3.put_object(Bucket=S3_BUCKET, Key=key, Body=json.dumps(payload))
-        logger.info("Upload a S3 completado.")
-
-        # 4) Borrar de la base de datos
         session.execute(
             text("DELETE FROM token_events WHERE timestamp < :cutoff"),
             {"cutoff": cutoff}
@@ -67,10 +81,13 @@ def main():
         session.commit()
         logger.info("Eventos antiguos eliminados de la base de datos.")
 
-    # 5) VACUUM ANALYZE para compactar y actualizar estadísticas
+    # 5) VACUUM ANALYZE
     with engine.connect() as conn:
         conn.execute(text("VACUUM ANALYZE token_events;"))
     logger.info("VACUUM ANALYZE realizado.")
+
+    # 6) Borrar el temp file
+    os.remove(tmp.name)
 
 if __name__ == "__main__":
     main()
