@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     DISCORD_BATCH_SIZE: int = 5
 
     # Database connection
-    DATABASE_URL: str = "sqlite:///./watchers.db"
+    DATABASE_URL: str
 
     # Poller settings
     POLL_INTERVAL: int = 30
@@ -33,8 +33,10 @@ class Settings(BaseSettings):
     AWS_REGION: str
 
     class Config:
-        # Load environment variables from .env in project root
-        env_file = os.path.join(os.path.dirname(__file__), '..', '.env')
+        # Ahora sí apuntamos a /app/.env
+        env_file = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), '..', '..', '.env')
+        )
         env_file_encoding = "utf-8"
 
 settings = Settings()
