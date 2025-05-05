@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
 import os
+import sys
 import json
 import logging
 from datetime import datetime, timedelta
+
+# ---- ESTE BLOQUE HACE QUE Python encuentre tu paquete api/ ----
+# Sitúa el directorio raíz del proyecto (uno arriba de scripts/) en sys.path
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+# ----------------------------------------------------------------
 
 import boto3
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-# Importamos el engine y SessionLocal de nuestra configuración
+# Ahora sí, podemos importar:
 from api.app.config import engine, SessionLocal
 
 # Configuración de logging
