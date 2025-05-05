@@ -33,10 +33,8 @@ class Settings(BaseSettings):
     AWS_REGION: str
 
     class Config:
-        # Ahora sí apuntamos a /app/.env
-        env_file = os.path.abspath(
-            os.path.join(os.path.dirname(__file__), '..', '..', '.env')
-        )
+        # Secret Files from Render se montan en /etc/secrets/.env
+        env_file = "/etc/secrets/.env"
         env_file_encoding = "utf-8"
 
 settings = Settings()
