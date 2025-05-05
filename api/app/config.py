@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     DISCORD_WEBHOOK_URL: str
     DISCORD_BATCH_SIZE: int = 5
 
-    # Database connection
+    # Database connection (Postgres or SQLite fallback)
     DATABASE_URL: str
 
     # Poller settings
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     MAX_BLOCK_RANGE: int = 10000
     START_BLOCK: int = 0
 
-    # Retry/backoff
+    # Retry / backoff
     NOTIFY_MAX_RETRIES: int = 3
     NOTIFY_BACKOFF_BASE: float = 1.0
 
@@ -33,20 +33,21 @@ class Settings(BaseSettings):
     AWS_REGION: str
 
     class Config:
-        # Secret Files from Render se montan en /etc/secrets/.env
-        env_file = "/etc/secrets/.env"
-        env_file_encoding = "utf-8"
+        # Read exclusively from system env vars
+        case_sensitive = True
 
+# Instantiate settings (will raise if any required var is missing)
 settings = Settings()
 
-# Create SQLAlchemy engine and session
+# Build SQLAlchemy engine & session
 if settings.DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
         settings.DATABASE_URL,
-        connect_args={"check_same_thread": False}
+        connect_args={"check_same_thread": False},
     )
 else:
     url = settings.DATABASE_URL
+    # Enforce SSL for Postgres if not already present
     if "sslmode=" not in url:
         url += "?sslmode=require"
     engine = create_engine(
@@ -58,5 +59,5 @@ else:
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
-    bind=engine
+    bind=engine,
 )
