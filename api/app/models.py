@@ -2,7 +2,7 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.types import JSON
-from .database import Base # <-- CAMBIO: Importar Base desde .database
+from .database import Base # Importar Base desde .database (asegúrate que database.py define Base)
 
 class Watcher(Base):
     __tablename__ = "watchers"
@@ -10,21 +10,21 @@ class Watcher(Base):
     name = Column(String(100), index=True, nullable=False)
     token_address = Column(String(42), nullable=False)
     threshold = Column(Float, nullable=False)
-    webhook_url = Column(String, nullable=False)
+    webhook_url = Column(String, nullable=False) # Asumimos que ya es un string aquí
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     events = relationship("Event", back_populates="watcher", cascade="all, delete-orphan", passive_deletes=True)
     transports = relationship("Transport", back_populates="watcher", cascade="all, delete-orphan")
 
 class Event(Base):
-    __tablename__ = "events"
+    __tablename__ = "events" # Consistente con tus logs de Purge y Partition
     id = Column(Integer, primary_key=True, index=True)
     watcher_id = Column(Integer, ForeignKey("watchers.id", ondelete="CASCADE"), nullable=False)
-    token_address_observed = Column(String(42), nullable=False)
+    token_address_observed = Column(String(42), nullable=False) # Columna que faltaba en la BD
     amount = Column(Float, nullable=False)
-    transaction_hash = Column(String(66), unique=True, nullable=False, index=True)
+    transaction_hash = Column(String(66), unique=True, nullable=False, index=True) # Asegurar UNIQUE en BD
     block_number = Column(Integer, nullable=False, index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now()) # Timestamp de la creación del registro
     watcher = relationship("Watcher", back_populates="events")
 
 class Transport(Base):
@@ -36,9 +36,9 @@ class Transport(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     watcher = relationship("Watcher", back_populates="transports")
 
-class TokenVolume(Base): # <-- NUEVO: Definición básica de TokenVolume
+class TokenVolume(Base):
     __tablename__ = "token_volumes"
-    id = Column(Integer, primary_key=True, index=True) # Añadido un ID primario
+    id = Column(Integer, primary_key=True, index=True)
     contract = Column(String(42), unique=True, nullable=False, index=True)
     volume = Column(Float, nullable=False, default=0.0)
     last_updated = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
