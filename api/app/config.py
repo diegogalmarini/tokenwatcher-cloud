@@ -1,8 +1,6 @@
 # api/app/config.py
 import os
 from pydantic_settings import BaseSettings
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base # <-- CAMBIO: Añadido declarative_base
 
 class Settings(BaseSettings):
     # On-chain API keys and endpoints
@@ -16,7 +14,7 @@ class Settings(BaseSettings):
     DISCORD_BATCH_SIZE: int = 5
 
     # Database connection (Postgres or SQLite fallback)
-    DATABASE_URL: str
+    DATABASE_URL: str # Esta URL será usada por database.py
 
     # Poller settings
     POLL_INTERVAL: int = 30
@@ -34,33 +32,8 @@ class Settings(BaseSettings):
     AWS_REGION: str
 
     class Config:
-        # Read exclusively from system env vars
         case_sensitive = True
+        # env_file = ".env" # Descomentar para desarrollo local si usas .env
+        # env_file_encoding = "utf-8"
 
-# Instantiate settings (will raise if any required var is missing)
 settings = Settings()
-
-# Build SQLAlchemy engine & session
-if settings.DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(
-        settings.DATABASE_URL,
-        connect_args={"check_same_thread": False},
-    )
-else:
-    url = settings.DATABASE_URL
-    # Enforce SSL for Postgres if not already present
-    if "sslmode=" not in url:
-        url += "?sslmode=require" # Render usualmente requiere SSL
-    engine = create_engine(
-        url,
-        pool_pre_ping=True,
-        # connect_args={"sslmode": "require"}, # Redundante si ya está en la URL
-    )
-
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine,
-)
-
-Base = declarative_base() # <-- CAMBIO: Definición de Base
