@@ -1,7 +1,8 @@
+# api/app/config.py
 import os
 from pydantic_settings import BaseSettings
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base # <-- CAMBIO: Añadido declarative_base
 
 class Settings(BaseSettings):
     # On-chain API keys and endpoints
@@ -49,11 +50,11 @@ else:
     url = settings.DATABASE_URL
     # Enforce SSL for Postgres if not already present
     if "sslmode=" not in url:
-        url += "?sslmode=require"
+        url += "?sslmode=require" # Render usualmente requiere SSL
     engine = create_engine(
         url,
         pool_pre_ping=True,
-        connect_args={"sslmode": "require"},
+        # connect_args={"sslmode": "require"}, # Redundante si ya está en la URL
     )
 
 SessionLocal = sessionmaker(
@@ -61,3 +62,5 @@ SessionLocal = sessionmaker(
     autoflush=False,
     bind=engine,
 )
+
+Base = declarative_base() # <-- CAMBIO: Definición de Base
