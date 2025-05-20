@@ -18,11 +18,11 @@ def fetch_transfers(contract: str, start_block: int = 0) -> List[Dict]:
         "action": "tokentx",
         "contractaddress": contract,
         "startblock": start_block,
-        "endblock": 99999999,
+        "endblock": start_block + settings.MAX_BLOCK_RANGE,
         "sort": "asc",
         "apikey": settings.ETHERSCAN_API_KEY,
     }
-    resp = requests.get(ETHERSCAN_API, params=params)
+    resp = requests.get(ETHERSCAN_API, params=params, timeout=10)
     data = resp.json()
     if data.get("status") != "1":
         print(f"⚠️ [DEBUG] Etherscan no devolvió transfers status=1: {data.get('message')}")
@@ -37,7 +37,7 @@ def poll_and_notify(
 ):
     """
     Recorre cada Watcher, busca nuevas transacciones, filtra por threshold,
-    registra TokenEvent y acumula los eventos para enviarlos en batch.
+    registra TokenEvent y dispara notificación vía notifier.notify().
     """
     print("🔄 [DEBUG] ▶ poll_and_notify start")
     watchers = get_watchers()
@@ -56,9 +56,6 @@ def poll_and_notify(
         txs = fetch_transfers(w.contract, start_block=start_block)
         print(f"   ▶ [DEBUG] encontrados {len(txs)} txs desde bloque {start_block}")
 
-        # Lista de eventos para batch
-        evts: List[schemas.TokenEventRead] = []
-
         for tx in txs:
             amt = float(tx["value"]) / 10**18
             print(f"   ▶ [DEBUG] tx @block={tx['blockNumber']} amount={amt:.6f}")
@@ -73,14 +70,15 @@ def poll_and_notify(
                 }
                 evt = create_event(payload)
                 print(f"   ✅ [DEBUG] Created event id={evt.id}")
-                evts.append(evt)
 
-        # Envío en batch si hay eventos nuevos
-        if evts:
-            print("   🔔 [DEBUG] Notificando canales…")
-            notifier.notify_channels(w, evts)
+                print("   🔔 [DEBUG] Notificando canales…")
+                try:
+                    notifier.notify(w, evt)
+                except Exception as e:
+                    print(f"   ❌ [ERROR] notifier.notify() falló: {e!r}")
+                else:
+                    print("   ✅ [DEBUG] Notification done")
 
-        # Espera para respetar rate limits
         time.sleep(settings.POLL_INTERVAL or 1)
 
     print("🔄 [DEBUG] ▶ poll_and_notify end")
@@ -92,16 +90,13 @@ if __name__ == "__main__":
     from api.app.crud import get_watchers, create_event
 
     db = SessionLocal()
-
     print("■■■■■■■■■■■■■■■■■■■■■■■■■■■■")
     print("▶ [DEBUG] Arrancando cron poll_and_notify")
-
     poll_and_notify(
         db=db,
         get_watchers=lambda: get_watchers(db),
         create_event=lambda data: create_event(db, schemas.TokenEventCreate(**data)),
     )
-
     db.close()
     print("▶ [DEBUG] cron terminado")
     print("■■■■■■■■■■■■■■■■■■■■■■■■■■■■")
