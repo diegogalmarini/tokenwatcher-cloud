@@ -1,7 +1,8 @@
 # api/app/models.py
 from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey
 from sqlalchemy.orm import relationship
-from .config import Base # <-- CAMBIO: Importar Base desde .config
+from sqlalchemy.types import JSON # <-- CAMBIO: Añadido para el campo config de Transport
+from .config import Base
 
 class Watcher(Base):
     __tablename__ = "watchers"
@@ -24,6 +25,8 @@ class Watcher(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    # Relación opcional a Transports, si quieres acceder a ellos desde un Watcher.
+    # transports = relationship("Transport", back_populates="watcher")
 
 class Event(Base):
     __tablename__ = "events"
@@ -42,7 +45,14 @@ class Event(Base):
 
     watcher = relationship("Watcher", back_populates="events")
 
-# Aquí también iría tu modelo Transport si lo defines en models.py
-# class Transport(Base):
-#     __tablename__ = "transports"
-#     # ... define sus columnas y relaciones
+class Transport(Base): # <-- CAMBIO: Nueva clase Transport añadida
+    __tablename__ = "transports"
+
+    id = Column(Integer, primary_key=True, index=True)
+    watcher_id = Column(Integer, ForeignKey("watchers.id", ondelete="CASCADE"), nullable=False)
+    type = Column(String, nullable=False)  # Ej: "slack", "discord", "webhook_generic"
+    config = Column(JSON, nullable=False)  # Ej: {"url": "https://hooks.slack.com/..."} o {"token": "xyz", "channel_id":"123"}
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relación opcional al Watcher, si quieres acceder al watcher desde un transport.
+    # watcher = relationship("Watcher", back_populates="transports")
