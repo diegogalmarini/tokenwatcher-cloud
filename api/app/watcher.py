@@ -1,11 +1,12 @@
 # api/app/watcher.py
 import time
 import requests
-from typing import Callable, List, Dict, Any
+import json # Necesario para json.JSONDecodeError si lo usas
+from typing import Callable, List, Dict, Any 
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from . import schemas, crud, notifier # crud y notifier deben estar definidos
+from . import schemas, crud, notifier
 from .config import settings
 from .models import Watcher as WatcherModel, Event as EventModel
 
@@ -24,8 +25,10 @@ def fetch_transfers(contract_address: str, start_block: int) -> List[Dict[str, A
         "sort": "asc", "apikey": settings.ETHERSCAN_API_KEY,
     }
     print(f"  📞 [FETCH_TRANSFERS] Consultando Etherscan para {contract_address} desde bloque {start_block}...")
+    response_text = "" # Para logueo en caso de JSONDecodeError
     try:
         response = requests.get(ETHERSCAN_API_URL, params=params, timeout=20)
+        response_text = response.text # Guardar texto para posible error de JSON
         response.raise_for_status()
         data = response.json()
         if data.get("status") == "1":
@@ -44,8 +47,8 @@ def fetch_transfers(contract_address: str, start_block: int) -> List[Dict[str, A
     except requests.exceptions.RequestException as e:
         print(f"  ❌ [FETCH_TRANSFERS_ERROR] Fallo en la solicitud a Etherscan API para {contract_address}: {e}")
         return []
-    except json.JSONDecodeError: # Necesitas importar json al principio del archivo
-        print(f"  ❌ [FETCH_TRANSFERS_ERROR] Error al decodificar JSON de Etherscan para {contract_address}. Respuesta: {response.text[:200] if 'response' in locals() else 'N/A'}")
+    except json.JSONDecodeError:
+        print(f"  ❌ [FETCH_TRANSFERS_ERROR] Error al decodificar JSON de Etherscan para {contract_address}. Respuesta: {response_text[:500]}") # Loguear parte de la respuesta
         return []
 
 def poll_and_notify(
@@ -130,7 +133,6 @@ def poll_and_notify(
 
                 if settings.DISCORD_WEBHOOK_URL and settings.DISCORD_WEBHOOK_URL != "YOUR_DISCORD_WEBHOOK_URL_HERE":
                     print(f"    ℹ️ [DISCORD_BATCH] Enviando {len(newly_created_events_for_this_watcher)} evento(s) a Discord para watcher '{watcher_instance.name}'...")
-                    # Usar la versión de notify_discord_embed que maneja lotes internamente
                     notifier.notify_discord_embed(watcher=watcher_instance, events_list=newly_created_events_for_this_watcher) 
                 else:
                     print("    ℹ️ [DISCORD_BATCH] Discord webhook URL no configurada. Saltando.")
@@ -140,13 +142,14 @@ def poll_and_notify(
         else:
             print(f"  ℹ️ [NO_NEW_EVENTS_TO_NOTIFY] No hay eventos nuevos que cumplan el umbral para notificar para Watcher ID={watcher_instance.id} en este ciclo.")
 
-        if len(active_watchers) > 1:
-            time.sleep(1)
+        if len(active_watchers) > 1: # Solo aplicar delay si hay más watchers en la cola
+            time.sleep(settings.POLL_INTERVAL / len(active_watchers) if len(active_watchers) > 0 else settings.POLL_INTERVAL ) # Un delay dinámico o fijo
+            # O un simple time.sleep(1) o time.sleep(0.5)
 
     print("🔄 [POLL_CYCLE] Ciclo de sondeo y notificación finalizado.")
 
 if __name__ == "__main__":
-    from api.app.database import SessionLocal # Importación corregida
+    from api.app.database import SessionLocal 
     # crud y schemas se importan al principio del archivo
 
     db_session = SessionLocal()
@@ -154,7 +157,7 @@ if __name__ == "__main__":
     print("▶ [WATCHER_SCRIPT_RUN] Iniciando TokenWatcher Poller (ejecución directa de script)...")
     try:
         get_watchers_for_run = lambda: crud.get_watchers(db_session)
-        create_event_for_run = lambda data_payload: crud.create_event(db_session, data_payload) # data_payload ya es schemas.TokenEventCreate
+        create_event_for_run = lambda data_payload: crud.create_event(db_session, data_payload)
         poll_and_notify(
             db=db_session,
             get_watchers_func=get_watchers_for_run,
