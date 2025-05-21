@@ -1,38 +1,49 @@
 # api/app/models.py
-from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, UniqueConstraint, PrimaryKeyConstraint, Sequence # <--- AÑADIR Sequence
+from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Boolean, Sequence, UniqueConstraint, PrimaryKeyConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.types import JSON
-from .database import Base 
+from .database import Base # Importar Base desde .database
 
-# ... (Clase Watcher, Transport, TokenVolume sin cambios respecto a la última versión que te di) ...
+# --- Modelo User ---
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(255), unique=True, index=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True) # Puedes añadir este campo
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    watchers = relationship("Watcher", back_populates="owner", cascade="all, delete-orphan")
+
 class Watcher(Base):
     __tablename__ = "watchers"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), index=True, nullable=False)
     token_address = Column(String(42), nullable=False)
     threshold = Column(Float, nullable=False)
-    webhook_url = Column(String, nullable=False) 
+    webhook_url = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False) # Clave foránea a User
+    owner = relationship("User", back_populates="watchers") # Relación
+
     events = relationship("Event", back_populates="watcher", cascade="all, delete-orphan", passive_deletes=True)
     transports = relationship("Transport", back_populates="watcher", cascade="all, delete-orphan")
 
 class Event(Base):
     __tablename__ = "events"
-    
-    # CAMBIO: Definición explícita de la secuencia para 'id'
-    id_seq = Sequence('events_id_seq') # Define una secuencia (PostgreSQL la crea si no existe con este nombre)
-    id = Column(Integer, id_seq, server_default=id_seq.next_value(), index=True, nullable=False)
-    
+    id_seq = Sequence('events_id_seq')
+    id = Column(Integer, server_default=id_seq.next_value(), nullable=False) # No primary_key=True aquí si es parte de PK compuesta
     watcher_id = Column(Integer, ForeignKey("watchers.id", ondelete="CASCADE"), nullable=False)
     token_address_observed = Column(String(42), nullable=False)
     amount = Column(Float, nullable=False)
-    transaction_hash = Column(String(66), nullable=False, index=True) # UniqueConstraint se define abajo
+    transaction_hash = Column(String(66), nullable=False, index=True) 
     block_number = Column(Integer, nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True, nullable=False)
-
     watcher = relationship("Watcher", back_populates="events")
-
     __table_args__ = (
         PrimaryKeyConstraint('id', 'created_at'),
         UniqueConstraint('transaction_hash', 'created_at', name='uq_events_transaction_hash_created_at'),
