@@ -1,0 +1,7 @@
+-- Borra eventos antiguos de la tabla token_events para evitar crecimiento ilimitado
+-- Mantiene solo los últimos 1 días de historial.
+DELETE FROM token_events
+WHERE created_at < now() - INTERVAL '1 days';
+
+-- Opcional: optimiza la tabla después de borrar muchos registros (solo en PostgreSQL)
+VACUUM ANALYZE token_events;

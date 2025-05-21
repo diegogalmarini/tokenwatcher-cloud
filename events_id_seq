@@ -1,0 +1,22 @@
+                                       Partitioned table "public.events"
+         Column         |           Type           | Collation | Nullable |              Default               
+------------------------+--------------------------+-----------+----------+------------------------------------
+ id                     | integer                  |           | not null | nextval('events_id_seq'::regclass)
+ watcher_id             | integer                  |           | not null | 
+ token_address_observed | character varying(42)    |           | not null | 
+ amount                 | double precision         |           | not null | 
+ transaction_hash       | character varying(66)    |           | not null | 
+ block_number           | integer                  |           | not null | 
+ created_at             | timestamp with time zone |           | not null | now()
+Partition key: RANGE (created_at)
+Indexes:
+    "events_pkey" PRIMARY KEY, btree (id, created_at)
+    "ix_events_block_number" btree (block_number)
+    "ix_events_created_at" btree (created_at)
+    "ix_events_id" btree (id)
+    "ix_events_transaction_hash" btree (transaction_hash)
+    "uq_events_transaction_hash_created_at" UNIQUE CONSTRAINT, btree (transaction_hash, created_at)
+Foreign-key constraints:
+    "events_watcher_id_fkey" FOREIGN KEY (watcher_id) REFERENCES watchers(id) ON DELETE CASCADE
+Number of partitions: 3 (Use \d+ to list them.)
+
