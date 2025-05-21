@@ -1,11 +1,10 @@
 # api/app/models.py
-from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, UniqueConstraint, PrimaryKeyConstraint
+from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, UniqueConstraint, PrimaryKeyConstraint, Sequence # <--- AÑADIR Sequence
 from sqlalchemy.orm import relationship
 from sqlalchemy.types import JSON
 from .database import Base 
 
-# ... (Clases Watcher, Transport, TokenVolume como antes) ...
-
+# ... (Clase Watcher, Transport, TokenVolume sin cambios respecto a la última versión que te di) ...
 class Watcher(Base):
     __tablename__ = "watchers"
     id = Column(Integer, primary_key=True, index=True)
@@ -21,21 +20,22 @@ class Watcher(Base):
 class Event(Base):
     __tablename__ = "events"
     
-    # Columnas
-    id = Column(Integer, index=True, nullable=False) # 'id' ya no es serial autoincrementado por defecto aquí, se maneja por PK
+    # CAMBIO: Definición explícita de la secuencia para 'id'
+    id_seq = Sequence('events_id_seq') # Define una secuencia (PostgreSQL la crea si no existe con este nombre)
+    id = Column(Integer, id_seq, server_default=id_seq.next_value(), index=True, nullable=False)
+    
     watcher_id = Column(Integer, ForeignKey("watchers.id", ondelete="CASCADE"), nullable=False)
     token_address_observed = Column(String(42), nullable=False)
     amount = Column(Float, nullable=False)
-    transaction_hash = Column(String(66), nullable=False, index=True) 
+    transaction_hash = Column(String(66), nullable=False, index=True) # UniqueConstraint se define abajo
     block_number = Column(Integer, nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True, nullable=False)
 
     watcher = relationship("Watcher", back_populates="events")
 
-    # CAMBIOS CLAVE PARA RESTRICCIONES EN TABLA PARTICIONADA:
     __table_args__ = (
-        PrimaryKeyConstraint('id', 'created_at'), # Clave primaria compuesta
-        UniqueConstraint('transaction_hash', 'created_at', name='uq_events_transaction_hash_created_at'), # Restricción de unicidad compuesta
+        PrimaryKeyConstraint('id', 'created_at'),
+        UniqueConstraint('transaction_hash', 'created_at', name='uq_events_transaction_hash_created_at'),
         {
             'postgresql_partition_by': 'RANGE (created_at)'
         }
