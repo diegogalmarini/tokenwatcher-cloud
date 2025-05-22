@@ -1,8 +1,8 @@
 # api/app/models.py
 from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Boolean, Sequence, UniqueConstraint, PrimaryKeyConstraint
 from sqlalchemy.orm import relationship
-from sqlalchemy.types import JSON # Asegúrate que JSON está importado
-from .database import Base # Importar Base desde .database
+from sqlalchemy.types import JSON
+from .database import Base
 
 # --- Modelo User ---
 class User(Base):
@@ -11,7 +11,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=True) 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -23,23 +23,20 @@ class Watcher(Base):
     name = Column(String(100), index=True, nullable=False)
     token_address = Column(String(42), nullable=False)
     threshold = Column(Float, nullable=False)
-    webhook_url = Column(String, nullable=True) # CAMBIO: Permitir que sea nulo
+    is_active = Column(Boolean, default=True, nullable=False) # NUEVO CAMPO
+    # webhook_url ELIMINADO DE AQUÍ
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     owner = relationship("User", back_populates="watchers")
 
-    # Asegurar que las relaciones con cascade estén bien definidas
-    events = relationship("Event", back_populates="watcher", cascade="all, delete-orphan", passive_deletes=True) # passive_deletes=True es importante si la BD usa ON DELETE CASCADE
+    events = relationship("Event", back_populates="watcher", cascade="all, delete-orphan", passive_deletes=True)
     transports = relationship("Transport", back_populates="watcher", cascade="all, delete-orphan", passive_deletes=True)
 
 class Event(Base):
     __tablename__ = "events"
-    # id_seq = Sequence('events_id_seq') # SQLAlchemy 2.0 maneja secuencias implicitamente para identity si se usa server_default
-    # Para PostgreSQL, podrías usar Identity strategy en lugar de Sequence directamente si es más simple.
-    # Por ahora, mantendremos tu Sequence si así lo prefieres.
-    id_seq = Sequence('events_id_seq') # Si usas esta secuencia, asegúrate que existe en la BD o se crea.
+    id_seq = Sequence('events_id_seq') 
     id = Column(Integer, server_default=id_seq.next_value(), nullable=False) 
     watcher_id = Column(Integer, ForeignKey("watchers.id", ondelete="CASCADE"), nullable=False)
     token_address_observed = Column(String(42), nullable=False)
@@ -51,7 +48,7 @@ class Event(Base):
     watcher = relationship("Watcher", back_populates="events")
     
     __table_args__ = (
-        PrimaryKeyConstraint('id', 'created_at'), # Clave primaria compuesta para particionamiento
+        PrimaryKeyConstraint('id', 'created_at'),
         UniqueConstraint('transaction_hash', 'created_at', name='uq_events_transaction_hash_created_at'),
         {
             'postgresql_partition_by': 'RANGE (created_at)'
@@ -61,9 +58,9 @@ class Event(Base):
 class Transport(Base):
     __tablename__ = "transports"
     id = Column(Integer, primary_key=True, index=True)
-    watcher_id = Column(Integer, ForeignKey("watchers.id", ondelete="CASCADE"), nullable=False) # ondelete="CASCADE" es bueno aquí
-    type = Column(String(50), nullable=False) # "discord", "slack", etc.
-    config = Column(JSON, nullable=False) # Ej: {"url": "http://discord_webhook_url"}
+    watcher_id = Column(Integer, ForeignKey("watchers.id", ondelete="CASCADE"), nullable=False)
+    type = Column(String(50), nullable=False)
+    config = Column(JSON, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     watcher = relationship("Watcher", back_populates="transports")

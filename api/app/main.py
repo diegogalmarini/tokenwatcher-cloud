@@ -1,128 +1,133 @@
 # api/app/main.py
-from fastapi import FastAPI, Depends, HTTPException, status # status añadido
+from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from pydantic import HttpUrl 
 
-from .database import engine, SessionLocal, get_db
-from . import models, schemas, crud, auth # auth ahora se usa activamente
-from .config import settings
-# from fastapi_utils.tasks import repeat_every # Comentado si no se usa el polling en API
+from .database import engine, get_db
+from . import models, schemas, crud, auth
 
-# Crea las tablas (incluyendo la nueva tabla 'users') si no existen
 try:
+    print("ℹ️ [DB_INIT] Intentando crear/verificar todas las tablas definidas en Base...")
     models.Base.metadata.create_all(bind=engine)
-    print("✅ [DB_INIT] Tables (including users, TokenVolume) checked/created successfully.")
+    print("✅ [DB_INIT] Tablas verificadas/creadas con éxito.")
 except Exception as e:
-    print(f"❌ [DB_INIT_ERROR] Could not create/check tables: {e}")
+    print(f"❌ [DB_INIT_ERROR] No se pudieron crear/verificar las tablas: {e}")
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.5.0", # Nueva versión con Auth
-    description="API para monitorizar transferencias de tokens ERC-20 y enviar notificaciones, con autenticación de usuarios."
+    version="0.7.0", # Versión con CRUD completo y lógica de Transport/is_active
+    description="API para monitorizar transferencias de tokens ERC-20. Webhook es obligatorio al crear Watcher. Watchers pueden ser activados/desactivados."
 )
 
-# --- Incluir Routers ---
-# El router de autenticación manejará /auth/register y /auth/token
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
+# --- Funciones Auxiliares ---
+def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Session) -> schemas.WatcherRead:
+    active_webhook_url: Optional[HttpUrl] = None
+    # Obtener el primer transport "principal". En el futuro, podría haber una forma de marcar un transport como primario.
+    # Por ahora, si el watcher tiene transports, tomamos el primero.
+    if db_watcher.transports: # Accede a la relación cargada (si se usó selectinload) o carga lazy
+        first_transport = db_watcher.transports[0]
+        if first_transport.config and "url" in first_transport.config:
+            try:
+                active_webhook_url = HttpUrl(first_transport.config["url"])
+            except Exception: # Pydantic HttpUrl validation error
+                active_webhook_url = None
+                print(f"Warning: URL en config de Transport ID={first_transport.id} no es HttpUrl válida: {first_transport.config['url']}")
+    
+    return schemas.WatcherRead(
+        id=db_watcher.id,
+        owner_id=db_watcher.owner_id,
+        name=db_watcher.name,
+        token_address=db_watcher.token_address,
+        threshold=db_watcher.threshold,
+        is_active=db_watcher.is_active,
+        webhook_url=active_webhook_url,
+        created_at=db_watcher.created_at,
+        updated_at=db_watcher.updated_at
+    )
 
 # --- Health & System Endpoints ---
 @app.get("/health", tags=["System"])
 def health_check():
     return {"status": "ok", "message": "TokenWatcher API is healthy"}
 
-@app.get("/", tags=["System"], include_in_schema=False)
+@app.get("/", tags=["System"], include_in_schema=False) # Restaurado
 def api_root_demo():
-    return {"message": "🎉 Welcome to TokenWatcher API! Visit /docs for API documentation."}
+    return {"message": "🎉 Welcome to TokenWatcher API v0.7.0! Visit /docs for API documentation."}
 
-# --- Watchers CRUD (AHORA PROTEGIDOS Y ASOCIADOS A USUARIO) ---
+# --- Watchers CRUD ---
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
 def create_new_watcher_for_current_user(
     watcher_data: schemas.WatcherCreate, 
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user) # Dependencia de autenticación
+    current_user: models.User = Depends(auth.get_current_user)
 ):
-    return crud.create_watcher(db=db, watcher=watcher_data, owner_id=current_user.id)
+    db_watcher = crud.create_watcher(db=db, watcher_data=watcher_data, owner_id=current_user.id)
+    # Para asegurar que la relación 'transports' esté disponible para _populate_watcher_read_from_db_watcher
+    # podemos refrescar el objeto db_watcher específicamente para esa relación o hacer una nueva query.
+    # La forma más simple es que _populate_watcher_read_from_db_watcher haga su propia query para el transport.
+    # (La versión actual de _populate_watcher_read_from_db_watcher ya hace esto)
+    return _populate_watcher_read_from_db_watcher(db_watcher, db)
 
 @app.get("/watchers/", response_model=List[schemas.WatcherRead], tags=["Watchers"])
 def list_watchers_for_current_user(
     skip: int = 0, 
     limit: int = 100, 
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user) # Dependencia de autenticación
+    current_user: models.User = Depends(auth.get_current_user)
 ):
-    # crud.get_watchers ahora puede filtrar por owner_id
-    return crud.get_watchers(db, owner_id=current_user.id, skip=skip, limit=limit)
+    db_watchers = crud.get_watchers_for_owner(db, owner_id=current_user.id, skip=skip, limit=limit)
+    return [_populate_watcher_read_from_db_watcher(w, db) for w in db_watchers]
 
 @app.get("/watchers/{watcher_id}", response_model=schemas.WatcherRead, tags=["Watchers"])
 def get_single_watcher_for_current_user(
     watcher_id: int, 
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user) # Dependencia de autenticación
+    current_user: models.User = Depends(auth.get_current_user)
 ):
-    db_watcher = crud.get_watcher(db, watcher_id=watcher_id)
-    if db_watcher is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Watcher not found")
-    if db_watcher.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to access this watcher")
-    return db_watcher
+    db_watcher = crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id)
+    return _populate_watcher_read_from_db_watcher(db_watcher, db)
 
 @app.put("/watchers/{watcher_id}", response_model=schemas.WatcherRead, tags=["Watchers"])
 def update_existing_watcher_for_current_user(
     watcher_id: int, 
     watcher_update_data: schemas.WatcherUpdate, 
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user) # Dependencia de autenticación
+    current_user: models.User = Depends(auth.get_current_user)
 ):
-    # crud.update_watcher ahora verifica owner_id internamente y lanza 404 si no coincide o no existe
-    # O puedes verificarlo aquí antes como en get_single_watcher_for_current_user
-    return crud.update_watcher(db=db, watcher_id=watcher_id, watcher_update=watcher_update_data, owner_id=current_user.id)
+    db_watcher = crud.update_watcher(db=db, watcher_id=watcher_id, watcher_update_data=watcher_update_data, owner_id=current_user.id)
+    return _populate_watcher_read_from_db_watcher(db_watcher, db)
 
 @app.delete("/watchers/{watcher_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Watchers"])
 def delete_existing_watcher_for_current_user(
     watcher_id: int, 
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user) # Dependencia de autenticación
+    current_user: models.User = Depends(auth.get_current_user)
 ):
-    # crud.delete_watcher ahora verifica owner_id internamente y lanza 404 si no coincide o no existe
     crud.delete_watcher(db=db, watcher_id=watcher_id, owner_id=current_user.id)
-    return # No devuelve contenido en un 204
+    return 
 
-# --- Events CRUD (AHORA PROTEGIDOS INDIRECTAMENTE POR PROPIEDAD DEL WATCHER) ---
-@app.post("/events/", response_model=schemas.TokenEventRead, status_code=status.HTTP_201_CREATED, tags=["Events"], include_in_schema=False)
-def create_new_event( # Este endpoint es principalmente para uso interno/testing, el watcher.py crea eventos
+# --- Events CRUD ---
+@app.post("/events/", response_model=schemas.TokenEventRead, status_code=status.HTTP_201_CREATED, tags=["Events"], include_in_schema=False) # Restaurado, pero oculto por defecto
+def create_new_event_for_authed_user_testing( 
     event_data: schemas.TokenEventCreate, 
     db: Session = Depends(get_db),
-    # current_user: models.User = Depends(auth.get_current_user) # Opcional: proteger si se expone
+    current_user: models.User = Depends(auth.get_current_user) # Protegido
 ):
-    # Verificar si el watcher asociado existe. La propiedad se verificará en get_events_for_a_watcher si es necesario.
-    db_watcher = crud.get_watcher(db, watcher_id=event_data.watcher_id)
-    if db_watcher is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Watcher with id {event_data.watcher_id} not found, cannot create event.")
-    # Si se protege con current_user, también verificar db_watcher.owner_id == current_user.id
+    db_watcher = crud.get_watcher_db(db, watcher_id=event_data.watcher_id, owner_id=current_user.id) # Verifica propiedad
+    # Si get_watcher_db no lanza excepción, el watcher existe y pertenece al usuario.
     return crud.create_event(db=db, event_data=event_data)
 
-@app.get("/events/", response_model=List[schemas.TokenEventRead], tags=["Events"])
-def list_all_events_for_current_user( # Cambiado para que solo muestre eventos de los watchers del usuario
+@app.get("/events/", response_model=List[schemas.TokenEventRead], tags=["Events"]) # Restaurado y filtrado por owner
+def list_all_events_for_current_user(
     skip: int = 0, 
     limit: int = 100, 
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    # Necesitamos una función CRUD que obtenga todos los eventos de todos los watchers de un owner_id
-    # Por ahora, esto listaría TODOS los eventos, lo cual no es lo ideal para multiusuario.
-    # Lo ideal sería: events = crud.get_all_events_for_owner(db, owner_id=current_user.id, skip=skip, limit=limit)
-    # Temporalmente, lo dejo como estaba, pero esto necesita ajuste para multiusuario.
-    # O, si el frontend va a pedir por watcher, entonces /events/watcher/{watcher_id} es el principal.
-    # Por ahora, vamos a devolver una lista vacía para este endpoint general hasta definir mejor su comportamiento multiusuario.
-    # O, mejor aún, que el frontend no use este endpoint general y siempre pida por watcher.
-    # Para un "feed" general del usuario, necesitaríamos un crud.get_all_events_for_owner.
-    # Por simplicidad del MVP, este endpoint general podría quitarse o dejarse como está (todos los eventos).
-    # O, si lo mantenemos, que el frontend lo filtre o que el backend lo haga.
-    # Por ahora, para no romper, lo dejo como estaba, pero con advertencia.
-    print("WARN: /events/ endpoint actualmente lista todos los eventos, considerar filtrado por owner en producción multiusuario.")
-    return crud.get_events(db, skip=skip, limit=limit)
-
+    return crud.get_all_events_for_owner(db, owner_id=current_user.id, skip=skip, limit=limit)
 
 @app.get("/events/watcher/{watcher_id}", response_model=List[schemas.TokenEventRead], tags=["Events"])
 def list_events_for_a_specific_watcher_of_current_user(
@@ -132,51 +137,65 @@ def list_events_for_a_specific_watcher_of_current_user(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    # crud.get_events_for_watcher ahora verifica la propiedad si se pasa owner_id
+    crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id) # Verifica propiedad
     return crud.get_events_for_watcher(db, watcher_id=watcher_id, owner_id=current_user.id, skip=skip, limit=limit)
 
-# --- Transports CRUD (AHORA PROTEGIDOS Y ASOCIADOS A USUARIO) ---
-@app.post("/transports/", response_model=schemas.TransportRead, status_code=status.HTTP_201_CREATED, tags=["Transports"])
-def create_new_transport_for_current_user(
-    transport_data: schemas.TransportCreate, 
+@app.get("/events/{event_id}", response_model=schemas.TokenEventRead, tags=["Events"]) # Restaurado get_event por ID
+def get_single_event_for_current_user(
+    event_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    # crud.create_transport ahora verifica owner_id
-    return crud.create_transport(db=db, transport=transport_data, owner_id=current_user.id)
+    db_event = crud.get_event_by_id(db, event_id=event_id)
+    if not db_event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    # Verificar propiedad del watcher asociado al evento
+    crud.get_watcher_db(db, watcher_id=db_event.watcher_id, owner_id=current_user.id) # Lanza 403/404 si no es del owner
+    return db_event
 
-@app.get("/transports/", response_model=List[schemas.TransportRead], tags=["Transports"])
-def list_all_transports_for_current_user( # Opcionalmente filtrar por watcher_id específico del usuario
-    watcher_id: Optional[int] = None, 
-    skip: int = 0, 
-    limit: int = 100, 
+# --- Transports CRUD (Endpoints para gestión directa de MÚLTIPLES transports por watcher) ---
+# Estos son ahora para añadir transports ADICIONALES o gestionar existentes de forma granular.
+# El webhook "principal" se sigue manejando a través de WatcherCreate/Update.webhook_url.
+@app.post("/watchers/{watcher_id}/transports/", response_model=schemas.TransportRead, status_code=status.HTTP_201_CREATED, tags=["Transports (Watcher-Specific)"])
+def add_new_transport_to_watcher( # Renombrado para claridad
+    watcher_id: int,
+    # El schema TransportCreate espera watcher_id en el payload.
+    # Podríamos tener un schema diferente aquí que no lo espere si el watcher_id ya está en el path.
+    # Por ahora, requerimos que coincidan.
+    transport_payload: schemas.TransportCreate, 
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    # crud.get_transports ahora puede verificar owner_id
-    return crud.get_transports(db, watcher_id=watcher_id, owner_id=current_user.id, skip=skip, limit=limit)
+    if transport_payload.watcher_id != watcher_id:
+        raise HTTPException(status_code=400, detail="Watcher ID in path does not match watcher ID in payload.")
+    
+    # crud.create_new_transport_for_watcher valida la propiedad del watcher_id
+    return crud.create_new_transport_for_watcher(db=db, transport_data=transport_payload, watcher_id=watcher_id, owner_id=current_user.id)
 
-@app.delete("/transports/{transport_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Transports"])
-def delete_existing_transport_for_current_user(
+@app.get("/watchers/{watcher_id}/transports/", response_model=List[schemas.TransportRead], tags=["Transports (Watcher-Specific)"])
+def list_all_transports_for_specific_watcher( # Renombrado para claridad
+    watcher_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    # crud.get_watcher_db verifica la propiedad del watcher
+    crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id)
+    return crud.get_transports_for_watcher_owner_checked(db, watcher_id=watcher_id, owner_id=current_user.id) # Usar la función que verifica owner
+
+@app.delete("/transports/{transport_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Transports (Global ID)"]) # Mantenido como global por ahora
+def delete_specific_transport_by_id( # Renombrado para claridad
     transport_id: int, 
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    # crud.delete_transport ahora verifica owner_id
-    crud.delete_transport(db=db, transport_id=transport_id, owner_id=current_user.id)
+    # crud.delete_transport_by_id verifica la propiedad del owner a través del watcher asociado
+    crud.delete_transport_by_id(db=db, transport_id=transport_id, owner_id=current_user.id)
     return
 
-# --- Token Volume Endpoint (público o protegido según decidas) ---
+# --- Token Volume Endpoint ---
 @app.get("/tokens/{contract_address}/volume", response_model=schemas.TokenRead, tags=["Tokens"])
 def read_token_total_volume(contract_address: str, db: Session = Depends(get_db)):
     if not contract_address.startswith("0x") or len(contract_address) != 42:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid contract address format.")
     volume = crud.get_volume(db, contract_address=contract_address)
     return schemas.TokenRead(contract=contract_address, volume=volume)
-
-# --- Background Polling Task (Comentado por ahora, ya que usamos cron job separado) ---
-# from fastapi_utils.tasks import repeat_every
-# @app.on_event("startup")
-# @repeat_every(seconds=settings.POLL_INTERVAL, wait_first=True, logger=None) 
-# def periodic_background_poll() -> None:
-#     # ... (código del poller como estaba antes) ...
