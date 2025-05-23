@@ -23,8 +23,7 @@ class Watcher(Base):
     name = Column(String(100), index=True, nullable=False)
     token_address = Column(String(42), nullable=False)
     threshold = Column(Float, nullable=False)
-    is_active = Column(Boolean, default=True, nullable=False) # NUEVO CAMPO
-    # webhook_url ELIMINADO DE AQUÍ
+    is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -40,6 +39,11 @@ class Event(Base):
     id = Column(Integer, server_default=id_seq.next_value(), nullable=False) 
     watcher_id = Column(Integer, ForeignKey("watchers.id", ondelete="CASCADE"), nullable=False)
     token_address_observed = Column(String(42), nullable=False)
+    
+    # NUEVOS CAMPOS From y To Address
+    from_address = Column(String(42), nullable=False, index=True) # Dirección de origen
+    to_address = Column(String(42), nullable=False, index=True)   # Dirección de destino
+    
     amount = Column(Float, nullable=False)
     transaction_hash = Column(String(66), nullable=False, index=True) 
     block_number = Column(Integer, nullable=False, index=True)
@@ -49,7 +53,7 @@ class Event(Base):
     
     __table_args__ = (
         PrimaryKeyConstraint('id', 'created_at'),
-        UniqueConstraint('transaction_hash', 'created_at', name='uq_events_transaction_hash_created_at'),
+        UniqueConstraint('transaction_hash', 'created_at', 'from_address', 'to_address', 'amount', name='uq_events_unique_event_fields'), # Ajustada para mayor unicidad si es necesario
         {
             'postgresql_partition_by': 'RANGE (created_at)'
         }

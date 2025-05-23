@@ -1,9 +1,9 @@
 # api/app/crud.py
-from sqlalchemy.orm import Session, selectinload # <--- AÑADIDO selectinload AQUÍ
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import desc, func as sql_func
 from fastapi import HTTPException
-from pydantic import HttpUrl # Asegúrate que esto esté si lo usas directamente aquí, aunque schemas lo usa
-from typing import Optional, List # List estaba en mi última versión
+from pydantic import HttpUrl
+from typing import Optional, List
 
 from . import models, schemas, auth
 
@@ -80,27 +80,23 @@ def get_watcher_db(db: Session, watcher_id: int, owner_id: Optional[int] = None)
         raise HTTPException(status_code=404, detail=detail)
     return db_watcher
 
-# SECCIÓN CORREGIDA PARA INDENTACIÓN:
 def get_active_watchers(db: Session, skip: int = 0, limit: int = 100) -> List[models.Watcher]:
-    """Obtiene todos los watchers que están activos (is_active=True), para el poller."""
     return (db.query(models.Watcher)
             .filter(models.Watcher.is_active == True)
             .order_by(models.Watcher.id)
-            .options(selectinload(models.Watcher.transports)) # Eager load transports
+            .options(selectinload(models.Watcher.transports)) 
             .offset(skip)
             .limit(limit)
             .all())
 
 def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int = 100) -> List[models.Watcher]:
-    """Obtiene todos los watchers (activos e inactivos) para un propietario específico."""
     return (db.query(models.Watcher)
             .filter(models.Watcher.owner_id == owner_id)
             .order_by(models.Watcher.id)
-            .options(selectinload(models.Watcher.transports)) # Eager load transports
+            .options(selectinload(models.Watcher.transports)) 
             .offset(skip)
             .limit(limit)
             .all())
-# FIN DE SECCIÓN CORREGIDA
 
 def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: int) -> models.Watcher:
     db_watcher = models.Watcher(
@@ -119,7 +115,7 @@ def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: i
     db.refresh(db_watcher)
     return db_watcher
 
-def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.WatcherUpdate, owner_id: int) -> models.Watcher:
+def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.WatcherUpdate, owner_id: int) -> models.Watcher: # Quitamos | None
     db_watcher = get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
 
     update_data = watcher_update_data.dict(exclude_unset=True)
@@ -130,7 +126,7 @@ def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.Wa
     for field, value in update_data.items():
         if field == "webhook_url": 
             continue
-        if hasattr(db_watcher, field):
+        if hasattr(db_watcher, field): # Comprobar si el campo existe en el modelo antes de asignarlo
              setattr(db_watcher, field, value)
     
     if webhook_url_in_payload:
@@ -147,10 +143,15 @@ def delete_watcher(db: Session, watcher_id: int, owner_id: int) -> None:
 
 # --- Event (TokenEvent) CRUD ---
 def create_event(db: Session, event_data: schemas.TokenEventCreate) -> models.Event:
+    # El schema TokenEventCreate ahora incluye from_address y to_address
+    # y usa 'contract' para token_address_observed y 'volume' para amount.
+    # El modelo Event usa 'token_address_observed', 'amount', 'from_address', 'to_address'.
     db_event = models.Event(
         watcher_id=event_data.watcher_id,
-        token_address_observed=event_data.contract,
-        amount=event_data.volume,
+        token_address_observed=event_data.contract, # Mapeo de schema a modelo
+        from_address=event_data.from_address,       # NUEVO CAMPO
+        to_address=event_data.to_address,           # NUEVO CAMPO
+        amount=event_data.volume,                   # Mapeo de schema a modelo
         transaction_hash=event_data.tx_hash,
         block_number=event_data.block_number,
     )
@@ -161,7 +162,10 @@ def create_event(db: Session, event_data: schemas.TokenEventCreate) -> models.Ev
         return db_event
     except Exception as e_crud_create:
         db.rollback()
+        # Es importante loguear el error específico de la BD si es posible
         print(f"❌ [CRUD_CREATE_EVENT_ERROR] Error al guardar evento (tx_hash: {event_data.tx_hash}): {e_crud_create!r}")
+        # Re-lanzar la excepción para que el llamador (watcher.py) pueda manejarla si es necesario,
+        # o decidir no crear una notificación.
         raise
 
 def get_event_by_id(db: Session, event_id: int) -> models.Event | None:
@@ -177,9 +181,7 @@ def get_all_events_for_owner(db: Session, owner_id: int, skip: int = 0, limit: i
             .all())
 
 def get_events_for_watcher(db: Session, watcher_id: int, owner_id: int, skip: int = 0, limit: int = 100) -> List[models.Event]:
-    watcher = db.query(models.Watcher.id).filter(models.Watcher.id == watcher_id, models.Watcher.owner_id == owner_id).first()
-    if not watcher:
-        return []
+    # La propiedad ya se verifica en main.py antes de llamar a esta función
     return (db.query(models.Event)
             .filter(models.Event.watcher_id == watcher_id)
             .order_by(desc(models.Event.created_at))
