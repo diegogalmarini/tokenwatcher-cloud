@@ -1,14 +1,19 @@
+// dashboard/tokenwatcher-app/src/components/watchers/WatcherList.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Image from "next/image";
-import Button from "@/components/ui/button";
+import Button from "@/components/ui/button"; // Usando tu componente Button
 import WatcherFormModal from "./WatcherFormModal";
-import { useWatchers, Watcher } from "@/lib/useWatchers";
+import WatcherTable from "./WatcherTable"; // Importar la tabla actualizada
+import { useWatchers, Watcher, WatcherCreatePayload, WatcherUpdatePayload } from "@/lib/useWatchers"; // Tipos de payload importados
+import { useAuth } from "@/contexts/AuthContext"; // Para verificar autenticación
 
 export default function WatcherList() {
+  const { token } = useAuth(); // Para re-fetch cuando cambie el token (login/logout)
   const {
     watchers,
+    isLoading, // Añadido de useWatchers
+    error,     // Añadido de useWatchers
     fetchWatchers,
     createWatcher,
     updateWatcher,
@@ -16,129 +21,137 @@ export default function WatcherList() {
   } = useWatchers();
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<Watcher | null>(null);
+  // Ajustamos el tipo de 'editing' para que coincida con lo que espera WatcherFormModal
+  const [editing, setEditing] = useState<Partial<Watcher> | null>(null); 
+  const [formError, setFormError] = useState<string | null>(null);
 
+
+  // Cargar watchers cuando el componente se monta o el token cambia
   useEffect(() => {
-    fetchWatchers();
-  }, []);
+    if (token) { // Solo cargar si hay token
+      fetchWatchers();
+    }
+  }, [fetchWatchers, token]);
 
-  const openNew = () => {
+  const openNewModal = () => {
     setEditing(null);
+    setFormError(null);
     setModalOpen(true);
   };
-  const openEdit = (w: Watcher) => {
-    setEditing(w);
+
+  const openEditModal = (watcher: Watcher) => {
+    setEditing(watcher);
+    setFormError(null);
     setModalOpen(true);
   };
+
+  const handleSaveWatcher = async (data: {
+    name: string; // WatcherFormModal ahora envía 'name'
+    token_address: string;
+    threshold: number;
+    webhook_url: string | null;
+    // is_active?: boolean; // Si el modal lo manejara directamente
+  }) => {
+    setFormError(null);
+    try {
+      if (editing && editing.id) {
+        // Para actualizar, construimos el payload de WatcherUpdatePayload
+        const payload: WatcherUpdatePayload = { ...data };
+        if (data.webhook_url === "") payload.webhook_url = null; // Asegurar que vacío sea null
+        await updateWatcher(editing.id, payload);
+      } else {
+        // Para crear, construimos el payload de WatcherCreatePayload
+        // webhook_url es obligatorio, WatcherFormModal debe asegurar que no sea null o vacío al crear.
+        if (!data.webhook_url) {
+          // Esto no debería ocurrir si el form es 'required' para webhook_url
+          setFormError("Webhook URL is required for new watchers."); 
+          throw new Error("Webhook URL is required.");
+        }
+        const payload: WatcherCreatePayload = {
+            name: data.name,
+            token_address: data.token_address,
+            threshold: data.threshold,
+            webhook_url: data.webhook_url, // Ya es string, no null
+            // is_active se tomará por defecto en el backend o puede añadirse al payload si se controla en el form
+        };
+        await createWatcher(payload);
+      }
+      fetchWatchers(); // Re-fetch para asegurar consistencia y obtener todos los campos (ej. owner_id)
+      setModalOpen(false); // Cerrar modal en éxito
+    } catch (err: any) {
+      console.error("Failed to save watcher:", err);
+      setFormError(err.message || "An unexpected error occurred.");
+      // No cerrar el modal en error para que el usuario vea el mensaje y pueda corregir
+    }
+  };
+
+  const handleDeleteWatcher = async (watcherId: number) => {
+    if (confirm(`Are you sure you want to delete watcher #${watcherId}?`)) {
+      try {
+        await deleteWatcher(watcherId);
+        fetchWatchers(); // Re-fetch para actualizar la lista
+      } catch (err: any) {
+        console.error("Failed to delete watcher:", err);
+        alert(`Error deleting watcher: ${err.message}`);
+      }
+    }
+  };
+
+  const handleToggleActive = async (watcher: Watcher) => {
+    const newActiveState = !watcher.is_active;
+    if (confirm(`Are you sure you want to ${newActiveState ? "activate" : "pause"} watcher "${watcher.name}"?`)) {
+      try {
+        await updateWatcher(watcher.id, { is_active: newActiveState });
+        fetchWatchers(); // Re-fetch para actualizar la UI con el nuevo estado
+      } catch (err: any) {
+        console.error("Failed to toggle watcher active state:", err);
+        alert(`Error updating watcher state: ${err.message}`);
+      }
+    }
+  };
+
+  if (isLoading && watchers.length === 0) { // Mostrar loading solo en la carga inicial
+      return <p className="text-center text-gray-500 dark:text-gray-400 py-8">Loading watchers...</p>;
+  }
+
+  if (error) { // Mostrar error si la carga inicial falló
+      return <p className="text-center text-red-500 py-8">Error loading watchers: {error}</p>;
+  }
 
   return (
-    <div className="flex flex-col items-center py-8">
-      <div className="w-[90%]">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">Your Watchers</h2>
-          <div className="space-x-2">
-            <Button variant="primary" onClick={openNew}>
-              + New Watcher
-            </Button>
-            <Button variant="outline" onClick={fetchWatchers}>
-              Refresh list
-            </Button>
-          </div>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Your Watchers</h2>
+        <div className="space-x-2">
+          <Button intent="default" onClick={openNewModal} className="bg-blue-600 hover:bg-blue-700 text-white"> {/* Clase de ejemplo para botón primario */}
+            + New Watcher
+          </Button>
+          <Button 
+            intent="default" // O una variante 'outline' si la tienes
+            onClick={() => { fetchWatchers(); setFormError(null); }} 
+            disabled={isLoading}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-gray-200" // Clase de ejemplo
+          >
+            {isLoading ? "Refreshing..." : "Refresh list"}
+          </Button>
         </div>
-
-        <table className="w-full table-auto bg-white rounded-lg shadow overflow-hidden">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-4 py-2 text-left">Token</th>
-              <th className="px-4 py-2 text-left">Token Address</th>
-              <th className="px-4 py-2 text-left">Threshold</th>
-              <th className="px-4 py-2 text-left">Webhook URL</th>
-              <th className="px-4 py-2 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {watchers.length === 0 && (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-4 py-6 text-center text-gray-500"
-                >
-                  No watchers yet.
-                </td>
-              </tr>
-            )}
-            {watchers.map((w) => {
-              // TrustWallet logo URL
-              const logoUrl = `https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/${w.token_address}/logo.png`;
-              return (
-                <tr key={w.id} className="border-t">
-                  {/* Logo */}
-                  <td className="px-4 py-2">
-                    {/** Intentamos mostrar el logo */}
-                    <Image
-                      src={logoUrl}
-                      width={24}
-                      height={24}
-                      alt="logo"
-                      onError={(e) => {
-                        // si da 404, ocultamos el <img>
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                  </td>
-                  {/* Address */}
-                  <td className="px-4 py-2 text-sm break-all">
-                    {w.token_address}
-                  </td>
-                  {/* Threshold */}
-                  <td className="px-4 py-2">{w.threshold}</td>
-                  {/* Webhook: truncamos */}
-                  <td className="px-4 py-2">
-                    <a
-                      href={w.webhook_url ?? "#"}
-                      className="text-blue-600 hover:underline inline-block max-w-[200px] truncate"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {w.webhook_url}
-                    </a>
-                  </td>
-                  {/* Actions */}
-                  <td className="px-4 py-2 space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openEdit(w)}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => deleteWatcher(w.id)}
-                    >
-                      Delete
-                    </Button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
       </div>
+      
+      {/* Mostrar error del formulario si existe */}
+      {formError && <p className="text-red-500 text-sm text-center">{formError}</p>}
+
+      <WatcherTable
+        watchers={watchers}
+        onEdit={openEditModal}
+        onDelete={handleDeleteWatcher}
+        onToggleActive={handleToggleActive} // Pasar la nueva función
+      />
 
       <WatcherFormModal
         isOpen={modalOpen}
         initialData={editing}
-        onClose={() => setModalOpen(false)}
-        onSave={async (data) => {
-          if (editing) {
-            await updateWatcher({ ...editing, ...data });
-          } else {
-            await createWatcher(data);
-          }
-          await fetchWatchers();
-        }}
+        onClose={() => { setModalOpen(false); setFormError(null); }}
+        onSave={handleSaveWatcher}
       />
     </div>
   );

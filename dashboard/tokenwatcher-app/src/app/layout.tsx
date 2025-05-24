@@ -1,23 +1,24 @@
-// src/app/layout.tsx
-import "./globals.css";
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+// dashboard/tokenwatcher-app/src/app/layout.tsx
+import "./globals.css"; //
+import type { Metadata } from "next"; //
+import { Geist, Geist_Mono } from "next/font/google"; //
+import { AuthProvider } from "@/contexts/AuthContext"; // <--- IMPORTA EL PROVIDER
 
-export const metadata: Metadata = {
-  title: "TokenWatcher Dashboard",
-  description: "Create watchers, view recent events, and receive real-time alerts.",
+export const metadata: Metadata = { //
+  title: "TokenWatcher Dashboard", //
+  description: "Create watchers, view recent events, and receive real-time alerts.", //
 };
 
-const geist = Geist({
-  subsets: ["latin"],
-  variable: "--font-geist",
-  weight: ["400", "700"],
+const geist = Geist({ //
+  subsets: ["latin"], //
+  variable: "--font-geist", //
+  weight: ["400", "700"], //
 });
 
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-  weight: ["400", "700"],
+const geistMono = Geist_Mono({ //
+  subsets: ["latin"], //
+  variable: "--font-geist-mono", //
+  weight: ["400", "700"], //
 });
 
 export default function RootLayout({
@@ -27,7 +28,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
-      <body>{children}</body>
+      <body>
+        <AuthProvider> {/* <--- ENVUELVE CON AUTHPROVIDER */}
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   );
 }
