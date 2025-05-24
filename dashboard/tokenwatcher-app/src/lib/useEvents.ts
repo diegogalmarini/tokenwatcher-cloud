@@ -6,12 +6,13 @@ import { useAuth } from "@/contexts/AuthContext"; // Para la autenticación
 export interface Event {
   id: number; // El ID único del evento (de la secuencia)
   watcher_id: number;
-  token_address_observed: string; // Anteriormente 'token_address' en tu tipo Event local
-  amount: number;                 // Anteriormente 'amount' ya estaba bien
+  token_address_observed: string;
+  amount: number;
   transaction_hash: string;
   block_number: number;
-  created_at: string; // El backend devuelve string en formato ISO, Next.js puede manejarlo
-  // 'event_type' no está en schemas.TokenEventRead de FastAPI, lo quitamos
+  created_at: string;
+  from_address: string; // <-- AÑADIDO
+  to_address: string;   // <-- AÑADIDO
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -37,11 +38,9 @@ export function useEvents() {
     setEvents([]);
   }, [logout]);
 
-  // Obtiene eventos para un watcher específico
+  // Obtiene eventos para un watcher específico (sin cambios en la lógica)
   const fetchEventsByWatcher = useCallback(async (watcherId: number) => {
     if (!token) {
-      // No debería llamarse si no hay token, pero es una guarda.
-      // La UI debería prevenir esto.
       setError("Not authenticated to fetch events.");
       setEvents([]);
       return;
@@ -59,7 +58,7 @@ export function useEvents() {
         return;
       }
       const data = await res.json();
-      setEvents(Array.isArray(data) ? data : []); // Asegurarse de que sea un array
+      setEvents(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error("fetchEventsByWatcher error:", err);
       setError(err.message || "An unexpected error occurred.");
@@ -69,7 +68,7 @@ export function useEvents() {
     }
   }, [token, handleFetchError]);
 
-  // Obtiene todos los eventos para los watchers del usuario autenticado
+  // Obtiene todos los eventos para los watchers del usuario autenticado (sin cambios en la lógica)
   const fetchAllMyEvents = useCallback(async () => {
     if (!token) {
       setError("Not authenticated to fetch events.");
@@ -89,6 +88,7 @@ export function useEvents() {
         return;
       }
       const data = await res.json();
+      // Aseguramos que data sea un array, incluso si la API devuelve algo inesperado
       setEvents(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error("fetchAllMyEvents error:", err);
@@ -98,11 +98,6 @@ export function useEvents() {
       setIsLoading(false);
     }
   }, [token, handleFetchError]);
-  
-  // La creación de eventos la hace el backend.
-  // La eliminación de eventos desde la UI podría ser una función avanzada.
-  // Por ahora, nos enfocamos en la visualización.
-  // Si necesitas deleteEvent, también tendría que usar el token y llamar al endpoint de FastAPI.
 
   return {
     events,
@@ -110,6 +105,5 @@ export function useEvents() {
     error,
     fetchEventsByWatcher,
     fetchAllMyEvents,
-    // deleteEvent, // Si lo rehabilitas, asegúrate de que llame a FastAPI con auth
   };
 }

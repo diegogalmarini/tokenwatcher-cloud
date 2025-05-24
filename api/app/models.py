@@ -1,77 +1,85 @@
 # api/app/models.py
-from sqlalchemy import Column, Integer, String, Float, DateTime, func, ForeignKey, Boolean, Sequence, UniqueConstraint, PrimaryKeyConstraint
-from sqlalchemy.orm import relationship
-from sqlalchemy.types import JSON
-from .database import Base # Importar Base desde .database
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Float,
+    Numeric, # <-- AÑADIDO (Si no estaba)
+    Boolean,
+    ForeignKey,
+    DateTime,
+    UniqueConstraint,
+    PrimaryKeyConstraint,
+)
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy.sql import func
+from datetime import datetime
+from typing import List # <-- AÑADIDO (Si no estaba)
 
-# --- Modelo User ---
+from .database import Base
+
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
-    is_active = Column(Boolean, default=True) 
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    watchers = relationship("Watcher", back_populates="owner", cascade="all, delete-orphan")
+    watchers: Mapped[List["Watcher"]] = relationship("Watcher", back_populates="owner", cascade="all, delete-orphan")
 
 class Watcher(Base):
     __tablename__ = "watchers"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), index=True, nullable=False)
-    token_address = Column(String(42), nullable=False)
-    threshold = Column(Float, nullable=False)
-    is_active = Column(Boolean, default=True, nullable=False) # Campo para activar/desactivar
-    # webhook_url fue eliminado de aquí, se maneja por Transports
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    owner = relationship("User", back_populates="watchers")
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
+    name: Mapped[str] = mapped_column(String, index=True)
+    token_address: Mapped[str] = mapped_column(String, index=True)
+    threshold: Mapped[float] = mapped_column(Numeric(30, 18))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    events = relationship("Event", back_populates="watcher", cascade="all, delete-orphan", passive_deletes=True)
-    transports = relationship("Transport", back_populates="watcher", cascade="all, delete-orphan", passive_deletes=True)
-
-class Event(Base):
-    __tablename__ = "events" # Nombre correcto de la tabla
-    id_seq = Sequence('events_id_seq') 
-    id = Column(Integer, server_default=id_seq.next_value(), nullable=False) 
-    watcher_id = Column(Integer, ForeignKey("watchers.id", ondelete="CASCADE"), nullable=False)
-    token_address_observed = Column(String(42), nullable=False)
-
-    from_address = Column(String(42), nullable=False, index=True) # Dirección de origen
-    to_address = Column(String(42), nullable=False, index=True)   # Dirección de destino
-
-    amount = Column(Float, nullable=False)
-    transaction_hash = Column(String(66), nullable=False, index=True) 
-    block_number = Column(Integer, nullable=False, index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True, nullable=False)
-
-    watcher = relationship("Watcher", back_populates="events")
-
-    __table_args__ = (
-        PrimaryKeyConstraint('id', 'created_at'),
-        UniqueConstraint('transaction_hash', 'created_at', 'from_address', 'to_address', 'amount', name='uq_events_unique_event_fields'),
-        {
-            'postgresql_partition_by': 'RANGE (created_at)'
-        }
-    )
+    owner: Mapped["User"] = relationship("User", back_populates="watchers")
+    transports: Mapped[List["Transport"]] = relationship("Transport", back_populates="watcher", cascade="all, delete-orphan")
+    events: Mapped[List["TokenEvent"]] = relationship("TokenEvent", back_populates="watcher", cascade="all, delete-orphan")
 
 class Transport(Base):
     __tablename__ = "transports"
-    id = Column(Integer, primary_key=True, index=True)
-    watcher_id = Column(Integer, ForeignKey("watchers.id", ondelete="CASCADE"), nullable=False)
-    type = Column(String(50), nullable=False)
-    config = Column(JSON, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    watcher = relationship("Watcher", back_populates="transports")
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    watcher_id: Mapped[int] = mapped_column(Integer, ForeignKey("watchers.id"))
+    type: Mapped[str] = mapped_column(String)
+    config: Mapped[dict] = mapped_column(String) # O JSON
 
-class TokenVolume(Base):
-    __tablename__ = "token_volumes"
-    id = Column(Integer, primary_key=True, index=True) 
-    contract = Column(String(42), unique=True, nullable=False, index=True)
-    volume = Column(Float, nullable=False, default=0.0)
-    last_updated = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    watcher: Mapped["Watcher"] = relationship("Watcher", back_populates="transports")
+
+class TokenEvent(Base):
+    __tablename__ = "events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True) # ID es PK
+    watcher_id: Mapped[int] = mapped_column(Integer, ForeignKey("watchers.id"))
+    token_address_observed: Mapped[str] = mapped_column(String, index=True)
+    from_address: Mapped[str] = mapped_column(String, index=True)
+    to_address: Mapped[str] = mapped_column(String, index=True)
+    amount: Mapped[float] = mapped_column(Numeric(30, 18))
+    transaction_hash: Mapped[str] = mapped_column(String, index=True)
+    block_number: Mapped[int] = mapped_column(Integer)
+
+    # --- NUEVO CAMPO ---
+    usd_value: Mapped[float | None] = mapped_column(Numeric(20, 4), nullable=True) # <-- AÑADIDO
+    # --- FIN NUEVO CAMPO ---
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), primary_key=True # Es PK para partición
+    )
+
+    watcher: Mapped["Watcher"] = relationship(back_populates="events")
+
+    # Mantenemos tus __table_args__ existentes
+    __table_args__ = (
+         PrimaryKeyConstraint('id', 'created_at'),
+         UniqueConstraint('transaction_hash', 'id', 'created_at', name='uq_tx_hash_id_created'),
+         {'postgresql_partition_by': 'RANGE (created_at)'}
+    )
