@@ -2,29 +2,25 @@
 import time
 import requests
 import json
-import logging # <-- AÑADIDO: Usaremos logging en lugar de print para más control
+import logging
 from typing import Callable, List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
+from web3 import Web3 # <--- NUEVA IMPORTACIÓN
 
 from . import schemas, crud, notifier
 from .config import settings
-from .models import Watcher as WatcherModel, TokenEvent as EventModel # <-- Cambiado Event a TokenEvent para consistencia
-# --- NUEVAS IMPORTACIONES ---
+from .models import Watcher as WatcherModel, TokenEvent as EventModel
 from .clients import etherscan_client
 from .clients import coingecko_client
-# --- FIN NUEVAS IMPORTACIONES ---
 
-# Configuración básica de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 ETHERSCAN_API_URL = "https://api.etherscan.io/api"
 
 def fetch_transfers(contract_address: str, start_block: int) -> List[Dict[str, Any]]:
-    """
-    Obtiene transferencias de tokens desde Etherscan. (Mantenemos tu función, cambiando prints a logs).
-    """
+    # ... (tu función fetch_transfers se mantiene igual) ...
     try:
         start_block = int(start_block) if start_block is not None else 0
     except ValueError:
@@ -63,15 +59,12 @@ def fetch_transfers(contract_address: str, start_block: int) -> List[Dict[str, A
         logger.error(f"  ❌ [FETCH_TRANSFERS_ERROR] Error al decodificar JSON de Etherscan para {contract_address}. Respuesta: {response_text[:500]}")
         return []
 
+
 def poll_and_notify(
     db: Session,
     get_active_watchers_func: Callable[[], List[WatcherModel]],
-    create_event_func: Callable[[schemas.TokenEventCreate], Optional[EventModel]], # <-- MODIFICADO: Puede devolver None
+    create_event_func: Callable[[schemas.TokenEventCreate], Optional[EventModel]],
 ):
-    """
-    Ciclo principal que sondea watchers, busca eventos y notifica.
-    Ahora incluye la obtención de timestamp y valor USD.
-    """
     logger.info("🔄 [POLL_CYCLE] Iniciando ciclo de sondeo y notificación...")
     try:
         active_watchers = get_active_watchers_func()
@@ -122,8 +115,19 @@ def poll_and_notify(
                     to_addr = tx_data.get("to", "").lower()
                     tx_hash = tx_data.get("hash", "N/A")
 
-                    if not from_addr or not to_addr or tx_hash == "N/A": continue
+                    # --- INICIO CAMBIO CHECKSUM ---
+                    contract_addr_from_tx = tx_data.get("contractAddress", watcher_instance.token_address)
+                    try:
+                        # Asegura que la dirección observada esté en formato checksum
+                        token_address_observed_checksummed = Web3.to_checksum_address(contract_addr_from_tx)
+                    except Exception:
+                        # Si falla la conversión (ej. dirección inválida), usa la original o la del watcher
+                        logger.warning(f"      ⚠️ [CHECKSUM_WARN] No se pudo convertir a checksum: {contract_addr_from_tx}. Usando original.")
+                        token_address_observed_checksummed = contract_addr_from_tx
+                    # --- FIN CAMBIO CHECKSUM ---
 
+
+                    if not from_addr or not to_addr or tx_hash == "N/A": continue
                     logger.debug(f"      🔎 [TX_DETAIL] Hash={tx_hash[:10]}.., Block={current_block_number}, Amount={amount_transferred:.4f}")
 
                     if amount_transferred >= watcher_instance.threshold:
@@ -134,30 +138,28 @@ def poll_and_notify(
                             logger.warning(f"      ⚠️ [DUPLICATE_EVENT] Evento con tx_hash {tx_hash} ya existe. Saltando.")
                             continue
 
-                        # --- INICIO LÓGICA USD ---
                         usd_value = None
                         timestamp = etherscan_client.get_block_timestamp(current_block_number)
                         if timestamp:
-                            price = coingecko_client.get_historical_price_usd(watcher_instance.token_address, timestamp)
+                            # Usamos la dirección checksummed para buscar el precio
+                            price = coingecko_client.get_historical_price_usd(token_address_observed_checksummed, timestamp)
                             if price is not None:
                                 usd_value = amount_transferred * price
                                 logger.info(f"      💲 [USD_CALC] Valor USD calculado: {usd_value:.2f}")
                             else:
-                                logger.warning(f"      ⚠️ [USD_CALC] No se pudo obtener precio para {watcher_instance.token_address} en timestamp {timestamp}.")
+                                logger.warning(f"      ⚠️ [USD_CALC] No se pudo obtener precio para {token_address_observed_checksummed} en timestamp {timestamp}.")
                         else:
                              logger.warning(f"      ⚠️ [USD_CALC] No se pudo obtener timestamp para bloque {current_block_number}.")
-                        # --- FIN LÓGICA USD ---
 
-                        # --- CORRECCIÓN: Usar nombres del schema.py ---
                         event_payload_schema = schemas.TokenEventCreate(
                             watcher_id=watcher_instance.id,
-                            token_address_observed=tx_data.get("contractAddress", watcher_instance.token_address),
+                            token_address_observed=token_address_observed_checksummed, # <-- USA LA VERSIÓN CHECKSUMMED
                             from_address=from_addr,
                             to_address=to_addr,
-                            amount=amount_transferred, # <-- CORREGIDO
-                            transaction_hash=tx_hash, # <-- CORREGIDO
+                            amount=amount_transferred,
+                            transaction_hash=tx_hash,
                             block_number=current_block_number,
-                            usd_value=usd_value # <-- AÑADIDO
+                            usd_value=usd_value
                         )
 
                         created_event = create_event_func(event_payload_schema)
@@ -166,13 +168,11 @@ def poll_and_notify(
                              newly_created_events_for_this_watcher.append(created_event)
                         else:
                              logger.error(f"      ❌ [EVENT_CREATE_FAIL] No se pudo crear el evento para tx_hash {tx_hash}.")
-
                 except Exception as e_tx_proc:
                     logger.exception(f"      ❌ [TX_PROCESS_ERROR] Error general al procesar tx {tx_data.get('hash', 'N/A')}: {e_tx_proc!r}")
 
         if newly_created_events_for_this_watcher:
             logger.info(f"  🔔 [NOTIFICATION_PROCESSING] {len(newly_created_events_for_this_watcher)} evento(s) nuevo(s) para notificar (Watcher ID={watcher_instance.id}).")
-            # --- Lógica de Notificación (la mantenemos como la tenías) ---
             if not watcher_instance.transports:
                 logger.info(f"    ℹ️ [NO_TRANSPORTS] No hay transports para Watcher ID={watcher_instance.id}.")
             else:
@@ -194,16 +194,14 @@ def poll_and_notify(
 
     logger.info("🔄 [POLL_CYCLE] Ciclo de sondeo y notificación finalizado.")
 
-# --- Mantenemos tu bloque __main__ para pruebas ---
 if __name__ == "__main__":
-    from .database import SessionLocal # Ajusta la ruta si es necesario
-    from . import crud # Ajusta la ruta si es necesario
+    from .database import SessionLocal
+    from . import crud
 
     db_session = SessionLocal()
     logger.info("■■■■■■■■■■■■■■■■■■■■■■■■■■■■")
     logger.info("▶ [WATCHER_SCRIPT_RUN] Iniciando TokenWatcher Poller (ejecución directa)...")
     try:
-        # Asegúrate que crud.get_active_watchers existe o usa la que tienes.
         get_watchers_for_run = lambda: crud.get_active_watchers(db_session)
         create_event_for_run = lambda data_payload: crud.create_event(db_session, data_payload)
 
