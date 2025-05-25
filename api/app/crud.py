@@ -54,7 +54,7 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
     db.refresh(db_user)
     return db_user
 
-# --- Watcher CRUD (Mantenemos tu lógica, ajustando WatcherUpdate) ---
+# --- Watcher CRUD ---
 def get_watcher_db(db: Session, watcher_id: int, owner_id: Optional[int] = None) -> models.Watcher:
     query = db.query(models.Watcher).filter(models.Watcher.id == watcher_id)
     if owner_id is not None:
@@ -78,7 +78,7 @@ def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int
             .options(selectinload(models.Watcher.transports))
             .offset(skip).limit(limit).all())
 
-def create_watcher(db: Session, watcher_data: schemas.WatcherCreatePayload, owner_id: int) -> models.Watcher: # Usamos WatcherCreatePayload
+def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: int) -> models.Watcher: # <-- MODIFICADO AQUÍ
     db_watcher = models.Watcher(
         name=watcher_data.name, token_address=watcher_data.token_address,
         threshold=watcher_data.threshold, is_active=watcher_data.is_active, owner_id=owner_id
@@ -90,9 +90,9 @@ def create_watcher(db: Session, watcher_data: schemas.WatcherCreatePayload, owne
     db.refresh(db_watcher)
     return db_watcher
 
-def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.WatcherUpdatePayload, owner_id: int) -> models.Watcher: # Usamos WatcherUpdatePayload
+def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.WatcherUpdatePayload, owner_id: int) -> models.Watcher:
     db_watcher = get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
-    update_data = watcher_update_data.model_dump(exclude_unset=True) # Usamos model_dump
+    update_data = watcher_update_data.model_dump(exclude_unset=True)
     webhook_url_in_payload = "webhook_url" in update_data
     new_webhook_url_value = watcher_update_data.webhook_url
     for field, value in update_data.items():
@@ -117,13 +117,13 @@ def create_event(db: Session, event_data: schemas.TokenEventCreate) -> models.To
     """
     db_event = models.TokenEvent(
         watcher_id=event_data.watcher_id,
-        token_address_observed=event_data.token_address_observed, # <-- Usamos el nombre del schema
+        token_address_observed=event_data.token_address_observed,
         from_address=event_data.from_address,
         to_address=event_data.to_address,
-        amount=event_data.amount, # <-- Usamos el nombre del schema
+        amount=event_data.amount,
         transaction_hash=event_data.transaction_hash,
         block_number=event_data.block_number,
-        usd_value=event_data.usd_value # <-- AÑADIDO: Guardamos el valor USD
+        usd_value=event_data.usd_value
     )
     try:
         db.add(db_event)
@@ -133,12 +133,11 @@ def create_event(db: Session, event_data: schemas.TokenEventCreate) -> models.To
     except Exception as e_crud_create:
         db.rollback()
         print(f"❌ [CRUD_CREATE_EVENT_ERROR] Error al guardar evento (tx_hash: {event_data.transaction_hash}): {e_crud_create!r}")
-        # Considera buscar si ya existe para evitar errores de duplicado si es posible
         existing = db.query(models.TokenEvent).filter(models.TokenEvent.transaction_hash == event_data.transaction_hash, models.TokenEvent.watcher_id == event_data.watcher_id).first()
         if existing:
              print(f"ℹ️ [CRUD_INFO] El evento {event_data.transaction_hash} ya existía.")
              return existing
-        raise # Re-lanzar si no es un duplicado conocido
+        raise
 
 def get_event_by_id(db: Session, event_id: int) -> models.TokenEvent | None:
     return db.query(models.TokenEvent).filter(models.TokenEvent.id == event_id).first()
@@ -157,8 +156,10 @@ def get_events_for_watcher(db: Session, watcher_id: int, owner_id: int, skip: in
             .order_by(desc(models.TokenEvent.created_at))
             .offset(skip).limit(limit).all())
 
-# --- Transport CRUD (Mantenemos tu lógica) ---
-# ... (Tu lógica de Transport CRUD) ...
+# --- Transport CRUD ---
+# (Aquí va tu lógica de Transport CRUD que me mostraste antes, la mantengo tal cual)
+# Si necesitas que la incluya, avísame, pero asumo que no ha cambiado.
 
-# --- TokenVolume & Calculated Volume (Mantenemos tu lógica) ---
-# ... (Tu lógica de TokenVolume CRUD) ...
+# --- TokenVolume & Calculated Volume ---
+# (Aquí va tu lógica de TokenVolume CRUD que me mostraste antes, la mantengo tal cual)
+# Si necesitas que la incluya, avísame, pero asumo que no ha cambiado.
