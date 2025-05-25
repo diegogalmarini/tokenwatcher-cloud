@@ -11,17 +11,18 @@ from sqlalchemy import (
     UniqueConstraint,
     PrimaryKeyConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB # <-- AÑADIDO
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import datetime
-from typing import List
+from typing import List, Dict, Any # <-- AÑADIDO Dict, Any
 
 from .database import Base
 
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True) # index=True es bueno para FKs
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -51,16 +52,14 @@ class Transport(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     watcher_id: Mapped[int] = mapped_column(Integer, ForeignKey("watchers.id"))
     type: Mapped[str] = mapped_column(String)
-    config: Mapped[dict] = mapped_column(String) # O JSON
+    config: Mapped[Dict[str, Any]] = mapped_column(JSONB) # <-- MODIFICADO AQUÍ
 
     watcher: Mapped["Watcher"] = relationship("Watcher", back_populates="transports")
 
 class TokenEvent(Base):
     __tablename__ = "events"
 
-    # ID es PK y parte de la clave de partición con created_at.
-    # SQLAlchemy recomienda autoincrement=True para PKs compuestas si se espera comportamiento SERIAL.
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True) # <-- MODIFICADO AQUÍ
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True)
     watcher_id: Mapped[int] = mapped_column(Integer, ForeignKey("watchers.id"))
     token_address_observed: Mapped[str] = mapped_column(String, index=True)
     from_address: Mapped[str] = mapped_column(String, index=True)
