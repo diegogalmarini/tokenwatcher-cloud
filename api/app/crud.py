@@ -78,7 +78,7 @@ def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int
             .options(selectinload(models.Watcher.transports))
             .offset(skip).limit(limit).all())
 
-def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: int) -> models.Watcher: # <-- MODIFICADO AQUÍ
+def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: int) -> models.Watcher:
     db_watcher = models.Watcher(
         name=watcher_data.name, token_address=watcher_data.token_address,
         threshold=watcher_data.threshold, is_active=watcher_data.is_active, owner_id=owner_id
@@ -110,11 +110,24 @@ def delete_watcher(db: Session, watcher_id: int, owner_id: int) -> None:
     db.commit()
 
 # --- Event (TokenEvent) CRUD ---
-def create_event(db: Session, event_data: schemas.TokenEventCreate) -> models.TokenEvent:
+def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[models.TokenEvent]: # <-- MODIFICADO: Puede devolver Optional
     """
-    Crea un nuevo evento en la base de datos.
-    AHORA incluye usd_value.
+    Crea un nuevo evento en la base de datos si no existe uno con el mismo tx_hash y watcher_id.
     """
+    # --- INICIO MODIFICACIÓN: Verificar si el evento ya existe ---
+    existing_event = db.query(models.TokenEvent).filter(
+        models.TokenEvent.transaction_hash == event_data.transaction_hash,
+        models.TokenEvent.watcher_id == event_data.watcher_id
+        # Considera también 'from_address', 'to_address', 'amount' si quieres una unicidad más estricta
+        # O si tu UniqueConstraint en el modelo es más complejo.
+        # Por ahora, tx_hash y watcher_id deberían ser suficientes para evitar duplicados por procesamiento.
+    ).first()
+
+    if existing_event:
+        print(f"ℹ️ [CRUD_INFO] El evento con tx_hash {event_data.transaction_hash} para watcher_id {event_data.watcher_id} ya existía. Se omite la creación.")
+        return existing_event # Devolvemos el existente o None/False si preferimos no devolverlo
+    # --- FIN MODIFICACIÓN ---
+
     db_event = models.TokenEvent(
         watcher_id=event_data.watcher_id,
         token_address_observed=event_data.token_address_observed,
@@ -132,11 +145,11 @@ def create_event(db: Session, event_data: schemas.TokenEventCreate) -> models.To
         return db_event
     except Exception as e_crud_create:
         db.rollback()
-        print(f"❌ [CRUD_CREATE_EVENT_ERROR] Error al guardar evento (tx_hash: {event_data.transaction_hash}): {e_crud_create!r}")
-        existing = db.query(models.TokenEvent).filter(models.TokenEvent.transaction_hash == event_data.transaction_hash, models.TokenEvent.watcher_id == event_data.watcher_id).first()
-        if existing:
-             print(f"ℹ️ [CRUD_INFO] El evento {event_data.transaction_hash} ya existía.")
-             return existing
+        # Este error ahora es menos probable que ocurra por duplicado si la verificación anterior funciona,
+        # pero podría ocurrir por otras razones (problemas de BD, etc.)
+        print(f"❌ [CRUD_CREATE_EVENT_ERROR] Error al guardar NUEVO evento (tx_hash: {event_data.transaction_hash}): {e_crud_create!r}")
+        # No devolvemos 'existing' aquí porque la verificación ya se hizo.
+        # Si llegamos aquí, es un error diferente a un simple duplicado.
         raise
 
 def get_event_by_id(db: Session, event_id: int) -> models.TokenEvent | None:
@@ -146,20 +159,37 @@ def get_all_events_for_owner(db: Session, owner_id: int, skip: int = 0, limit: i
     return (db.query(models.TokenEvent)
             .join(models.Watcher, models.TokenEvent.watcher_id == models.Watcher.id)
             .filter(models.Watcher.owner_id == owner_id)
-            .order_by(desc(models.TokenEvent.created_at))
+            .order_by(desc(models.TokenEvent.created_at)) # Ordenamos por created_at
             .offset(skip).limit(limit).all())
 
 def get_events_for_watcher(db: Session, watcher_id: int, owner_id: int, skip: int = 0, limit: int = 100) -> List[models.TokenEvent]:
     get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id) # Verifica propiedad
     return (db.query(models.TokenEvent)
             .filter(models.TokenEvent.watcher_id == watcher_id)
-            .order_by(desc(models.TokenEvent.created_at))
+            .order_by(desc(models.TokenEvent.created_at)) # Ordenamos por created_at
             .offset(skip).limit(limit).all())
 
 # --- Transport CRUD ---
-# (Aquí va tu lógica de Transport CRUD que me mostraste antes, la mantengo tal cual)
-# Si necesitas que la incluya, avísame, pero asumo que no ha cambiado.
+# (Tu lógica de Transport CRUD va aquí, asegúrate de incluirla completa desde tu archivo)
+# Por ejemplo:
+# def get_transport_by_id(db: Session, transport_id: int, owner_id: int) -> models.Transport | None:
+# # ... tu código ...
+# def get_transports_for_watcher_owner_checked(db: Session, watcher_id: int, owner_id: int, skip: int = 0, limit: int = 100) -> List[models.Transport]:
+# # ... tu código ...
+# def create_new_transport_for_watcher(db: Session, transport_data: schemas.TransportCreate, watcher_id: int, owner_id: int) -> models.Transport:
+# # ... tu código ...
+# def delete_transport_by_id(db: Session, transport_id: int, owner_id: int) -> None:
+# # ... tu código ...
+
 
 # --- TokenVolume & Calculated Volume ---
-# (Aquí va tu lógica de TokenVolume CRUD que me mostraste antes, la mantengo tal cual)
-# Si necesitas que la incluya, avísame, pero asumo que no ha cambiado.
+# (Tu lógica de TokenVolume CRUD va aquí, asegúrate de incluirla completa desde tu archivo)
+# Por ejemplo:
+# def get_volume(db: Session, contract_address: str) -> float:
+# # ... tu código ...
+# def get_token_volume_entry(db: Session, contract_address: str) -> models.TokenVolume | None:
+# # ... tu código ...
+# def get_all_token_volumes(db: Session, skip: int = 0, limit: int = 100) -> list[models.TokenVolume]:
+# # ... tu código ...
+# def create_or_update_token_volume(db: Session, volume_data: schemas.TokenRead) -> models.TokenVolume:
+# # ... tu código ...

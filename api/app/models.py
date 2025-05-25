@@ -4,7 +4,7 @@ from sqlalchemy import (
     Integer,
     String,
     Float,
-    Numeric, # <-- AÑADIDO (Si no estaba)
+    Numeric,
     Boolean,
     ForeignKey,
     DateTime,
@@ -14,14 +14,14 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import datetime
-from typing import List # <-- AÑADIDO (Si no estaba)
+from typing import List
 
 from .database import Base
 
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True) # index=True es bueno para FKs
     email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -58,7 +58,9 @@ class Transport(Base):
 class TokenEvent(Base):
     __tablename__ = "events"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True) # ID es PK
+    # ID es PK y parte de la clave de partición con created_at.
+    # SQLAlchemy recomienda autoincrement=True para PKs compuestas si se espera comportamiento SERIAL.
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True, autoincrement=True) # <-- MODIFICADO AQUÍ
     watcher_id: Mapped[int] = mapped_column(Integer, ForeignKey("watchers.id"))
     token_address_observed: Mapped[str] = mapped_column(String, index=True)
     from_address: Mapped[str] = mapped_column(String, index=True)
@@ -66,18 +68,13 @@ class TokenEvent(Base):
     amount: Mapped[float] = mapped_column(Numeric(30, 18))
     transaction_hash: Mapped[str] = mapped_column(String, index=True)
     block_number: Mapped[int] = mapped_column(Integer)
-
-    # --- NUEVO CAMPO ---
-    usd_value: Mapped[float | None] = mapped_column(Numeric(20, 4), nullable=True) # <-- AÑADIDO
-    # --- FIN NUEVO CAMPO ---
-
+    usd_value: Mapped[float | None] = mapped_column(Numeric(20, 4), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), primary_key=True # Es PK para partición
+        DateTime(timezone=True), server_default=func.now(), primary_key=True
     )
 
     watcher: Mapped["Watcher"] = relationship(back_populates="events")
 
-    # Mantenemos tus __table_args__ existentes
     __table_args__ = (
          PrimaryKeyConstraint('id', 'created_at'),
          UniqueConstraint('transaction_hash', 'id', 'created_at', name='uq_tx_hash_id_created'),
