@@ -2,7 +2,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from pydantic import HttpUrl 
+from pydantic import HttpUrl
 
 # Importación de CORSMiddleware
 from fastapi.middleware.cors import CORSMiddleware
@@ -53,15 +53,15 @@ def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Sessi
     active_webhook_url: Optional[HttpUrl] = None
     # Asumimos que `db_watcher.transports` está disponible (cargado con selectinload o por acceso lazy)
     # y que tomamos el primer transport como el "principal" para mostrar su URL.
-    if db_watcher.transports: 
+    if db_watcher.transports:
         first_transport = db_watcher.transports[0]
         if first_transport.config and "url" in first_transport.config:
             try:
                 active_webhook_url = HttpUrl(first_transport.config["url"])
-            except Exception: 
+            except Exception:
                 active_webhook_url = None
                 print(f"Warning: URL en config de Transport ID={first_transport.id} no es HttpUrl válida: {first_transport.config['url']}")
-    
+
     return schemas.WatcherRead(
         id=db_watcher.id,
         owner_id=db_watcher.owner_id,
@@ -86,7 +86,7 @@ def api_root_demo():
 # --- Watchers CRUD ---
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
 def create_new_watcher_for_current_user(
-    watcher_data: schemas.WatcherCreate, 
+    watcher_data: schemas.WatcherCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -97,8 +97,8 @@ def create_new_watcher_for_current_user(
 
 @app.get("/watchers/", response_model=List[schemas.WatcherRead], tags=["Watchers"])
 def list_watchers_for_current_user(
-    skip: int = 0, 
-    limit: int = 100, 
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -108,7 +108,7 @@ def list_watchers_for_current_user(
 
 @app.get("/watchers/{watcher_id}", response_model=schemas.WatcherRead, tags=["Watchers"])
 def get_single_watcher_for_current_user(
-    watcher_id: int, 
+    watcher_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -120,8 +120,8 @@ def get_single_watcher_for_current_user(
 
 @app.put("/watchers/{watcher_id}", response_model=schemas.WatcherRead, tags=["Watchers"])
 def update_existing_watcher_for_current_user(
-    watcher_id: int, 
-    watcher_update_data: schemas.WatcherUpdate, 
+    watcher_id: int,
+    watcher_update_data: schemas.WatcherUpdatePayload, # <-- ÚNICO CAMBIO AQUÍ
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -131,28 +131,28 @@ def update_existing_watcher_for_current_user(
 
 @app.delete("/watchers/{watcher_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Watchers"])
 def delete_existing_watcher_for_current_user(
-    watcher_id: int, 
+    watcher_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     crud.delete_watcher(db=db, watcher_id=watcher_id, owner_id=current_user.id)
-    return 
+    return
 
 # --- Events CRUD ---
 @app.post("/events/", response_model=schemas.TokenEventRead, status_code=status.HTTP_201_CREATED, tags=["Events"], include_in_schema=False)
-def create_new_event_for_authed_user_testing( 
-    event_data: schemas.TokenEventCreate, 
+def create_new_event_for_authed_user_testing(
+    event_data: schemas.TokenEventCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     # Verificar que el watcher asociado al evento pertenece al usuario actual
-    crud.get_watcher_db(db, watcher_id=event_data.watcher_id, owner_id=current_user.id) 
+    crud.get_watcher_db(db, watcher_id=event_data.watcher_id, owner_id=current_user.id)
     return crud.create_event(db=db, event_data=event_data)
 
 @app.get("/events/", response_model=List[schemas.TokenEventRead], tags=["Events"])
 def list_all_events_for_current_user(
-    skip: int = 0, 
-    limit: int = 100, 
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -160,14 +160,14 @@ def list_all_events_for_current_user(
 
 @app.get("/events/watcher/{watcher_id}", response_model=List[schemas.TokenEventRead], tags=["Events"])
 def list_events_for_a_specific_watcher_of_current_user(
-    watcher_id: int, 
-    skip: int = 0, 
-    limit: int = 100, 
+    watcher_id: int,
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     # crud.get_watcher_db verifica la propiedad y existencia del watcher
-    crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id) 
+    crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id)
     return crud.get_events_for_watcher(db, watcher_id=watcher_id, owner_id=current_user.id, skip=skip, limit=limit)
 
 @app.get("/events/{event_id}", response_model=schemas.TokenEventRead, tags=["Events"])
@@ -187,20 +187,22 @@ def get_single_event_for_current_user(
 @app.post("/watchers/{watcher_id}/transports/", response_model=schemas.TransportRead, status_code=status.HTTP_201_CREATED, tags=["Transports (Watcher-Specific)"])
 def add_new_transport_to_watcher(
     watcher_id: int,
-    transport_payload: schemas.TransportCreate, 
+    transport_payload: schemas.TransportCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     # Asegurarse que el watcher_id en el payload del transport coincida con el watcher_id del path
-    if transport_payload.watcher_id != watcher_id:
-        raise HTTPException(status_code=400, detail="Watcher ID in path does not match watcher ID in transport payload.")
-    # La función crud.create_new_transport_for_watcher verificará la propiedad del watcher_id
+    # En tu crud.py, create_new_transport_for_watcher no usa transport_data.watcher_id,
+    # sino que usa el watcher_id del path, lo cual está bien.
+    # Esta validación aquí es una capa extra si quieres.
+    # if transport_payload.watcher_id != watcher_id:
+    #     raise HTTPException(status_code=400, detail="Watcher ID in path does not match watcher ID in transport payload.")
     return crud.create_new_transport_for_watcher(db=db, transport_data=transport_payload, watcher_id=watcher_id, owner_id=current_user.id)
 
 @app.get("/watchers/{watcher_id}/transports/", response_model=List[schemas.TransportRead], tags=["Transports (Watcher-Specific)"])
 def list_all_transports_for_specific_watcher(
     watcher_id: int,
-    skip: int = 0, 
+    skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -211,7 +213,7 @@ def list_all_transports_for_specific_watcher(
 
 @app.delete("/transports/{transport_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Transports (Global ID)"])
 def delete_specific_transport_by_id(
-    transport_id: int, 
+    transport_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -225,8 +227,11 @@ def read_token_total_volume(contract_address: str, db: Session = Depends(get_db)
     # Validar formato de contract_address
     if not contract_address.startswith("0x") or len(contract_address) != 42:
         try: # Intentar convertir a checksum address si no lo es
-            from web3 import Web3
+            from web3 import Web3 # Importación local para evitar dependencia si no se usa
             contract_address = Web3.to_checksum_address(contract_address)
+        except ImportError:
+            print("WARN: web3 no instalado, no se pudo convertir a checksum address para /tokens/{contract_address}/volume")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid contract address format and web3 not available for checksum.")
         except Exception:
              raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid contract address format.")
 
