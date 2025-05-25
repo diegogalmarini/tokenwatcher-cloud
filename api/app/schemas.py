@@ -6,13 +6,13 @@ from typing import Optional, List
 # --- SCHEMAS DE EVENTOS ---
 class TokenEventBase(BaseModel):
     watcher_id: int
-    token_address_observed: str # <-- Usamos este nombre (coincide con tu schema)
+    token_address_observed: str
     from_address: str
     to_address: str
-    amount: float # <-- Usamos este nombre (coincide con tu schema)
+    amount: float
     transaction_hash: str
     block_number: int
-    usd_value: Optional[float] = None # <-- AÑADIDO
+    usd_value: Optional[float] = None
 
 class TokenEventCreate(TokenEventBase):
     pass
@@ -22,7 +22,7 @@ class TokenEventRead(TokenEventBase):
     created_at: datetime
 
     class Config:
-        from_attributes = True # Pydantic V2 (o orm_mode = True para V1)
+        from_attributes = True
 
 
 # --- SCHEMAS DE TRANSPORT ---
@@ -48,10 +48,13 @@ class WatcherBase(BaseModel):
     threshold: float
     is_active: bool = True
 
-class WatcherCreatePayload(WatcherBase):
-    webhook_url: HttpUrl
+# Para crear, esperamos la URL del webhook directamente
+# class WatcherCreatePayload(WatcherBase): # <-- NOMBRE ANTERIOR
+class WatcherCreate(WatcherBase): # <-- NOMBRE CORREGIDO
+    webhook_url: HttpUrl # El webhook es obligatorio al crear
 
-class WatcherUpdatePayload(BaseModel): # <-- Lo he llamado así para claridad
+# Para actualizar, permitimos cambios parciales y webhook opcional
+class WatcherUpdatePayload(BaseModel):
     name: Optional[str] = None
     token_address: Optional[str] = None
     threshold: Optional[float] = None
@@ -70,6 +73,7 @@ class WatcherRead(WatcherBase):
 
 
 # --- SCHEMAS DE USUARIO ---
+# (El resto de tus schemas de User y Token se mantienen igual)
 class UserBase(BaseModel):
     email: EmailStr
 
@@ -84,7 +88,6 @@ class UserRead(UserBase):
     class Config:
         from_attributes = True
 
-# --- SCHEMAS DE TOKEN (AUTH) ---
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -92,9 +95,7 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     email: Optional[str] = None
 
-# --- SCHEMAS DE TOKEN VOLUME (Ya lo tenías en crud.py) ---
-# Añadimos aquí los schemas que se infieren de tu crud.py para TokenVolume
-class TokenRead(BaseModel): # Asumo este schema basado en tu crud.py
+class TokenRead(BaseModel):
     contract: str
     volume: float
 
