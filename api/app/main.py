@@ -3,6 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import HttpUrl
+import json # <-- AÑADIDO para el fallback en _populate_watcher_read_from_db_watcher
 
 # Importación de CORSMiddleware
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,15 +26,19 @@ app = FastAPI(
 )
 
 # --- Configuración de CORS ---
-# Lista de orígenes permitidos
-allowed_origins = [
-    "http://localhost:3000", # Para desarrollo local con tu frontend Next.js
-    # "https://tu-frontend-desplegado.com", # <-- AÑADE LA URL DE TU FRONTEND EN PRODUCCIÓN AQUÍ CUANDO LO TENGAS
-]
+# Para desarrollo, permitimos localhost en cualquier puerto vía regex.
+allow_origin_regex = r"http://localhost(:\d+)?" # Permite http://localhost o http://localhost:puerto
+
+# Lista de URLs específicas para producción (ejemplos)
+# Cuando vayas a producción, añade aquí la URL de tu frontend desplegado.
+# origins_for_production = [
+#     "https://tu-dashboard.onrender.com", # Ejemplo
+# ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    # allow_origins=origins_for_production, # Descomenta y usa esto para producción
+    allow_origin_regex=allow_origin_regex, # Para desarrollo local flexible
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,21 +53,20 @@ def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Sessi
     active_webhook_url: Optional[HttpUrl] = None
     if db_watcher.transports:
         first_transport = db_watcher.transports[0]
-        if isinstance(first_transport.config, dict) and "url" in first_transport.config: # Asegurarse que config es dict
+        # Asegurarse que config es un dict antes de acceder a "url"
+        config_data = first_transport.config
+        if isinstance(config_data, str): # Si se guardó como string JSON
             try:
-                active_webhook_url = HttpUrl(first_transport.config["url"])
-            except Exception:
-                active_webhook_url = None
-                print(f"Warning: URL en config de Transport ID={first_transport.id} no es HttpUrl válida: {first_transport.config['url']}")
-        elif isinstance(first_transport.config, str): # Si se guardó como string JSON
-            try:
-                config_dict = json.loads(first_transport.config)
-                if "url" in config_dict:
-                    active_webhook_url = HttpUrl(config_dict["url"])
-            except Exception:
-                active_webhook_url = None
-                print(f"Warning: String JSON en config de Transport ID={first_transport.id} no es válido o no contiene URL: {first_transport.config}")
+                config_data = json.loads(config_data)
+            except json.JSONDecodeError:
+                config_data = {} # Fallback a dict vacío si no es JSON válido
 
+        if isinstance(config_data, dict) and "url" in config_data:
+            try:
+                active_webhook_url = HttpUrl(config_data["url"])
+            except Exception:
+                active_webhook_url = None
+                print(f"Warning: URL en config de Transport ID={first_transport.id} no es HttpUrl válida: {config_data.get('url')}")
 
     return schemas.WatcherRead(
         id=db_watcher.id,
@@ -119,7 +123,7 @@ def get_single_watcher_for_current_user(
 @app.put("/watchers/{watcher_id}", response_model=schemas.WatcherRead, tags=["Watchers"])
 def update_existing_watcher_for_current_user(
     watcher_id: int,
-    watcher_update_data: schemas.WatcherUpdatePayload, # <-- MODIFICADO AQUÍ
+    watcher_update_data: schemas.WatcherUpdatePayload,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -179,18 +183,14 @@ def get_single_event_for_current_user(
     return db_event
 
 # --- Transports CRUD ---
-# (Aquí va tu lógica de Transports CRUD que ya tenías, si es diferente a esto)
 @app.post("/watchers/{watcher_id}/transports/", response_model=schemas.TransportRead, status_code=status.HTTP_201_CREATED, tags=["Transports (Watcher-Specific)"])
-def add_new_transport_to_watcher( # Cambié el nombre de la función para evitar conflicto si ya tenías una create_transport
+def add_new_transport_to_watcher(
     watcher_id: int,
     transport_payload: schemas.TransportCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    # Tu crud.py ya tiene create_new_transport_for_watcher, que verifica propiedad y todo.
-    # Asumo que transport_payload tiene watcher_id, pero tu crud no lo usa directamente.
     return crud.create_new_transport_for_watcher(db=db, transport_data=transport_payload, watcher_id=watcher_id, owner_id=current_user.id)
-
 
 @app.get("/watchers/{watcher_id}/transports/", response_model=List[schemas.TransportRead], tags=["Transports (Watcher-Specific)"])
 def list_all_transports_for_specific_watcher(
@@ -200,17 +200,16 @@ def list_all_transports_for_specific_watcher(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id) # Verifica propiedad
+    crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id)
     return crud.get_transports_for_watcher_owner_checked(db, watcher_id=watcher_id, owner_id=current_user.id, skip=skip, limit=limit)
 
-
 @app.delete("/transports/{transport_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Transports (Global ID)"])
-def delete_specific_transport_by_id( # Cambié el nombre de la función
+def delete_specific_transport_by_id(
     transport_id: int,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    crud.delete_transport_by_id(db=db, transport_id=transport_id, owner_id=current_user.id) # Verifica propiedad en CRUD
+    crud.delete_transport_by_id(db=db, transport_id=transport_id, owner_id=current_user.id)
     return
 
 # --- Token Volume Endpoint ---
