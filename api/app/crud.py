@@ -1,10 +1,10 @@
 # api/app/crud.py
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import desc, func as sql_func, inspect as sql_inspect # sql_inspect para verificar columnas
+from sqlalchemy import desc, func as sql_func, inspect as sql_inspect
 from fastapi import HTTPException
 from pydantic import HttpUrl
-from typing import Optional, List, Dict, Any # <-- AÑADIDO Dict, Any
-import json # <-- AÑADIDO para el manejo de config en _create_or_update_primary_transport_for_watcher
+from typing import Optional, List, Dict, Any
+import json
 
 from . import models, schemas, auth
 
@@ -27,23 +27,26 @@ def _create_or_update_primary_transport_for_watcher(
         webhook_url_str = str(webhook_url_from_schema)
         if not transport_type:
             if db_transport: db.delete(db_transport)
-            print(f"Warning: Webhook URL no válida para Watcher ID={watcher_model_instance.id}.")
+            print(f"Warning: Webhook URL '{webhook_url_str}' para Watcher ID={watcher_model_instance.id} no es de tipo conocido. No se creó/actualizó Transport.")
             return
 
-        config_data = {"url": webhook_url_str} # Esto es un dict
+        config_data = {"url": webhook_url_str}
 
         if db_transport:
             db_transport.type = transport_type
-            db_transport.config = config_data # SQLAlchemy con JSONB debería manejar el dict
+            db_transport.config = config_data
+            print(f"ℹ️ [CRUD_TRANSPORT] Transport ID={db_transport.id} actualizado para Watcher ID={watcher_model_instance.id} a tipo '{transport_type}'.")
         else:
             db_transport = models.Transport(
                 watcher_id=watcher_model_instance.id,
                 type=transport_type,
-                config=config_data # SQLAlchemy con JSONB debería manejar el dict
+                config=config_data
             )
             db.add(db_transport)
+            print(f"ℹ️ [CRUD_TRANSPORT] Nuevo Transport tipo '{transport_type}' creado para Watcher ID={watcher_model_instance.id}.")
     elif db_transport:
         db.delete(db_transport)
+        print(f"ℹ️ [CRUD_TRANSPORT] Transport ID={db_transport.id} eliminado para Watcher ID={watcher_model_instance.id} (webhook_url no proporcionada o None).")
 
 # --- User CRUD ---
 def get_user(db: Session, user_id: int) -> models.User | None:
@@ -62,13 +65,16 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
 
 # --- Watcher CRUD ---
 def get_watcher_db(db: Session, watcher_id: int, owner_id: Optional[int] = None) -> models.Watcher:
-    query = db.query(models.Watcher).options(selectinload(models.Watcher.transports)) # Eager load transports
+    query = db.query(models.Watcher).options(selectinload(models.Watcher.transports))
     query = query.filter(models.Watcher.id == watcher_id)
     if owner_id is not None:
         query = query.filter(models.Watcher.owner_id == owner_id)
     db_watcher = query.first()
     if not db_watcher:
-        raise HTTPException(status_code=404, detail="Watcher not found or not owned")
+        detail = "Watcher not found"
+        if owner_id is not None:
+            detail = "Watcher not found or not owned by user"
+        raise HTTPException(status_code=404, detail=detail)
     return db_watcher
 
 def get_active_watchers(db: Session, skip: int = 0, limit: int = 100) -> List[models.Watcher]:
@@ -101,8 +107,7 @@ def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.Wa
     db_watcher = get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
     update_data = watcher_update_data.model_dump(exclude_unset=True)
     webhook_url_in_payload = "webhook_url" in update_data
-    new_webhook_url_value = watcher_update_data.webhook_url if webhook_url_in_payload else db_watcher.transports[0].config.get("url") if db_watcher.transports else None
-
+    new_webhook_url_value = watcher_update_data.webhook_url if webhook_url_in_payload else None
 
     for field, value in update_data.items():
         if field == "webhook_url": continue
@@ -110,7 +115,7 @@ def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.Wa
 
     if webhook_url_in_payload:
         _create_or_update_primary_transport_for_watcher(db, db_watcher, new_webhook_url_value)
-    
+
     db.commit()
     db.refresh(db_watcher)
     return db_watcher
@@ -125,7 +130,6 @@ def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[
     existing_event = db.query(models.TokenEvent).filter(
         models.TokenEvent.transaction_hash == event_data.transaction_hash,
         models.TokenEvent.watcher_id == event_data.watcher_id
-        # Podrías añadir más campos aquí si tu UniqueConstraint es más complejo
     ).first()
 
     if existing_event:
@@ -141,8 +145,8 @@ def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[
         transaction_hash=event_data.transaction_hash,
         block_number=event_data.block_number,
         usd_value=event_data.usd_value,
-        token_name=event_data.token_name,     # <-- AÑADIDO
-        token_symbol=event_data.token_symbol  # <-- AÑADIDO
+        token_name=event_data.token_name,
+        token_symbol=event_data.token_symbol
     )
     try:
         db.add(db_event)
@@ -157,105 +161,88 @@ def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[
 def get_event_by_id(db: Session, event_id: int) -> models.TokenEvent | None:
     return db.query(models.TokenEvent).filter(models.TokenEvent.id == event_id).first()
 
-def get_all_events_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int = 100) -> List[models.TokenEvent]:
-    return (db.query(models.TokenEvent)
-            .join(models.Watcher, models.TokenEvent.watcher_id == models.Watcher.id)
-            .filter(models.Watcher.owner_id == owner_id)
-            .order_by(desc(models.TokenEvent.created_at))
-            .offset(skip).limit(limit).all())
+# --- MODIFICADAS PARA DEVOLVER CONTEO TOTAL Y EVENTOS ---
+def get_all_events_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int = 100) -> Dict[str, Any]:
+    base_query = db.query(models.TokenEvent)\
+                   .join(models.Watcher, models.TokenEvent.watcher_id == models.Watcher.id)\
+                   .filter(models.Watcher.owner_id == owner_id)
+    
+    total_events = base_query.with_entities(sql_func.count(models.TokenEvent.id)).scalar() or 0
 
-def get_events_for_watcher(db: Session, watcher_id: int, owner_id: int, skip: int = 0, limit: int = 100) -> List[models.TokenEvent]:
-    get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
-    return (db.query(models.TokenEvent)
-            .filter(models.TokenEvent.watcher_id == watcher_id)
-            .order_by(desc(models.TokenEvent.created_at))
-            .offset(skip).limit(limit).all())
+    events = base_query.order_by(desc(models.TokenEvent.created_at))\
+                       .offset(skip)\
+                       .limit(limit)\
+                       .all()
+    return {"total_events": total_events, "events": events}
+
+def get_events_for_watcher(db: Session, watcher_id: int, owner_id: int, skip: int = 0, limit: int = 100) -> Dict[str, Any]:
+    get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id) # Verifica propiedad
+
+    base_query = db.query(models.TokenEvent)\
+                   .filter(models.TokenEvent.watcher_id == watcher_id)
+
+    total_events = base_query.with_entities(sql_func.count(models.TokenEvent.id)).scalar() or 0
+    
+    events = base_query.order_by(desc(models.TokenEvent.created_at))\
+                       .offset(skip)\
+                       .limit(limit)\
+                       .all()
+    return {"total_events": total_events, "events": events}
+# --- FIN MODIFICACIONES PARA PAGINACIÓN ---
 
 # --- Transport CRUD ---
-# (Tu lógica existente de Transport CRUD - la he mantenido igual que me pasaste)
-def create_new_transport_for_watcher(db: Session, transport_data: schemas.TransportCreate, watcher_id: int, owner_id: int) -> models.Transport:
-    # Asegurarse que el watcher existe y pertenece al owner
-    get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
+def get_transport_by_id(db: Session, transport_id: int, owner_id: int) -> models.Transport | None:
+    transport = (db.query(models.Transport)
+                 .join(models.Watcher, models.Transport.watcher_id == models.Watcher.id)
+                 .filter(models.Transport.id == transport_id, models.Watcher.owner_id == owner_id)
+                 .first())
+    if not transport:
+        raise HTTPException(status_code=404, detail="Transport not found or not owned by user")
+    return transport
 
-    # Validar tipo de transport y config (simplificado, puedes expandir)
-    if not get_transport_type_from_url(str(transport_data.config.get("url"))): # Asumiendo que config siempre tiene 'url'
-        raise HTTPException(status_code=400, detail="Invalid webhook URL or unsupported transport type based on URL.")
+def get_transports_for_watcher_owner_checked(db: Session, watcher_id: int, owner_id: int, skip: int = 0, limit: int = 100) -> List[models.Transport]:
+    get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
+    return (db.query(models.Transport)
+            .filter(models.Transport.watcher_id == watcher_id)
+            .order_by(models.Transport.id)
+            .offset(skip)
+            .limit(limit)
+            .all())
+
+def create_new_transport_for_watcher(db: Session, transport_data: schemas.TransportCreate, watcher_id: int, owner_id: int) -> models.Transport:
+    # El watcher_id del payload se usa para crear el objeto Transport, 
+    # pero la asociación real se hace con el watcher_id del path.
+    # La validación de si transport_data.watcher_id == watcher_id se hace en main.py
+    get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id) # Verifica propiedad del watcher_id del path
 
     db_transport = models.Transport(
-        watcher_id=watcher_id,
-        type=transport_data.type, # El tipo debería validarse o derivarse de la config de forma más robusta
-        config=transport_data.config # Como el modelo usa JSONB, podemos pasar el dict
+        watcher_id=watcher_id, # Usar el watcher_id del path para la FK
+        type=transport_data.type,
+        config=transport_data.config
     )
     db.add(db_transport)
     db.commit()
     db.refresh(db_transport)
     return db_transport
 
-def get_transports_for_watcher_owner_checked(db: Session, watcher_id: int, owner_id: int, skip: int = 0, limit: int = 100) -> List[models.Transport]:
-    # get_watcher_db ya verifica la propiedad del watcher
-    get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
-    return (db.query(models.Transport)
-            .filter(models.Transport.watcher_id == watcher_id)
-            .order_by(models.Transport.id) # O como prefieras ordenar
-            .offset(skip)
-            .limit(limit)
-            .all())
-
 def delete_transport_by_id(db: Session, transport_id: int, owner_id: int) -> None:
-    # Para verificar propiedad, primero obtenemos el transport y su watcher asociado
-    db_transport = db.query(models.Transport).options(selectinload(models.Transport.watcher))\
-                     .filter(models.Transport.id == transport_id).first()
-
-    if not db_transport:
-        raise HTTPException(status_code=404, detail="Transport not found")
-    
-    if db_transport.watcher.owner_id != owner_id:
-        raise HTTPException(status_code=403, detail="User does not own this transport")
-        
+    db_transport = get_transport_by_id(db, transport_id=transport_id, owner_id=owner_id) # Ya verifica propiedad
     db.delete(db_transport)
     db.commit()
 
-# --- TokenVolume & Calculated Volume (Tu lógica existente) ---
+# --- TokenVolume & Calculated Volume ---
 def get_volume(db: Session, contract_address: str) -> float:
     total_volume = (
-        db.query(sql_func.sum(models.TokenEvent.amount)) # Asegúrate que TokenEvent es el modelo correcto aquí
+        db.query(sql_func.sum(models.TokenEvent.amount))
         .filter(models.TokenEvent.token_address_observed == contract_address)
         .scalar()
     )
     return total_volume if total_volume is not None else 0.0
 
-# Tu TokenVolume parece ser un modelo que no me has pasado. Asumo que existe.
-# Si no existe o no lo usas, puedes eliminar estas funciones o adaptarlas.
+# (Mantengo comentadas tus funciones de TokenVolume ya que no tengo el modelo)
 # def get_token_volume_entry(db: Session, contract_address: str) -> models.TokenVolume | None:
-#     # return db.query(models.TokenVolume).filter(models.TokenVolume.contract == contract_address).first()
-#     pass # Implementa si es necesario
-
+#     pass
 # def get_all_token_volumes(db: Session, skip: int = 0, limit: int = 100) -> list[models.TokenVolume]:
-#     # return (
-#     #     db.query(models.TokenVolume)
-#     #     .order_by(models.TokenVolume.contract)
-#     #     .offset(skip)
-#     #     .limit(limit)
-#     #     .all()
-#     # )
-#     return [] # Implementa si es necesario
-
+#     return []
 # def create_or_update_token_volume(db: Session, volume_data: schemas.TokenRead) -> models.TokenVolume:
-#     # db_vol = get_token_volume_entry(db, volume_data.contract)
-#     # if db_vol:
-#     #     db_vol.volume = volume_data.volume
-#     # else:
-#     #     db_vol = models.TokenVolume(
-#     #         contract=volume_data.contract,
-#     #         volume=volume_data.volume
-#     #     )
-#     #     db.add(db_vol)
-#     # try:
-#     #     db.commit()
-#     #     db.refresh(db_vol)
-#     #     return db_vol
-#     # except Exception as e:
-#     #     db.rollback()
-#     #     print(f"❌ [CRUD_TOKEN_VOLUME_ERROR] Error al guardar TokenVolume para {volume_data.contract}: {e!r}")
-#     #     raise
-#     pass # Implementa si es necesario
+#     pass

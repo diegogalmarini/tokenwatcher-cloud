@@ -1,7 +1,7 @@
 # api/app/schemas.py
 from pydantic import BaseModel, HttpUrl, EmailStr
 from datetime import datetime
-from typing import Optional, List, Dict, Any # <-- AÑADIDO Dict, Any
+from typing import Optional, List, Dict, Any
 
 # --- SCHEMAS DE EVENTOS ---
 class TokenEventBase(BaseModel):
@@ -13,8 +13,8 @@ class TokenEventBase(BaseModel):
     transaction_hash: str
     block_number: int
     usd_value: Optional[float] = None
-    token_name: Optional[str] = None # <-- AÑADIDO
-    token_symbol: Optional[str] = None # <-- AÑADIDO
+    token_name: Optional[str] = None
+    token_symbol: Optional[str] = None
 
 class TokenEventCreate(TokenEventBase):
     pass
@@ -27,13 +27,20 @@ class TokenEventRead(TokenEventBase):
         from_attributes = True
 
 
+# --- NUEVO SCHEMA PARA RESPUESTA PAGINADA DE EVENTOS ---
+class PaginatedTokenEventResponse(BaseModel): # <-- AÑADIDO
+    total_events: int
+    events: List[TokenEventRead]
+# --- FIN NUEVO SCHEMA ---
+
+
 # --- SCHEMAS DE TRANSPORT ---
 class TransportBase(BaseModel):
     type: str
-    config: Dict[str, Any] # <-- Cambiado a Dict[str, Any] para ser compatible con JSONB
+    config: Dict[str, Any]
 
 class TransportCreate(TransportBase):
-    watcher_id: int # <-- Añadido aquí, ya que el endpoint POST /transports lo usa así
+    watcher_id: int
 
 class TransportRead(TransportBase):
     id: int
@@ -93,8 +100,7 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     email: Optional[str] = None
 
-# Schema para el endpoint de TokenVolume que ya tenías
-class TokenRead(BaseModel): # Renombrado para evitar conflicto con el Token de auth
+class TokenRead(BaseModel): # Para /tokens/{contract_address}/volume
     contract: str
     volume: float
 
