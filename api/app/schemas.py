@@ -1,7 +1,7 @@
 # api/app/schemas.py
 from pydantic import BaseModel, HttpUrl, EmailStr
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any # <-- AÑADIDO Dict, Any
 
 # --- SCHEMAS DE EVENTOS ---
 class TokenEventBase(BaseModel):
@@ -13,6 +13,8 @@ class TokenEventBase(BaseModel):
     transaction_hash: str
     block_number: int
     usd_value: Optional[float] = None
+    token_name: Optional[str] = None # <-- AÑADIDO
+    token_symbol: Optional[str] = None # <-- AÑADIDO
 
 class TokenEventCreate(TokenEventBase):
     pass
@@ -28,10 +30,10 @@ class TokenEventRead(TokenEventBase):
 # --- SCHEMAS DE TRANSPORT ---
 class TransportBase(BaseModel):
     type: str
-    config: dict
+    config: Dict[str, Any] # <-- Cambiado a Dict[str, Any] para ser compatible con JSONB
 
 class TransportCreate(TransportBase):
-    pass
+    watcher_id: int # <-- Añadido aquí, ya que el endpoint POST /transports lo usa así
 
 class TransportRead(TransportBase):
     id: int
@@ -48,12 +50,9 @@ class WatcherBase(BaseModel):
     threshold: float
     is_active: bool = True
 
-# Para crear, esperamos la URL del webhook directamente
-# class WatcherCreatePayload(WatcherBase): # <-- NOMBRE ANTERIOR
-class WatcherCreate(WatcherBase): # <-- NOMBRE CORREGIDO
-    webhook_url: HttpUrl # El webhook es obligatorio al crear
+class WatcherCreate(WatcherBase):
+    webhook_url: HttpUrl
 
-# Para actualizar, permitimos cambios parciales y webhook opcional
 class WatcherUpdatePayload(BaseModel):
     name: Optional[str] = None
     token_address: Optional[str] = None
@@ -73,7 +72,6 @@ class WatcherRead(WatcherBase):
 
 
 # --- SCHEMAS DE USUARIO ---
-# (El resto de tus schemas de User y Token se mantienen igual)
 class UserBase(BaseModel):
     email: EmailStr
 
@@ -95,7 +93,8 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     email: Optional[str] = None
 
-class TokenRead(BaseModel):
+# Schema para el endpoint de TokenVolume que ya tenías
+class TokenRead(BaseModel): # Renombrado para evitar conflicto con el Token de auth
     contract: str
     volume: float
 

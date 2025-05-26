@@ -11,11 +11,11 @@ from sqlalchemy import (
     UniqueConstraint,
     PrimaryKeyConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSONB # <-- AÑADIDO
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import datetime
-from typing import List, Dict, Any # <-- AÑADIDO Dict, Any
+from typing import List, Dict, Any, Optional # <-- AÑADIDO Optional
 
 from .database import Base
 
@@ -52,7 +52,7 @@ class Transport(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     watcher_id: Mapped[int] = mapped_column(Integer, ForeignKey("watchers.id"))
     type: Mapped[str] = mapped_column(String)
-    config: Mapped[Dict[str, Any]] = mapped_column(JSONB) # <-- MODIFICADO AQUÍ
+    config: Mapped[Dict[str, Any]] = mapped_column(JSONB)
 
     watcher: Mapped["Watcher"] = relationship("Watcher", back_populates="transports")
 
@@ -67,7 +67,13 @@ class TokenEvent(Base):
     amount: Mapped[float] = mapped_column(Numeric(30, 18))
     transaction_hash: Mapped[str] = mapped_column(String, index=True)
     block_number: Mapped[int] = mapped_column(Integer)
-    usd_value: Mapped[float | None] = mapped_column(Numeric(20, 4), nullable=True)
+    usd_value: Mapped[Optional[float]] = mapped_column(Numeric(20, 4), nullable=True) # Usamos Optional[float]
+
+    # --- NUEVOS CAMPOS para nombre y símbolo del token ---
+    token_name: Mapped[Optional[str]] = mapped_column(String, nullable=True) # <-- AÑADIDO
+    token_symbol: Mapped[Optional[str]] = mapped_column(String, nullable=True) # <-- AÑADIDO
+    # --- FIN NUEVOS CAMPOS ---
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), primary_key=True
     )

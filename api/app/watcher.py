@@ -6,7 +6,7 @@ import logging
 from typing import Callable, List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from web3 import Web3 # <--- NUEVA IMPORTACIÓN
+from web3 import Web3
 
 from . import schemas, crud, notifier
 from .config import settings
@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 ETHERSCAN_API_URL = "https://api.etherscan.io/api"
 
 def fetch_transfers(contract_address: str, start_block: int) -> List[Dict[str, Any]]:
-    # ... (tu función fetch_transfers se mantiene igual) ...
     try:
         start_block = int(start_block) if start_block is not None else 0
     except ValueError:
@@ -29,7 +28,7 @@ def fetch_transfers(contract_address: str, start_block: int) -> List[Dict[str, A
 
     params = {
         "module": "account", "action": "tokentx", "contractaddress": contract_address,
-        "startblock": str(start_block), "endblock": "latest", "page": 1, "offset": 1000,
+        "startblock": str(start_block), "endblock": "latest", "page": 1, "offset": 1000, # Considera un offset más pequeño para pruebas si es necesario
         "sort": "asc", "apikey": settings.ETHERSCAN_API_KEY,
     }
     logger.info(f"  📞 [FETCH_TRANSFERS] Consultando Etherscan para {contract_address} desde bloque {start_block}...")
@@ -115,17 +114,22 @@ def poll_and_notify(
                     to_addr = tx_data.get("to", "").lower()
                     tx_hash = tx_data.get("hash", "N/A")
 
-                    # --- INICIO CAMBIO CHECKSUM ---
                     contract_addr_from_tx = tx_data.get("contractAddress", watcher_instance.token_address)
-                    try:
-                        # Asegura que la dirección observada esté en formato checksum
-                        token_address_observed_checksummed = Web3.to_checksum_address(contract_addr_from_tx)
-                    except Exception:
-                        # Si falla la conversión (ej. dirección inválida), usa la original o la del watcher
-                        logger.warning(f"      ⚠️ [CHECKSUM_WARN] No se pudo convertir a checksum: {contract_addr_from_tx}. Usando original.")
-                        token_address_observed_checksummed = contract_addr_from_tx
-                    # --- FIN CAMBIO CHECKSUM ---
+                    token_address_observed_checksummed = contract_addr_from_tx # Default
+                    if contract_addr_from_tx and Web3.is_address(contract_addr_from_tx): # Solo si es una dirección válida
+                        try:
+                            token_address_observed_checksummed = Web3.to_checksum_address(contract_addr_from_tx)
+                        except Exception as e_checksum:
+                            logger.warning(f"      ⚠️ [CHECKSUM_WARN] No se pudo convertir a checksum: {contract_addr_from_tx}. Error: {e_checksum}. Usando original.")
+                    else:
+                         logger.warning(f"      ⚠️ [CHECKSUM_WARN] Dirección de contrato inválida de Etherscan: {contract_addr_from_tx}. Usando la del watcher.")
+                         token_address_observed_checksummed = Web3.to_checksum_address(watcher_instance.token_address) # Asegurar que la del watcher también esté checksummed
 
+
+                    # --- OBTENER TOKEN NAME Y SYMBOL DE TX_DATA (ETHERSCAN) ---
+                    token_name_from_tx = tx_data.get("tokenName")       # Puede ser None o string vacío
+                    token_symbol_from_tx = tx_data.get("tokenSymbol")   # Puede ser None o string vacío
+                    # --- FIN OBTENER TOKEN NAME Y SYMBOL ---
 
                     if not from_addr or not to_addr or tx_hash == "N/A": continue
                     logger.debug(f"      🔎 [TX_DETAIL] Hash={tx_hash[:10]}.., Block={current_block_number}, Amount={amount_transferred:.4f}")
@@ -133,15 +137,12 @@ def poll_and_notify(
                     if amount_transferred >= watcher_instance.threshold:
                         logger.info(f"      ❗ [THRESHOLD_MET] Monto {amount_transferred:.4f} >= umbral {watcher_instance.threshold}. Creando evento...")
 
-                        existing_event_check = db.query(EventModel.id).filter(EventModel.transaction_hash == tx_hash, EventModel.watcher_id == watcher_instance.id).first()
-                        if existing_event_check:
-                            logger.warning(f"      ⚠️ [DUPLICATE_EVENT] Evento con tx_hash {tx_hash} ya existe. Saltando.")
-                            continue
+                        # La verificación de duplicados ya se hace en crud.create_event, no es necesaria aquí
+                        # existing_event_check = ...
 
                         usd_value = None
                         timestamp = etherscan_client.get_block_timestamp(current_block_number)
                         if timestamp:
-                            # Usamos la dirección checksummed para buscar el precio
                             price = coingecko_client.get_historical_price_usd(token_address_observed_checksummed, timestamp)
                             if price is not None:
                                 usd_value = amount_transferred * price
@@ -153,33 +154,56 @@ def poll_and_notify(
 
                         event_payload_schema = schemas.TokenEventCreate(
                             watcher_id=watcher_instance.id,
-                            token_address_observed=token_address_observed_checksummed, # <-- USA LA VERSIÓN CHECKSUMMED
+                            token_address_observed=token_address_observed_checksummed,
                             from_address=from_addr,
                             to_address=to_addr,
                             amount=amount_transferred,
                             transaction_hash=tx_hash,
                             block_number=current_block_number,
-                            usd_value=usd_value
+                            usd_value=usd_value,
+                            token_name=token_name_from_tx if token_name_from_tx else None,       # <-- AÑADIDO
+                            token_symbol=token_symbol_from_tx if token_symbol_from_tx else None   # <-- AÑADIDO
                         )
 
                         created_event = create_event_func(event_payload_schema)
-                        if created_event:
-                             logger.info(f"      ✅ [EVENT_CREATED] Evento ID={created_event.id} persistido (USD: {created_event.usd_value}).")
-                             newly_created_events_for_this_watcher.append(created_event)
+                        if created_event: # create_event_func ahora puede devolver None si ya existía
+                             logger.info(f"      ✅ [EVENT_CREATED/EXISTED] Evento ID={created_event.id} procesado (USD: {created_event.usd_value}, Symbol: {created_event.token_symbol}).")
+                             if created_event not in newly_created_events_for_this_watcher : # Evitar duplicar si el evento ya existía y fue devuelto
+                                 # Solo añadir a la lista para notificar si es genuinamente nuevo *en este ciclo*
+                                 # o si decidimos notificar siempre (en ese caso, esta comprobación no es necesaria aquí sino en el notifier)
+                                 # Por ahora, asumimos que solo notificamos "recién creados en este ciclo" vs "ya existentes".
+                                 # La lógica de create_event_func ya maneja si es nuevo o existente.
+                                 # Lo importante es que created_event no sea None para considerarlo para notificación.
+                                 newly_created_events_for_this_watcher.append(created_event)
                         else:
-                             logger.error(f"      ❌ [EVENT_CREATE_FAIL] No se pudo crear el evento para tx_hash {tx_hash}.")
+                             # Esto no debería ocurrir si create_event_func devuelve el existente o el nuevo,
+                             # a menos que haya un error no capturado en create_event_func que devuelva None.
+                             # La versión de crud.py que te di devuelve el existente o lanza excepción.
+                             logger.error(f"      ❌ [EVENT_PROCESS_FAIL] El evento para tx_hash {tx_hash} no pudo ser procesado/creado.")
+
+
                 except Exception as e_tx_proc:
                     logger.exception(f"      ❌ [TX_PROCESS_ERROR] Error general al procesar tx {tx_data.get('hash', 'N/A')}: {e_tx_proc!r}")
 
         if newly_created_events_for_this_watcher:
-            logger.info(f"  🔔 [NOTIFICATION_PROCESSING] {len(newly_created_events_for_this_watcher)} evento(s) nuevo(s) para notificar (Watcher ID={watcher_instance.id}).")
+            logger.info(f"  🔔 [NOTIFICATION_PROCESSING] {len(newly_created_events_for_this_watcher)} evento(s) para notificar (Watcher ID={watcher_instance.id}).")
             if not watcher_instance.transports:
                 logger.info(f"    ℹ️ [NO_TRANSPORTS] No hay transports para Watcher ID={watcher_instance.id}.")
             else:
                 for transport_instance in watcher_instance.transports:
-                    webhook_url = transport_instance.config.get("url") if isinstance(transport_instance.config, dict) else None
+                    webhook_url = None
+                    if isinstance(transport_instance.config, dict): # Ya debería ser dict por JSONB
+                        webhook_url = transport_instance.config.get("url")
+                    elif isinstance(transport_instance.config, str): # Fallback por si acaso
+                        try:
+                            config_dict = json.loads(transport_instance.config)
+                            webhook_url = config_dict.get("url")
+                        except json.JSONDecodeError:
+                            logger.warning(f"    ⚠️ [TRANSPORT_INVALID_CONFIG_JSON_STR] Transport ID={transport_instance.id} config no es JSON válido: {transport_instance.config}")
+
+
                     if not webhook_url:
-                        logger.warning(f"    ⚠️ [TRANSPORT_INVALID_CONFIG] Transport ID={transport_instance.id} no tiene URL.")
+                        logger.warning(f"    ⚠️ [TRANSPORT_INVALID_CONFIG] Transport ID={transport_instance.id} no tiene URL en su config.")
                         continue
                     try:
                         logger.info(f"    ▶️ [SENDING_VIA_TRANSPORT] Enviando via {transport_instance.type} (ID={transport_instance.id})")
@@ -203,6 +227,7 @@ if __name__ == "__main__":
     logger.info("▶ [WATCHER_SCRIPT_RUN] Iniciando TokenWatcher Poller (ejecución directa)...")
     try:
         get_watchers_for_run = lambda: crud.get_active_watchers(db_session)
+        # Asegurarse que crud.create_event puede ser llamado así y que su tipo de retorno es compatible
         create_event_for_run = lambda data_payload: crud.create_event(db_session, data_payload)
 
         poll_and_notify(
