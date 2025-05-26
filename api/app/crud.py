@@ -1,11 +1,12 @@
 # api/app/crud.py
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import desc, func as sql_func, inspect as sql_inspect
+from sqlalchemy import desc, func as sql_func
 from fastapi import HTTPException
 from pydantic import HttpUrl
 from typing import Optional, List, Dict, Any
-import json
+import json # Asegúrate que json esté importado si lo usas en _populate_watcher_read_from_db_watcher
 
+# Importamos models y schemas como los has definido
 from . import models, schemas, auth
 
 # --- Funciones Auxiliares para Transports ---
@@ -161,7 +162,7 @@ def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[
 def get_event_by_id(db: Session, event_id: int) -> models.TokenEvent | None:
     return db.query(models.TokenEvent).filter(models.TokenEvent.id == event_id).first()
 
-# --- MODIFICADAS PARA DEVOLVER CONTEO TOTAL Y EVENTOS ---
+# --- MODIFICADAS PARA PAGINACIÓN ---
 def get_all_events_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int = 100) -> Dict[str, Any]:
     base_query = db.query(models.TokenEvent)\
                    .join(models.Watcher, models.TokenEvent.watcher_id == models.Watcher.id)\
@@ -210,13 +211,12 @@ def get_transports_for_watcher_owner_checked(db: Session, watcher_id: int, owner
             .all())
 
 def create_new_transport_for_watcher(db: Session, transport_data: schemas.TransportCreate, watcher_id: int, owner_id: int) -> models.Transport:
-    # El watcher_id del payload se usa para crear el objeto Transport, 
-    # pero la asociación real se hace con el watcher_id del path.
-    # La validación de si transport_data.watcher_id == watcher_id se hace en main.py
-    get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id) # Verifica propiedad del watcher_id del path
+    if transport_data.watcher_id != watcher_id:
+        raise HTTPException(status_code=400, detail=f"Watcher ID en payload ({transport_data.watcher_id}) no coincide con Watcher ID en path ({watcher_id}).")
+    get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
 
     db_transport = models.Transport(
-        watcher_id=watcher_id, # Usar el watcher_id del path para la FK
+        watcher_id=watcher_id,
         type=transport_data.type,
         config=transport_data.config
     )
@@ -226,20 +226,20 @@ def create_new_transport_for_watcher(db: Session, transport_data: schemas.Transp
     return db_transport
 
 def delete_transport_by_id(db: Session, transport_id: int, owner_id: int) -> None:
-    db_transport = get_transport_by_id(db, transport_id=transport_id, owner_id=owner_id) # Ya verifica propiedad
+    db_transport = get_transport_by_id(db, transport_id=transport_id, owner_id=owner_id)
     db.delete(db_transport)
     db.commit()
 
 # --- TokenVolume & Calculated Volume ---
 def get_volume(db: Session, contract_address: str) -> float:
     total_volume = (
-        db.query(sql_func.sum(models.TokenEvent.amount))
+        db.query(sql_func.sum(models.TokenEvent.amount)) # Corregido a models.TokenEvent
         .filter(models.TokenEvent.token_address_observed == contract_address)
         .scalar()
     )
     return total_volume if total_volume is not None else 0.0
 
-# (Mantengo comentadas tus funciones de TokenVolume ya que no tengo el modelo)
+# (Mantengo comentadas tus funciones de TokenVolume)
 # def get_token_volume_entry(db: Session, contract_address: str) -> models.TokenVolume | None:
 #     pass
 # def get_all_token_volumes(db: Session, skip: int = 0, limit: int = 100) -> list[models.TokenVolume]:

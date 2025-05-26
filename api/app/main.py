@@ -5,13 +5,11 @@ from typing import List, Optional
 from pydantic import HttpUrl
 import json
 
-# Importación de CORSMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import engine, get_db
 from . import models, schemas, crud, auth
 
-# Creación de tablas (esto se ejecuta una vez al iniciar la aplicación)
 try:
     print("ℹ️ [DB_INIT] Intentando crear/verificar todas las tablas definidas en Base...")
     models.Base.metadata.create_all(bind=engine)
@@ -25,58 +23,48 @@ app = FastAPI(
     description="API para monitorizar transferencias de tokens ERC-20. Webhook es obligatorio al crear Watcher. Watchers pueden ser activados/desactivados."
 )
 
-# --- Configuración de CORS ---
 allow_origin_regex = r"http://localhost(:\d+)?"
+# origins_for_production = [
+#     "https://tu-dashboard.onrender.com", # Ejemplo
+# ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=allow_origin_regex,
+    # allow_origins=origins_for_production, # Descomenta y usa esto para producción
+    allow_origin_regex=allow_origin_regex, # Para desarrollo local flexible
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# --- Fin de Configuración de CORS ---
 
-# Incluir el router de autenticación
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
-# --- Funciones Auxiliares ---
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Session) -> schemas.WatcherRead:
     active_webhook_url: Optional[HttpUrl] = None
     if db_watcher.transports:
         first_transport = db_watcher.transports[0]
-        config_data = first_transport.config # Asumimos que es un dict por JSONB
-        if isinstance(config_data, str): # Fallback por si acaso
+        config_data = first_transport.config
+        if isinstance(config_data, str):
             try: config_data = json.loads(config_data)
             except json.JSONDecodeError: config_data = {}
-
+        
         if isinstance(config_data, dict) and "url" in config_data:
-            try:
-                active_webhook_url = HttpUrl(config_data["url"])
+            try: active_webhook_url = HttpUrl(config_data["url"])
             except Exception:
                 active_webhook_url = None
                 print(f"Warning: URL en config de Transport ID={first_transport.id} no es HttpUrl válida: {config_data.get('url')}")
-
     return schemas.WatcherRead(
-        id=db_watcher.id,
-        owner_id=db_watcher.owner_id,
-        name=db_watcher.name,
-        token_address=db_watcher.token_address,
-        threshold=db_watcher.threshold,
-        is_active=db_watcher.is_active,
-        webhook_url=active_webhook_url,
-        created_at=db_watcher.created_at,
-        updated_at=db_watcher.updated_at
+        id=db_watcher.id, owner_id=db_watcher.owner_id, name=db_watcher.name,
+        token_address=db_watcher.token_address, threshold=db_watcher.threshold,
+        is_active=db_watcher.is_active, webhook_url=active_webhook_url,
+        created_at=db_watcher.created_at, updated_at=db_watcher.updated_at
     )
 
-# --- Health & System Endpoints ---
 @app.get("/health", tags=["System"])
-def health_check():
-    return {"status": "ok", "message": "TokenWatcher API is healthy"}
+def health_check(): return {"status": "ok", "message": "TokenWatcher API is healthy"}
 
 @app.get("/", tags=["System"], include_in_schema=False)
-def api_root_demo():
-    return {"message": "🎉 Welcome to TokenWatcher API v0.7.1! Visit /docs for API documentation."}
+def api_root_demo(): return {"message": "🎉 Welcome to TokenWatcher API v0.7.1! Visit /docs for API documentation."}
 
 # --- Watchers CRUD ---
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
@@ -91,9 +79,7 @@ def create_new_watcher_for_current_user(
 
 @app.get("/watchers/", response_model=List[schemas.WatcherRead], tags=["Watchers"])
 def list_watchers_for_current_user(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
+    skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     db_watchers = crud.get_watchers_for_owner(db, owner_id=current_user.id, skip=skip, limit=limit)
@@ -101,20 +87,16 @@ def list_watchers_for_current_user(
 
 @app.get("/watchers/{watcher_id}", response_model=schemas.WatcherRead, tags=["Watchers"])
 def get_single_watcher_for_current_user(
-    watcher_id: int,
-    db: Session = Depends(get_db),
+    watcher_id: int, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     db_watcher = crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id)
-    # Asumimos que get_watcher_db ya hace selectinload de transports si es necesario
     return _populate_watcher_read_from_db_watcher(db_watcher, db)
 
 @app.put("/watchers/{watcher_id}", response_model=schemas.WatcherRead, tags=["Watchers"])
 def update_existing_watcher_for_current_user(
-    watcher_id: int,
-    watcher_update_data: schemas.WatcherUpdatePayload,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user)
+    watcher_id: int, watcher_update_data: schemas.WatcherUpdatePayload,
+    db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
 ):
     db_watcher = crud.update_watcher(db=db, watcher_id=watcher_id, watcher_update_data=watcher_update_data, owner_id=current_user.id)
     db.refresh(db_watcher, attribute_names=['transports'])
@@ -122,8 +104,7 @@ def update_existing_watcher_for_current_user(
 
 @app.delete("/watchers/{watcher_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Watchers"])
 def delete_existing_watcher_for_current_user(
-    watcher_id: int,
-    db: Session = Depends(get_db),
+    watcher_id: int, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     crud.delete_watcher(db=db, watcher_id=watcher_id, owner_id=current_user.id)
@@ -132,21 +113,17 @@ def delete_existing_watcher_for_current_user(
 # --- Events CRUD ---
 @app.post("/events/", response_model=schemas.TokenEventRead, status_code=status.HTTP_201_CREATED, tags=["Events"], include_in_schema=False)
 def create_new_event_for_authed_user_testing(
-    event_data: schemas.TokenEventCreate,
-    db: Session = Depends(get_db),
+    event_data: schemas.TokenEventCreate, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    crud.get_watcher_db(db, watcher_id=event_data.watcher_id, owner_id=current_user.id) # Verifica propiedad del watcher
+    crud.get_watcher_db(db, watcher_id=event_data.watcher_id, owner_id=current_user.id)
     created_event = crud.create_event(db=db, event_data=event_data)
-    # crud.create_event devuelve el evento (nuevo o existente) o lanza excepción
     return created_event
 
-# --- ENDPOINTS DE EVENTOS MODIFICADOS PARA PAGINACIÓN ---
+
 @app.get("/events/", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
 def list_all_events_for_current_user(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
+    skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     data = crud.get_all_events_for_owner(db, owner_id=current_user.id, skip=skip, limit=limit)
@@ -154,57 +131,44 @@ def list_all_events_for_current_user(
 
 @app.get("/events/watcher/{watcher_id}", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
 def list_events_for_a_specific_watcher_of_current_user(
-    watcher_id: int,
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
+    watcher_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    # La función crud.get_events_for_watcher ya verifica la propiedad del watcher internamente.
     data = crud.get_events_for_watcher(db, watcher_id=watcher_id, owner_id=current_user.id, skip=skip, limit=limit)
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
-# --- FIN MODIFICACIONES PARA PAGINACIÓN ---
 
 @app.get("/events/{event_id}", response_model=schemas.TokenEventRead, tags=["Events"])
 def get_single_event_for_current_user(
-    event_id: int,
-    db: Session = Depends(get_db),
+    event_id: int, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     db_event = crud.get_event_by_id(db, event_id=event_id)
     if not db_event:
         raise HTTPException(status_code=404, detail="Event not found")
-    crud.get_watcher_db(db, watcher_id=db_event.watcher_id, owner_id=current_user.id) # Verifica propiedad
+    crud.get_watcher_db(db, watcher_id=db_event.watcher_id, owner_id=current_user.id)
     return db_event
 
 # --- Transports CRUD ---
 @app.post("/watchers/{watcher_id}/transports/", response_model=schemas.TransportRead, status_code=status.HTTP_201_CREATED, tags=["Transports (Watcher-Specific)"])
 def add_new_transport_to_watcher(
-    watcher_id: int,
-    transport_payload: schemas.TransportCreate,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user)
+    watcher_id: int, transport_payload: schemas.TransportCreate,
+    db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
 ):
-    # La validación de que transport_payload.watcher_id == watcher_id es buena aquí.
     if transport_payload.watcher_id != watcher_id:
          raise HTTPException(status_code=400, detail="Watcher ID in path does not match watcher ID in transport payload.")
     return crud.create_new_transport_for_watcher(db=db, transport_data=transport_payload, watcher_id=watcher_id, owner_id=current_user.id)
 
 @app.get("/watchers/{watcher_id}/transports/", response_model=List[schemas.TransportRead], tags=["Transports (Watcher-Specific)"])
 def list_all_transports_for_specific_watcher(
-    watcher_id: int,
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user)
+    watcher_id: int, skip: int = 0, limit: int = 100,
+    db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
 ):
-    crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id) # Verifica propiedad
+    crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id)
     return crud.get_transports_for_watcher_owner_checked(db, watcher_id=watcher_id, owner_id=current_user.id, skip=skip, limit=limit)
 
 @app.delete("/transports/{transport_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Transports (Global ID)"])
 def delete_specific_transport_by_id(
-    transport_id: int,
-    db: Session = Depends(get_db),
+    transport_id: int, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     crud.delete_transport_by_id(db=db, transport_id=transport_id, owner_id=current_user.id)

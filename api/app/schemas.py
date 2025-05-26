@@ -27,11 +27,11 @@ class TokenEventRead(TokenEventBase):
         from_attributes = True
 
 
-# --- NUEVO SCHEMA PARA RESPUESTA PAGINADA DE EVENTOS ---
-class PaginatedTokenEventResponse(BaseModel): # <-- AÑADIDO
+# --- SCHEMA PARA RESPUESTA PAGINADA DE EVENTOS ---
+class PaginatedTokenEventResponse(BaseModel):
     total_events: int
     events: List[TokenEventRead]
-# --- FIN NUEVO SCHEMA ---
+# --- FIN SCHEMA ---
 
 
 # --- SCHEMAS DE TRANSPORT ---
