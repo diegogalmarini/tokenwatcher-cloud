@@ -14,7 +14,6 @@ const initialFilters: EventFilters = {
   fromAddress: '', toAddress: '', minUsdValue: '',
 };
 
-// Definimos el tipo para la ordenación
 export interface SortOptions {
     sortBy: string;
     sortOrder: 'asc' | 'desc';
@@ -25,48 +24,55 @@ const initialSortOptions: SortOptions = {
     sortOrder: 'desc',
 };
 
+// --- AÑADIDO: Constante para tamaño de página ---
+const PAGE_SIZE = 25; // O 10, 50, etc. lo que prefieras
+
 function AuthenticatedPageContent() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
 
-  // --- ESTADO Y MANEJADORES ---
   const [draftFilters, setDraftFilters] = useState<EventFilters>(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState<EventFilters>(initialFilters);
   const [sortOptions, setSortOptions] = useState<SortOptions>(initialSortOptions);
-  // El isLoading ahora lo manejaremos dentro de useEvents/EventList,
-  // pero podemos tener uno aquí si necesitamos deshabilitar la barra.
-  const [isEventsLoading, setIsEventsLoading] = useState(false); // Mantenemos uno básico
+  const [isEventsLoading, setIsEventsLoading] = useState(false);
 
-  // Cambia los filtros en borrador (en la barra)
+  // --- AÑADIDO: Estado para paginación ---
+  const [currentPage, setCurrentPage] = useState(1);
+
   const handleFilterChange = useCallback((field: keyof EventFilters, value: string) => {
     setDraftFilters(prev => ({ ...prev, [field]: value }));
   }, []);
 
-  // Aplica los filtros (pasa de borrador a aplicados)
+  // Al aplicar filtros, volvemos a la página 1
   const handleApplyFilters = useCallback(() => {
     console.log("Aplicando filtros:", draftFilters);
+    setCurrentPage(1); // <-- Volver a página 1
     setAppliedFilters(draftFilters);
-    // La recarga se activará en EventList al cambiar appliedFilters
   }, [draftFilters]);
 
-  // Limpia los filtros (borrador y aplicados)
+  // Al limpiar filtros, volvemos a la página 1
   const handleClearFilters = useCallback(() => {
     console.log("Limpiando filtros...");
+    setCurrentPage(1); // <-- Volver a página 1
     setDraftFilters(initialFilters);
     setAppliedFilters(initialFilters);
-    // La recarga se activará en EventList al cambiar appliedFilters
   }, []);
 
-  // Cambia la ordenación
   const handleSortChange = useCallback((newSortBy: string) => {
+      setCurrentPage(1); // <-- Volver a página 1 al reordenar
       setSortOptions(prev => {
-          // Si es la misma columna, invierte el orden; si no, ordena por la nueva desc.
           const newSortOrder = (prev.sortBy === newSortBy && prev.sortOrder === 'desc') ? 'asc' : 'desc';
           return { sortBy: newSortBy, sortOrder: newSortOrder };
       });
-      // La recarga se activará en EventList al cambiar sortOptions
   }, []);
-  // --- FIN ESTADO Y MANEJADORES ---
+
+  // --- AÑADIDO: Manejador para cambio de página ---
+  const handlePageChange = useCallback((newPage: number) => {
+      console.log("Cambiando a página:", newPage);
+      setCurrentPage(newPage);
+      // La recarga se activará en EventList al cambiar currentPage
+  }, []);
+
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -75,7 +81,6 @@ function AuthenticatedPageContent() {
   }, [isLoading, isAuthenticated, router]);
 
   // ... (código de isLoading e !isAuthenticated sin cambios) ...
-
     if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
@@ -91,6 +96,7 @@ function AuthenticatedPageContent() {
       </div>
     );
   }
+
 
   return (
     <>
@@ -118,17 +124,20 @@ function AuthenticatedPageContent() {
 
         <div>
             <EventFilterBar
-                filters={draftFilters} // La barra usa los filtros en borrador
+                filters={draftFilters}
                 onFilterChange={handleFilterChange}
                 onApplyFilters={handleApplyFilters}
                 onClearFilters={handleClearFilters}
                 isLoading={isEventsLoading}
             />
             <EventList
-                appliedFilters={appliedFilters} // EventList usa los filtros aplicados
-                sortOptions={sortOptions}       // Pasamos la ordenación
-                onSortChange={handleSortChange} // Pasamos el manejador de ordenación
-                setIsLoading={setIsEventsLoading} // Para que EventList controle el estado
+                appliedFilters={appliedFilters}
+                sortOptions={sortOptions}
+                onSortChange={handleSortChange}
+                setIsLoading={setIsEventsLoading}
+                currentPage={currentPage} // <-- Pasamos currentPage
+                pageSize={PAGE_SIZE}      // <-- Pasamos pageSize
+                onPageChange={handlePageChange} // <-- Pasamos el manejador
             />
         </div>
       </div>
