@@ -1,66 +1,107 @@
 // src/components/events/EventList.tsx
 "use client";
 
-import React, { useEffect } from "react"; // useEffect importado
+import React, { useEffect } from "react";
 import { useEvents } from "@/lib/useEvents";
 import { EventTable } from "./EventTable";
-// import Button from "@/components/ui/button"; // Cambiado a minúscula para coincidir con tu archivo de botón
-import Button from "@components/ui/button"; // Usando tu componente Button
-import { useAuth } from "@/contexts/AuthContext"; // Para saber si está autenticado
+import Button from "@components/ui/button"; // Asumo que tienes este componente
+import { useAuth } from "@/contexts/AuthContext";
+import type { EventFilters } from "./EventFilterBar"; // Importamos tipos
+import type { SortOptions } from "@/app/page"; // Importamos tipos
 
-export function EventList() {
-  const { token } = useAuth(); // Obtener token para disparar fetch
-  const { 
-    events, 
-    isLoading, // Cambiado de 'loading' a 'isLoading' para consistencia
-    error, 
-    fetchAllMyEvents // Usaremos esta función
-    // deleteEvent // Comentado por ahora
+// Definimos las props que recibirá EventList
+interface EventListProps {
+    appliedFilters: EventFilters;
+    sortOptions: SortOptions;
+    onSortChange: (newSortBy: string) => void;
+    setIsLoading: (loading: boolean) => void; // Para comunicar el estado de carga
+}
+
+export function EventList({ appliedFilters, sortOptions, onSortChange, setIsLoading }: EventListProps) {
+  const { token } = useAuth();
+  const {
+    events,
+    isLoading,
+    error,
+    fetchAllMyEvents
   } = useEvents();
 
+  // useEffect para llamar a fetchAllMyEvents cuando cambien los filtros,
+  // la ordenación o el token.
   useEffect(() => {
-    if (token) { // Solo hacer fetch si el usuario está logueado (hay token)
-      fetchAllMyEvents();
+    if (token) {
+      fetchAllMyEvents({
+          filters: appliedFilters,
+          sortBy: sortOptions.sortBy,
+          sortOrder: sortOptions.sortOrder,
+          skip: 0, // <-- Por ahora paginación fija, la añadiremos luego
+          limit: 100
+      });
     }
-  }, [fetchAllMyEvents, token]); // Depender de token para re-fetch al loguear/desloguear
+  }, [fetchAllMyEvents, token, appliedFilters, sortOptions]); // Dependencias clave
 
-  // const handleDelete = async (eventToDelete: any) => { // 'any' es temporal
-  //   if (confirm(`Delete event #${eventToDelete.id}? This action might be permanent depending on backend logic.`)) {
-  //     // await deleteEvent(eventToDelete.id); // deleteEvent en el hook necesitaría implementación
-  //     // fetchAllMyEvents(); 
-  //     alert("Delete functionality for events is not fully implemented yet.");
-  //   }
-  // };
+  // Informamos al padre sobre el estado de carga
+  useEffect(() => {
+    setIsLoading(isLoading);
+  }, [isLoading, setIsLoading]);
 
-  if (isLoading) {
-    return <p className="text-center text-gray-500 dark:text-gray-400 py-4">Loading recent events...</p>;
+  // Función para forzar refresco (re-fetch con los mismos filtros)
+  const handleRefresh = () => {
+      if (token) {
+          fetchAllMyEvents({
+              filters: appliedFilters,
+              sortBy: sortOptions.sortBy,
+              sortOrder: sortOptions.sortOrder,
+              skip: 0,
+              limit: 100
+          });
+      }
+  };
+
+
+  if (isLoading && events.length === 0) { // Mostramos 'Loading' solo si no hay eventos previos
+    return (
+      <div className="text-center text-gray-500 dark:text-gray-400 py-4">
+        <p>Loading recent events...</p>
+      </div>
+    );
   }
 
-  // No mostrar error si no hay token, ya que la página principal ya maneja el redirect a login
-  // Solo mostrar error si hay token pero el fetch falló por otra razón.
   if (token && error) {
-    return <p className="text-center text-red-600 dark:text-red-400 py-4">Error loading events: {error}</p>;
-  }
-  
-  if (!token && !isLoading) { // Si no hay token y no está cargando, no mostrar nada o un mensaje para loguearse
-      return <p className="text-center text-gray-500 dark:text-gray-400 py-4">Please log in to see events.</p>;
+    return (
+      <div className="text-center text-red-600 dark:text-red-400 py-4">
+        <p>Error loading events: {error}</p>
+      </div>
+    );
   }
 
+  if (!token && !isLoading) {
+    return (
+      <div className="text-center text-gray-500 dark:text-gray-400 py-4">
+        <p>Please log in to see events.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4 mt-12"> {/* Añadido margen superior */}
+    <div className="space-y-4 mt-8"> {/* Aumentado el margen superior */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Recent Events</h2>
-        <Button 
-            intent="default" // o tu variante 'outline'
-            onClick={fetchAllMyEvents} 
+        <Button
+            intent="default" // Asegúrate de que este intent exista o cámbialo
+            onClick={handleRefresh} // Llama a handleRefresh
             disabled={isLoading || !token}
             className="bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-gray-200"
         >
           {isLoading ? "Refreshing..." : "Refresh Events"}
         </Button>
       </div>
-      <EventTable events={events} /* onDelete={handleDelete} // Comentado */ />
+      {/* Pasamos sortOptions y onSortChange a EventTable */}
+      <EventTable
+          events={events}
+          sortOptions={sortOptions}
+          onSortChange={onSortChange}
+      />
     </div>
   );
 }

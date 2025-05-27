@@ -1,24 +1,24 @@
-// dashboard/tokenwatcher-app/src/app/layout.tsx
-import "./globals.css"; //
-import type { Metadata } from "next"; //
-import { Geist, Geist_Mono } from "next/font/google"; //
-import { AuthProvider } from "@/contexts/AuthContext"; // <--- IMPORTA EL PROVIDER
+// src/app/layout.tsx
+import "./globals.css";
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google"; // Asumo que estas son tus fuentes
+import { AuthProvider } from "@/contexts/AuthContext"; // Descomentado
 
-export const metadata: Metadata = { //
-  title: "TokenWatcher Dashboard", //
-  description: "Create watchers, view recent events, and receive real-time alerts.", //
+export const metadata: Metadata = {
+  title: "TokenWatcher Dashboard",
+  description: "Create watchers, view recent events, and receive real-time alerts.",
 };
 
-const geist = Geist({ //
-  subsets: ["latin"], //
-  variable: "--font-geist", //
-  weight: ["400", "700"], //
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist",
+  weight: ["400", "700"],
 });
 
-const geistMono = Geist_Mono({ //
-  subsets: ["latin"], //
-  variable: "--font-geist-mono", //
-  weight: ["400", "700"], //
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+  weight: ["400", "700"],
 });
 
 export default function RootLayout({
@@ -29,9 +29,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
       <body>
-        <AuthProvider> {/* <--- ENVUELVE CON AUTHPROVIDER */}
+        <AuthProvider> {/* <--- DESCOMENTADO Y ACTIVO */}
           {children}
-        </AuthProvider>
+        </AuthProvider> {/* <--- DESCOMENTADO Y ACTIVO */}
       </body>
     </html>
   );

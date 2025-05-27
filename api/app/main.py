@@ -1,9 +1,10 @@
 # api/app/main.py
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Query # <-- AÑADIDO Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import HttpUrl
 import json
+from datetime import datetime # <-- AÑADIDO datetime
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -19,8 +20,8 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.7.1",
-    description="API para monitorizar transferencias de tokens ERC-20. Webhook es obligatorio al crear Watcher. Watchers pueden ser activados/desactivados."
+    version="0.7.2", # <-- Incremento de versión
+    description="API para monitorizar transferencias de tokens ERC-20, con filtrado y ordenación de eventos."
 )
 
 allow_origin_regex = r"http://localhost(:\d+)?"
@@ -47,7 +48,7 @@ def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Sessi
         if isinstance(config_data, str):
             try: config_data = json.loads(config_data)
             except json.JSONDecodeError: config_data = {}
-        
+
         if isinstance(config_data, dict) and "url" in config_data:
             try: active_webhook_url = HttpUrl(config_data["url"])
             except Exception:
@@ -64,7 +65,7 @@ def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Sessi
 def health_check(): return {"status": "ok", "message": "TokenWatcher API is healthy"}
 
 @app.get("/", tags=["System"], include_in_schema=False)
-def api_root_demo(): return {"message": "🎉 Welcome to TokenWatcher API v0.7.1! Visit /docs for API documentation."}
+def api_root_demo(): return {"message": "🎉 Welcome to TokenWatcher API v0.7.2! Visit /docs for API documentation."}
 
 # --- Watchers CRUD ---
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
@@ -121,19 +122,56 @@ def create_new_event_for_authed_user_testing(
     return created_event
 
 
+# --- MODIFICADO PARA ACEPTAR FILTROS Y ORDENACIÓN ---
 @app.get("/events/", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
 def list_all_events_for_current_user(
-    skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+    # --- Parámetros de Paginación ---
+    skip: int = Query(0, ge=0, description="Número de eventos a saltar"),
+    limit: int = Query(100, ge=1, le=500, description="Número máximo de eventos a devolver"),
+    # --- Parámetros de Filtrado ---
+    token_address: Optional[str] = Query(None, description="Filtrar por dirección de token (búsqueda parcial)"),
+    start_date: Optional[datetime] = Query(None, description="Fecha de inicio (ISO format)"),
+    end_date: Optional[datetime] = Query(None, description="Fecha de fin (ISO format)"),
+    from_address: Optional[str] = Query(None, description="Filtrar por dirección de origen (exacta, case-insensitive)"),
+    to_address: Optional[str] = Query(None, description="Filtrar por dirección de destino (exacta, case-insensitive)"),
+    min_usd_value: Optional[float] = Query(None, ge=0, description="Filtrar por valor USD mínimo"),
+    # --- Parámetros de Ordenación ---
+    sort_by: Optional[str] = Query("created_at", description="Ordenar por: created_at, amount, usd_value, block_number"),
+    sort_order: Optional[str] = Query("desc", description="Orden: asc o desc")
 ):
-    data = crud.get_all_events_for_owner(db, owner_id=current_user.id, skip=skip, limit=limit)
+    # Validar sort_by y sort_order para evitar inyecciones o errores
+    allowed_sort_by = ["created_at", "amount", "usd_value", "block_number"]
+    if sort_by not in allowed_sort_by:
+        raise HTTPException(status_code=400, detail=f"Valor de 'sort_by' no válido. Use uno de: {', '.join(allowed_sort_by)}")
+    if sort_order.lower() not in ["asc", "desc"]:
+        raise HTTPException(status_code=400, detail="Valor de 'sort_order' no válido. Use 'asc' o 'desc'.")
+
+    data = crud.get_all_events_for_owner(
+        db=db,
+        owner_id=current_user.id,
+        skip=skip,
+        limit=limit,
+        token_address=token_address,
+        start_date=start_date,
+        end_date=end_date,
+        from_address=from_address,
+        to_address=to_address,
+        min_usd_value=min_usd_value,
+        sort_by=sort_by,
+        sort_order=sort_order
+    )
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
+# --- FIN MODIFICACIÓN ---
 
 @app.get("/events/watcher/{watcher_id}", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
 def list_events_for_a_specific_watcher_of_current_user(
     watcher_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
+    # NOTA: Este endpoint aún no soporta filtros, solo paginación.
+    # Podríamos añadir filtros aquí también si fuera necesario en el futuro.
     data = crud.get_events_for_watcher(db, watcher_id=watcher_id, owner_id=current_user.id, skip=skip, limit=limit)
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
 
@@ -145,7 +183,7 @@ def get_single_event_for_current_user(
     db_event = crud.get_event_by_id(db, event_id=event_id)
     if not db_event:
         raise HTTPException(status_code=404, detail="Event not found")
-    crud.get_watcher_db(db, watcher_id=db_event.watcher_id, owner_id=current_user.id)
+    crud.get_watcher_db(db, watcher_id=db_event.watcher_id, owner_id=current_user.id) # Check ownership
     return db_event
 
 # --- Transports CRUD ---

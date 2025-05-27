@@ -1,10 +1,11 @@
 # api/app/crud.py
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import desc, func as sql_func
+from sqlalchemy import desc, asc, func as sql_func # Import asc
 from fastapi import HTTPException
 from pydantic import HttpUrl
 from typing import Optional, List, Dict, Any
-import json # Asegúrate que json esté importado si lo usas en _populate_watcher_read_from_db_watcher
+from datetime import datetime # Import datetime
+import json
 
 # Importamos models y schemas como los has definido
 from . import models, schemas, auth
@@ -162,19 +163,63 @@ def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[
 def get_event_by_id(db: Session, event_id: int) -> models.TokenEvent | None:
     return db.query(models.TokenEvent).filter(models.TokenEvent.id == event_id).first()
 
-# --- MODIFICADAS PARA PAGINACIÓN ---
-def get_all_events_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int = 100) -> Dict[str, Any]:
+# --- MODIFICADO PARA FILTROS Y ORDENACIÓN ---
+def get_all_events_for_owner(
+    db: Session,
+    owner_id: int,
+    skip: int = 0,
+    limit: int = 100,
+    token_address: Optional[str] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    from_address: Optional[str] = None,
+    to_address: Optional[str] = None,
+    min_usd_value: Optional[float] = None,
+    sort_by: Optional[str] = "created_at",
+    sort_order: Optional[str] = "desc"
+) -> Dict[str, Any]:
+
+    # 1. Base query: Join Events with Watchers and filter by owner_id.
     base_query = db.query(models.TokenEvent)\
                    .join(models.Watcher, models.TokenEvent.watcher_id == models.Watcher.id)\
                    .filter(models.Watcher.owner_id == owner_id)
-    
+
+    # 2. Apply filters dynamically.
+    if token_address:
+        base_query = base_query.filter(models.TokenEvent.token_address_observed.ilike(f"%{token_address}%")) # Use ilike for case-insensitive partial match
+    if start_date:
+        base_query = base_query.filter(models.TokenEvent.created_at >= start_date)
+    if end_date:
+        base_query = base_query.filter(models.TokenEvent.created_at <= end_date)
+    if from_address:
+        base_query = base_query.filter(models.TokenEvent.from_address.ilike(from_address)) # Use ilike for case-insensitive exact match
+    if to_address:
+        base_query = base_query.filter(models.TokenEvent.to_address.ilike(to_address)) # Use ilike for case-insensitive exact match
+    if min_usd_value is not None:
+        base_query = base_query.filter(models.TokenEvent.usd_value >= min_usd_value)
+
+    # 3. Get total count *after* filtering but *before* ordering/pagination.
     total_events = base_query.with_entities(sql_func.count(models.TokenEvent.id)).scalar() or 0
 
-    events = base_query.order_by(desc(models.TokenEvent.created_at))\
-                       .offset(skip)\
-                       .limit(limit)\
-                       .all()
+    # 4. Apply sorting.
+    sort_map = {
+        "created_at": models.TokenEvent.created_at,
+        "amount": models.TokenEvent.amount,
+        "usd_value": models.TokenEvent.usd_value,
+        "block_number": models.TokenEvent.block_number,
+    }
+    sort_column = sort_map.get(sort_by, models.TokenEvent.created_at)
+
+    if sort_order.lower() == "asc":
+        ordered_query = base_query.order_by(asc(sort_column))
+    else:
+        ordered_query = base_query.order_by(desc(sort_column))
+
+    # 5. Apply pagination and fetch results.
+    events = ordered_query.offset(skip).limit(limit).all()
+
     return {"total_events": total_events, "events": events}
+# --- FIN MODIFICACIÓN ---
 
 def get_events_for_watcher(db: Session, watcher_id: int, owner_id: int, skip: int = 0, limit: int = 100) -> Dict[str, Any]:
     get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id) # Verifica propiedad
@@ -183,13 +228,13 @@ def get_events_for_watcher(db: Session, watcher_id: int, owner_id: int, skip: in
                    .filter(models.TokenEvent.watcher_id == watcher_id)
 
     total_events = base_query.with_entities(sql_func.count(models.TokenEvent.id)).scalar() or 0
-    
+
     events = base_query.order_by(desc(models.TokenEvent.created_at))\
                        .offset(skip)\
                        .limit(limit)\
                        .all()
     return {"total_events": total_events, "events": events}
-# --- FIN MODIFICACIONES PARA PAGINACIÓN ---
+
 
 # --- Transport CRUD ---
 def get_transport_by_id(db: Session, transport_id: int, owner_id: int) -> models.Transport | None:
@@ -233,16 +278,8 @@ def delete_transport_by_id(db: Session, transport_id: int, owner_id: int) -> Non
 # --- TokenVolume & Calculated Volume ---
 def get_volume(db: Session, contract_address: str) -> float:
     total_volume = (
-        db.query(sql_func.sum(models.TokenEvent.amount)) # Corregido a models.TokenEvent
+        db.query(sql_func.sum(models.TokenEvent.amount))
         .filter(models.TokenEvent.token_address_observed == contract_address)
         .scalar()
     )
     return total_volume if total_volume is not None else 0.0
-
-# (Mantengo comentadas tus funciones de TokenVolume)
-# def get_token_volume_entry(db: Session, contract_address: str) -> models.TokenVolume | None:
-#     pass
-# def get_all_token_volumes(db: Session, skip: int = 0, limit: int = 100) -> list[models.TokenVolume]:
-#     return []
-# def create_or_update_token_volume(db: Session, volume_data: schemas.TokenRead) -> models.TokenVolume:
-#     pass
