@@ -70,9 +70,15 @@ export default function WatcherList() {
       }
       fetchWatchers();
       setModalOpen(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save watcher:", err);
-      setFormError(err.message || "An unexpected error occurred.");
+      if (err instanceof Error) {
+        setFormError(err.message);
+      } else if (typeof err === 'string') {
+        setFormError(err);
+      } else {
+        setFormError("An unexpected error occurred while saving the watcher.");
+      }
     }
   };
 
@@ -81,9 +87,12 @@ export default function WatcherList() {
       try {
         await deleteWatcher(watcherId);
         fetchWatchers();
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to delete watcher:", err);
-        alert(`Error deleting watcher: ${err.message}`);
+        let message = "Error deleting watcher.";
+        if (err instanceof Error) message = `Error deleting watcher: ${err.message}`;
+        else if (typeof err === 'string') message = `Error deleting watcher: ${err}`;
+        alert(message);
       }
     }
   };
@@ -94,9 +103,12 @@ export default function WatcherList() {
       try {
         await updateWatcher(watcher.id, { is_active: newActiveState });
         fetchWatchers();
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Failed to toggle watcher active state:", err);
-        alert(`Error updating watcher state: ${err.message}`);
+        let message = "Error updating watcher state.";
+        if (err instanceof Error) message = `Error updating watcher state: ${err.message}`;
+        else if (typeof err === 'string') message = `Error updating watcher state: ${err}`;
+        alert(message);
       }
     }
   };
@@ -118,11 +130,10 @@ export default function WatcherList() {
             + New Watcher
           </Button>
           <Button
-            intent="default"
+            intent="secondary" // <--- CAMBIADO A "secondary"
+            size="md" // Puedes ajustar el tamaño si es necesario
             onClick={() => { fetchWatchers(); setFormError(null); }}
             disabled={isLoading}
-            // --- ESTILO DEL BOTÓN "Refresh list" CON COLOR DE TEXTO CORREGIDO ---
-            className="px-4 py-2 mr-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-600 dark:text-gray-200 dark:border-gray-500 dark:hover:bg-gray-500"
           >
             {isLoading ? "Refreshing..." : "Refresh list"}
           </Button>

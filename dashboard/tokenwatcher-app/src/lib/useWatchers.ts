@@ -1,8 +1,7 @@
 // dashboard/tokenwatcher-app/src/lib/useWatchers.ts
 import { useState, useCallback, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext"; // Importar useAuth para acceder al token
+import { useAuth } from "@/contexts/AuthContext";
 
-// Este tipo AHORA SÍ se alinea con schemas.WatcherRead de FastAPI
 export type Watcher = {
   id: number;
   owner_id: number;
@@ -10,44 +9,38 @@ export type Watcher = {
   token_address: string;
   threshold: number;
   is_active: boolean;
-  webhook_url: string | null; // Proveniente del primer Transport asociado
-  created_at: string; // O Date si prefieres convertirlo
-  updated_at: string; // O Date
+  webhook_url: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
-// Payload para crear un Watcher, alineado con schemas.WatcherCreate de FastAPI
 export type WatcherCreatePayload = {
   name: string;
   token_address: string;
   threshold: number;
-  webhook_url: string; // En FastAPI es HttpUrl, aquí lo manejamos como string del formulario
-  is_active?: boolean; // Opcional en el payload, FastAPI schema tiene default True
+  webhook_url: string;
+  is_active?: boolean;
 };
 
-// Payload para actualizar un Watcher, alineado con schemas.WatcherUpdate de FastAPI
 export type WatcherUpdatePayload = {
   name?: string;
   token_address?: string;
   threshold?: number;
-  webhook_url?: string | null; // string, HttpUrl o null
+  webhook_url?: string | null;
   is_active?: boolean;
 };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export function useWatchers() {
-  const { token, logout } = useAuth(); // Obtener token y función de logout del AuthContext
+  const { token, logout } = useAuth();
   const [watchers, setWatchers] = useState<Watcher[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchWatchers = useCallback(async () => {
     if (!token) {
-      // No intentar fetch si no hay token (ej. usuario no logueado)
-      // El AuthContext o la página deberían haber redirigido a login.
-      // Si se llega aquí sin token, podría ser un estado transitorio o un error.
-      setWatchers([]); // Limpiar watchers por si acaso
-      // No establecer error aquí necesariamente, la protección de ruta es más arriba.
+      setWatchers([]);
       return;
     }
     setIsLoading(true);
@@ -60,33 +53,36 @@ export function useWatchers() {
         },
       });
       if (!res.ok) {
-        if (res.status === 401) { // Unauthorized
-          setError("Your session may have expired. Please login again.");
-          logout(); // Desloguear al usuario si el token es inválido/expirado
+        if (res.status === 401) {
+          setError("Your session may have expired. Please login again."); // English
+          logout();
         } else {
           const errorData = await res.json().catch(() => ({ detail: `Failed to fetch watchers, status: ${res.status}` }));
-          setError(errorData.detail || `Failed to fetch watchers, status: ${res.status}`);
+          setError(errorData.detail || `Failed to fetch watchers, status: ${res.status}`); // English
         }
-        setWatchers([]); // Limpiar watchers en caso de error
+        setWatchers([]);
         return;
       }
       const data: Watcher[] = await res.json();
       setWatchers(data);
-    } catch (err: any) {
+    } catch (err: unknown) { // Changed to unknown
       console.error("fetchWatchers error:", err);
-      setError(err.message || "An unexpected error occurred while fetching watchers.");
+      let errorMessage = "An unexpected error occurred while fetching watchers."; // English
+      if (err instanceof Error) errorMessage = err.message;
+      else if (typeof err === 'string') errorMessage = err;
+      setError(errorMessage);
       setWatchers([]);
     } finally {
       setIsLoading(false);
     }
-  }, [token, logout]); // Añadido logout a dependencias
+  }, [token, logout]);
 
   const createWatcher = useCallback(async (payload: WatcherCreatePayload) => {
     if (!token) {
-      setError("Not authenticated to create watcher.");
-      throw new Error("Not authenticated");
+      setError("Not authenticated to create watcher."); // English
+      throw new Error("Not authenticated"); // English
     }
-    setIsLoading(true); // Podríamos tener un isLoading específico para create
+    setIsLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/watchers/`, {
@@ -99,26 +95,26 @@ export function useWatchers() {
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ detail: `Failed to create watcher, status: ${res.status}` }));
-        throw new Error(errorData.detail || `Server error: ${res.status}`);
+        throw new Error(errorData.detail || `Server error: ${res.status}`); // English
       }
-      // No es necesario parsear JSON aquí si la API devuelve 201 con el objeto creado,
-      // pero fetchWatchers se encargará de actualizar la lista.
-      await fetchWatchers(); // Re-fetch para obtener la lista actualizada con el nuevo ID, owner_id, etc.
-    } catch (err: any) {
+      await fetchWatchers();
+    } catch (err: unknown) { // Changed to unknown
       console.error("createWatcher error:", err);
-      setError(err.message); // Establecer error para que la UI pueda mostrarlo
-      setIsLoading(false); // Asegurarse de resetear loading en error
-      throw err; // Re-lanzar para que el formulario lo maneje si es necesario
+      let errorMessage = "An unexpected error occurred while creating the watcher."; // English
+      if (err instanceof Error) errorMessage = err.message;
+      else if (typeof err === 'string') errorMessage = err;
+      setError(errorMessage);
+      setIsLoading(false);
+      throw err; // Re-throw for form to handle
     }
-    // setIsLoading(false) se maneja en el finally de fetchWatchers
   }, [token, fetchWatchers]);
 
   const updateWatcher = useCallback(async (id: number, payload: WatcherUpdatePayload) => {
     if (!token) {
-      setError("Not authenticated to update watcher.");
-      throw new Error("Not authenticated");
+      setError("Not authenticated to update watcher."); // English
+      throw new Error("Not authenticated"); // English
     }
-    setIsLoading(true); // Podríamos tener un isLoading específico para update
+    setIsLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/watchers/${id}`, {
@@ -131,23 +127,26 @@ export function useWatchers() {
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ detail: `Failed to update watcher, status: ${res.status}` }));
-        throw new Error(errorData.detail || `Server error: ${res.status}`);
+        throw new Error(errorData.detail || `Server error: ${res.status}`); // English
       }
-      await fetchWatchers(); // Re-fetch para obtener la lista actualizada
-    } catch (err: any) {
+      await fetchWatchers();
+    } catch (err: unknown) { // Changed to unknown
       console.error("updateWatcher error:", err);
-      setError(err.message);
+      let errorMessage = "An unexpected error occurred while updating the watcher."; // English
+      if (err instanceof Error) errorMessage = err.message;
+      else if (typeof err === 'string') errorMessage = err;
+      setError(errorMessage);
       setIsLoading(false);
-      throw err;
+      throw err; // Re-throw for form to handle
     }
   }, [token, fetchWatchers]);
 
   const deleteWatcher = useCallback(async (id: number) => {
     if (!token) {
-      setError("Not authenticated to delete watcher.");
-      throw new Error("Not authenticated");
+      setError("Not authenticated to delete watcher."); // English
+      throw new Error("Not authenticated"); // English
     }
-    setIsLoading(true); // Podríamos tener un isLoading específico para delete
+    setIsLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE_URL}/watchers/${id}`, {
@@ -156,27 +155,26 @@ export function useWatchers() {
           'Authorization': `Bearer ${token}`,
         },
       });
-      // DELETE exitoso usualmente es 204 No Content, o 200 OK con el objeto eliminado.
-      // El endpoint de FastAPI está configurado para 204 No Content.
-      if (!res.ok && res.status !== 204) { 
+      if (!res.ok && res.status !== 204) {
         const errorData = await res.json().catch(() => ({ detail: `Failed to delete watcher, status: ${res.status}` }));
-        throw new Error(errorData.detail || `Server error: ${res.status}`);
+        throw new Error(errorData.detail || `Server error: ${res.status}`); // English
       }
-      await fetchWatchers(); // Re-fetch la lista después de borrar
-    } catch (err: any) {
+      await fetchWatchers();
+    } catch (err: unknown) { // Changed to unknown
       console.error("deleteWatcher error:", err);
-      setError(err.message);
+      let errorMessage = "An unexpected error occurred while deleting the watcher."; // English
+      if (err instanceof Error) errorMessage = err.message;
+      else if (typeof err === 'string') errorMessage = err;
+      setError(errorMessage);
       setIsLoading(false);
-      throw err;
+      throw err; // Re-throw for alert/UI to handle
     }
   }, [token, fetchWatchers]);
 
-  // Efecto para cargar watchers cuando el token esté disponible (después del login)
   useEffect(() => {
     if (token) {
       fetchWatchers();
     } else {
-      // Si no hay token (ej. después de logout), limpiar la lista de watchers
       setWatchers([]);
     }
   }, [token, fetchWatchers]);

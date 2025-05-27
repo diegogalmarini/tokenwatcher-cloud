@@ -5,30 +5,24 @@ import React, { useState } from "react";
 import Image from "next/image";
 import { Event } from "@/lib/useEvents";
 import { formatDistanceToNow, parseISO } from 'date-fns';
-import type { SortOptions } from "@/app/page"; // <-- Importamos SortOptions
-import { ArrowUp, ArrowDown } from 'lucide-react'; // <-- Usaremos lucide-react (¡Asegúrate de instalarlo!)
-
-// --- ¡IMPORTANTE! ---
-// Si no tienes lucide-react, instálalo con:
-// npm install lucide-react
-// O puedes usar SVGs u otros iconos.
-// --- FIN IMPORTANTE ---
+// import { enUS } from 'date-fns/locale'; // Import English locale if needed for specific formatting
+import type { SortOptions } from "@/app/page";
+import { ArrowUp, ArrowDown } from 'lucide-react';
 
 interface Props {
   events: Event[];
-  sortOptions: SortOptions; // <-- AÑADIDO
-  onSortChange: (newSortBy: string) => void; // <-- AÑADIDO
+  sortOptions: SortOptions;
+  onSortChange: (newSortBy: string) => void;
 }
 
 const ETHERSCAN_BASE_URL = process.env.NEXT_PUBLIC_ETHERSCAN_URL || "https://etherscan.io";
 
-// Componente para cabeceras ordenables
 const SortableHeader: React.FC<{
     label: string;
     columnKey: string;
     currentSort: SortOptions;
     onSort: (key: string) => void;
-    className?: string; // Para alinear texto, etc.
+    className?: string;
 }> = ({ label, columnKey, currentSort, onSort, className = 'text-left' }) => {
     const isCurrent = currentSort.sortBy === columnKey;
     const Icon = currentSort.sortOrder === 'asc' ? ArrowUp : ArrowDown;
@@ -43,7 +37,8 @@ const SortableHeader: React.FC<{
                 {isCurrent ? (
                     <Icon className="ml-1 h-3 w-3" />
                 ) : (
-                    <ArrowDown className="ml-1 h-3 w-3 text-gray-300 dark:text-gray-600" /> // Muestra una flecha tenue si no está activa
+                    // Optionally, show a faint default arrow or no arrow if not sorted
+                    <ArrowDown className="ml-1 h-3 w-3 text-gray-300 dark:text-gray-500 opacity-50" />
                 )}
             </div>
         </th>
@@ -51,13 +46,13 @@ const SortableHeader: React.FC<{
 };
 
 
-export function EventTable({ events, sortOptions, onSortChange }: Props) { // <-- Props actualizadas
+export function EventTable({ events, sortOptions, onSortChange }: Props) {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
   if (!events || events.length === 0) {
     return (
       <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-        <p>No events to display for the selected criteria.</p>
+        <p>No events to display for the selected criteria.</p> {/* English */}
       </div>
     );
   }
@@ -75,12 +70,12 @@ export function EventTable({ events, sortOptions, onSortChange }: Props) { // <-
     return name;
   };
 
-  const handleCopy = (text: string, elementId: string) => { /* ... (sin cambios) ... */
+  const handleCopy = (text: string, elementId: string) => {
      navigator.clipboard.writeText(text).then(() => {
       const el = document.getElementById(elementId);
       if (el) {
         const originalContent = el.innerHTML;
-        el.innerHTML = 'Copied!';
+        el.innerHTML = 'Copied!'; // English
         el.classList.add('text-green-500');
         setTimeout(() => {
           el.innerHTML = originalContent;
@@ -89,11 +84,11 @@ export function EventTable({ events, sortOptions, onSortChange }: Props) { // <-
       }
     }).catch(err => {
       console.error('Failed to copy text: ', err);
-      alert('Failed to copy. Please copy manually.');
+      alert('Failed to copy. Please copy manually.'); // English
     });
   };
 
-  const handleCopyLink = (txHash: string) => { /* ... (sin cambios) ... */
+  const handleCopyLink = (txHash: string) => {
     const url = `${ETHERSCAN_BASE_URL}/tx/${txHash}`;
     navigator.clipboard.writeText(url).then(() => {
       setCopiedLink(txHash);
@@ -102,7 +97,7 @@ export function EventTable({ events, sortOptions, onSortChange }: Props) { // <-
       }, 2000);
     }).catch(err => {
       console.error('Failed to copy link: ', err);
-      alert('Failed to copy link. Please copy manually.');
+      alert('Failed to copy link. Please copy manually.'); // English
     });
   };
 
@@ -111,16 +106,14 @@ export function EventTable({ events, sortOptions, onSortChange }: Props) { // <-
       <table className="min-w-full table-auto bg-white dark:bg-gray-800">
         <thead className="bg-gray-50 dark:bg-gray-700">
           <tr>
-            {/* Cabeceras no ordenables */}
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Event ID</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Watcher ID</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Token</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">From</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">To</th>
-            {/* Cabeceras ORDENABLES */}
             <SortableHeader
                 label="Amount / Value"
-                columnKey="usd_value" // O 'amount', según prefieras ordenar por defecto
+                columnKey="usd_value" // Or 'amount', based on what you prefer to sort by
                 currentSort={sortOptions}
                 onSort={onSortChange}
                 className="text-right"
@@ -131,22 +124,18 @@ export function EventTable({ events, sortOptions, onSortChange }: Props) { // <-
                 currentSort={sortOptions}
                 onSort={onSortChange}
             />
-            {/* Cabeceras no ordenables */}
             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Transaction Hash</th>
-             {/* Cabecera ORDENABLE */}
             <SortableHeader
                 label="Detected At"
                 columnKey="created_at"
                 currentSort={sortOptions}
                 onSort={onSortChange}
             />
-            {/* Cabecera no ordenable */}
             <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
           {events.map((event, index) => {
-            // ... (lógica de renderizado de filas sin cambios) ...
             const logoUrl = `https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/${event.token_address_observed}/logo.png`;
             const txHashCopyId = `copy-tx-${event.id}-${index}`;
             let timeAgo = "N/A";
@@ -155,8 +144,10 @@ export function EventTable({ events, sortOptions, onSortChange }: Props) { // <-
             if (event.created_at) {
               try {
                 const date = parseISO(event.created_at);
+                // For English "ago" suffix, formatDistanceToNow usually defaults to English
+                // or you can pass { locale: enUS } from 'date-fns/locale'
                 timeAgo = formatDistanceToNow(date, { addSuffix: true });
-                fullDate = new Date(event.created_at).toLocaleString('sv-SE', { timeZone: 'UTC' }) + " UTC";
+                fullDate = new Date(event.created_at).toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'medium' }) + " UTC";
               } catch (e) {
                 console.error("Error parsing date for event:", event.id, e);
                 timeAgo = event.created_at;
@@ -242,7 +233,7 @@ export function EventTable({ events, sortOptions, onSortChange }: Props) { // <-
                     </div>
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300" title={fullDate}>
-                  {timeAgo}
+                  {timeAgo} {/* formatDistanceToNow defaults to English if locale is not specified or if 'enUS' is default */}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-center space-x-2">
                   <a
@@ -252,14 +243,14 @@ export function EventTable({ events, sortOptions, onSortChange }: Props) { // <-
                     className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline"
                     title="View transaction on Etherscan"
                   >
-                    View
+                    View {/* English */}
                   </a>
                   <button
                     onClick={() => handleCopyLink(event.transaction_hash)}
                     className={`text-xs px-2 py-1 rounded ${copiedLink === event.transaction_hash ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
                     title="Copy Etherscan link to transaction"
                   >
-                    {copiedLink === event.transaction_hash ? 'Copied!' : 'Copy Link'}
+                    {copiedLink === event.transaction_hash ? 'Copied!' : 'Copy Link'} {/* English */}
                   </button>
                 </td>
               </tr>
