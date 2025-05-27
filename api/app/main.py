@@ -1,12 +1,12 @@
 # api/app/main.py
-from fastapi import FastAPI, Depends, HTTPException, status, Query # <-- AÑADIDO Query
+from fastapi import FastAPI, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import HttpUrl
 import json
-from datetime import datetime # <-- AÑADIDO datetime
+from datetime import datetime
 
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware # Asegúrate que esté importado
 
 from .database import engine, get_db
 from . import models, schemas, crud, auth
@@ -20,23 +20,26 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.7.2", # <-- Incremento de versión
+    version="0.7.3", # Incrementamos versión por el fix de CORS
     description="API para monitorizar transferencias de tokens ERC-20, con filtrado y ordenación de eventos."
 )
 
-allow_origin_regex = r"http://localhost(:\d+)?"
-# origins_for_production = [
-#     "https://tu-dashboard.onrender.com", # Ejemplo
-# ]
+# --- CONFIGURACIÓN DE CORS ACTUALIZADA ---
+origins = [
+    "https://tokenwatcher-frontend.onrender.com", # Tu frontend desplegado en Render
+    "http://localhost:3000", # Para desarrollo local del frontend (si usas este puerto)
+    "http://localhost:3001", # Para desarrollo local del frontend (el que estabas usando)
+    # Puedes añadir otros orígenes si los necesitas, ej. otra URL de preview de Render
+]
 
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=origins_for_production, # Descomenta y usa esto para producción
-    allow_origin_regex=allow_origin_regex, # Para desarrollo local flexible
+    allow_origins=origins,       # <--- CAMBIO IMPORTANTE: Usar la lista 'origins'
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],         # Permite todos los métodos (GET, POST, PUT, DELETE, etc.)
+    allow_headers=["*"],         # Permite todas las cabeceras
 )
+# --- FIN CONFIGURACIÓN DE CORS ---
 
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
@@ -65,7 +68,7 @@ def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Sessi
 def health_check(): return {"status": "ok", "message": "TokenWatcher API is healthy"}
 
 @app.get("/", tags=["System"], include_in_schema=False)
-def api_root_demo(): return {"message": "🎉 Welcome to TokenWatcher API v0.7.2! Visit /docs for API documentation."}
+def api_root_demo(): return {"message": "🎉 Welcome to TokenWatcher API v0.7.3! Visit /docs for API documentation."}
 
 # --- Watchers CRUD ---
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
@@ -121,27 +124,21 @@ def create_new_event_for_authed_user_testing(
     created_event = crud.create_event(db=db, event_data=event_data)
     return created_event
 
-
-# --- MODIFICADO PARA ACEPTAR FILTROS Y ORDENACIÓN ---
 @app.get("/events/", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
 def list_all_events_for_current_user(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
-    # --- Parámetros de Paginación ---
     skip: int = Query(0, ge=0, description="Número de eventos a saltar"),
     limit: int = Query(100, ge=1, le=500, description="Número máximo de eventos a devolver"),
-    # --- Parámetros de Filtrado ---
     token_address: Optional[str] = Query(None, description="Filtrar por dirección de token (búsqueda parcial)"),
     start_date: Optional[datetime] = Query(None, description="Fecha de inicio (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="Fecha de fin (ISO format)"),
     from_address: Optional[str] = Query(None, description="Filtrar por dirección de origen (exacta, case-insensitive)"),
     to_address: Optional[str] = Query(None, description="Filtrar por dirección de destino (exacta, case-insensitive)"),
     min_usd_value: Optional[float] = Query(None, ge=0, description="Filtrar por valor USD mínimo"),
-    # --- Parámetros de Ordenación ---
     sort_by: Optional[str] = Query("created_at", description="Ordenar por: created_at, amount, usd_value, block_number"),
     sort_order: Optional[str] = Query("desc", description="Orden: asc o desc")
 ):
-    # Validar sort_by y sort_order para evitar inyecciones o errores
     allowed_sort_by = ["created_at", "amount", "usd_value", "block_number"]
     if sort_by not in allowed_sort_by:
         raise HTTPException(status_code=400, detail=f"Valor de 'sort_by' no válido. Use uno de: {', '.join(allowed_sort_by)}")
@@ -163,15 +160,12 @@ def list_all_events_for_current_user(
         sort_order=sort_order
     )
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
-# --- FIN MODIFICACIÓN ---
 
 @app.get("/events/watcher/{watcher_id}", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
 def list_events_for_a_specific_watcher_of_current_user(
     watcher_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    # NOTA: Este endpoint aún no soporta filtros, solo paginación.
-    # Podríamos añadir filtros aquí también si fuera necesario en el futuro.
     data = crud.get_events_for_watcher(db, watcher_id=watcher_id, owner_id=current_user.id, skip=skip, limit=limit)
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
 
@@ -187,6 +181,7 @@ def get_single_event_for_current_user(
     return db_event
 
 # --- Transports CRUD ---
+# ... (resto de los endpoints de Transports y Tokens sin cambios) ...
 @app.post("/watchers/{watcher_id}/transports/", response_model=schemas.TransportRead, status_code=status.HTTP_201_CREATED, tags=["Transports (Watcher-Specific)"])
 def add_new_transport_to_watcher(
     watcher_id: int, transport_payload: schemas.TransportCreate,
