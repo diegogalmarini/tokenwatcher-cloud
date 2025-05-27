@@ -1,13 +1,12 @@
 # api/app/crud.py
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import desc, asc, func as sql_func # Import asc
+from sqlalchemy import desc, asc, func as sql_func
 from fastapi import HTTPException
 from pydantic import HttpUrl
 from typing import Optional, List, Dict, Any
-from datetime import datetime # Import datetime
+from datetime import datetime
 import json
 
-# Importamos models y schemas como los has definido
 from . import models, schemas, auth
 
 # --- Funciones Auxiliares para Transports ---
@@ -81,7 +80,7 @@ def get_watcher_db(db: Session, watcher_id: int, owner_id: Optional[int] = None)
 
 def get_active_watchers(db: Session, skip: int = 0, limit: int = 100) -> List[models.Watcher]:
     return (db.query(models.Watcher)
-            .filter(models.Watcher.is_active == True)
+            .filter(models.Watcher.is_active == True) # Solo watchers activos
             .order_by(models.Watcher.id)
             .options(selectinload(models.Watcher.transports))
             .offset(skip).limit(limit).all())
@@ -163,7 +162,6 @@ def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[
 def get_event_by_id(db: Session, event_id: int) -> models.TokenEvent | None:
     return db.query(models.TokenEvent).filter(models.TokenEvent.id == event_id).first()
 
-# --- MODIFICADO PARA FILTROS Y ORDENACIÓN ---
 def get_all_events_for_owner(
     db: Session,
     owner_id: int,
@@ -179,22 +177,23 @@ def get_all_events_for_owner(
     sort_order: Optional[str] = "desc"
 ) -> Dict[str, Any]:
 
-    # 1. Base query: Join Events with Watchers and filter by owner_id.
+    # 1. Base query: Join Events with Watchers and filter by owner_id AND Watcher.is_active == True.
     base_query = db.query(models.TokenEvent)\
                    .join(models.Watcher, models.TokenEvent.watcher_id == models.Watcher.id)\
-                   .filter(models.Watcher.owner_id == owner_id)
+                   .filter(models.Watcher.owner_id == owner_id)\
+                   .filter(models.Watcher.is_active == True) # <--- AÑADIDO: Filtro por Watchers activos
 
     # 2. Apply filters dynamically.
     if token_address:
-        base_query = base_query.filter(models.TokenEvent.token_address_observed.ilike(f"%{token_address}%")) # Use ilike for case-insensitive partial match
+        base_query = base_query.filter(models.TokenEvent.token_address_observed.ilike(f"%{token_address}%"))
     if start_date:
         base_query = base_query.filter(models.TokenEvent.created_at >= start_date)
     if end_date:
         base_query = base_query.filter(models.TokenEvent.created_at <= end_date)
     if from_address:
-        base_query = base_query.filter(models.TokenEvent.from_address.ilike(from_address)) # Use ilike for case-insensitive exact match
+        base_query = base_query.filter(models.TokenEvent.from_address.ilike(from_address))
     if to_address:
-        base_query = base_query.filter(models.TokenEvent.to_address.ilike(to_address)) # Use ilike for case-insensitive exact match
+        base_query = base_query.filter(models.TokenEvent.to_address.ilike(to_address))
     if min_usd_value is not None:
         base_query = base_query.filter(models.TokenEvent.usd_value >= min_usd_value)
 
@@ -219,10 +218,17 @@ def get_all_events_for_owner(
     events = ordered_query.offset(skip).limit(limit).all()
 
     return {"total_events": total_events, "events": events}
-# --- FIN MODIFICACIÓN ---
 
 def get_events_for_watcher(db: Session, watcher_id: int, owner_id: int, skip: int = 0, limit: int = 100) -> Dict[str, Any]:
-    get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id) # Verifica propiedad
+    # Primero verificamos que el watcher pertenezca al owner
+    db_watcher = get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
+
+    # Si el watcher específico está pausado, no devolvemos eventos para él.
+    # Esto es una decisión de diseño: ¿queremos ver eventos históricos de un watcher pausado si se accede directamente?
+    # Por ahora, si está pausado, devolvemos una lista vacía para este endpoint específico.
+    # La lista general de "Recent Events" ya solo muestra de watchers activos por el cambio en get_all_events_for_owner.
+    if not db_watcher.is_active:
+        return {"total_events": 0, "events": []}
 
     base_query = db.query(models.TokenEvent)\
                    .filter(models.TokenEvent.watcher_id == watcher_id)
@@ -237,6 +243,7 @@ def get_events_for_watcher(db: Session, watcher_id: int, owner_id: int, skip: in
 
 
 # --- Transport CRUD ---
+# ... (resto de las funciones CRUD de Transport y TokenVolume sin cambios) ...
 def get_transport_by_id(db: Session, transport_id: int, owner_id: int) -> models.Transport | None:
     transport = (db.query(models.Transport)
                  .join(models.Watcher, models.Transport.watcher_id == models.Watcher.id)
@@ -275,7 +282,6 @@ def delete_transport_by_id(db: Session, transport_id: int, owner_id: int) -> Non
     db.delete(db_transport)
     db.commit()
 
-# --- TokenVolume & Calculated Volume ---
 def get_volume(db: Session, contract_address: str) -> float:
     total_volume = (
         db.query(sql_func.sum(models.TokenEvent.amount))
