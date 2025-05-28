@@ -18,8 +18,8 @@ interface EventListProps {
     currentPage: number;
     pageSize: number;
     onPageChange: (page: number) => void;
-    showActiveOnlyEvents: boolean; // <-- NUEVA PROP
-    onToggleShowActiveOnly: () => void; // <-- NUEVA PROP
+    showActiveOnlyEvents: boolean;
+    // onToggleShowActiveOnly ya no es necesaria aquí, se maneja en EventFilterBar
 }
 
 export function EventList({
@@ -30,8 +30,7 @@ export function EventList({
     currentPage,
     pageSize,
     onPageChange,
-    showActiveOnlyEvents, // <-- Recibida
-    onToggleShowActiveOnly // <-- Recibida
+    showActiveOnlyEvents,
 }: EventListProps) {
   const { token } = useAuth();
   const {
@@ -53,7 +52,7 @@ export function EventList({
           sortOrder: sortOptions.sortOrder,
           skip: skip,
           limit: pageSize,
-          activeWatchersOnly: showActiveOnlyEvents // <-- Usamos la nueva prop aquí
+          activeWatchersOnly: showActiveOnlyEvents
       });
     }
   }, [
@@ -63,7 +62,7 @@ export function EventList({
       sortOptions,
       currentPage,
       pageSize,
-      showActiveOnlyEvents // <-- Añadida a las dependencias
+      showActiveOnlyEvents
   ]);
 
   useEffect(() => {
@@ -79,7 +78,7 @@ export function EventList({
               sortOrder: sortOptions.sortOrder,
               skip: skip,
               limit: pageSize,
-              activeWatchersOnly: showActiveOnlyEvents // <-- También aquí al refrescar
+              activeWatchersOnly: showActiveOnlyEvents
           });
       }
   };
@@ -112,24 +111,16 @@ export function EventList({
     <div className="space-y-4 mt-8">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Recent Events</h2>
-        <div className="flex space-x-2"> {/* Contenedor para los botones */}
-            <Button
-                intent="secondary" // Usamos el intent secundario que creamos
-                onClick={onToggleShowActiveOnly} // Llama al manejador de page.tsx
-                disabled={isLoading || !token}
-                size="md"
-            >
-                {showActiveOnlyEvents ? "Show All Events" : "Show Active Only"}
-            </Button>
-            <Button
-                intent="secondary" // Usamos el intent secundario
-                onClick={handleRefresh}
-                disabled={isLoading || !token}
-                size="md"
-            >
-            {isLoading ? "Refreshing..." : "Refresh Events"}
-            </Button>
-        </div>
+        {/* El botón de toggle "Show Active Only" se ha movido a EventFilterBar.tsx */}
+        {/* Solo queda el botón de Refresh aquí */}
+        <Button
+            intent="secondary"
+            onClick={handleRefresh}
+            disabled={isLoading || !token}
+            size="md"
+        >
+        {isLoading ? "Refreshing..." : "Refresh Events"}
+        </Button>
       </div>
       <EventTable
           events={events}

@@ -4,11 +4,11 @@ from sqlalchemy import desc, asc, func as sql_func
 from fastapi import HTTPException
 from pydantic import HttpUrl
 from typing import Optional, List, Dict, Any
-from datetime import datetime
-import json
+from datetime import datetime, timedelta # <-- AÑADIDO timedelta
 
 from . import models, schemas, auth
 
+# ... (resto de las funciones auxiliares y CRUD de User/Watcher sin cambios) ...
 # --- Funciones Auxiliares para Transports (sin cambios) ---
 def get_transport_type_from_url(webhook_url: HttpUrl | str) -> Optional[str]:
     url_str = str(webhook_url)
@@ -28,7 +28,6 @@ def _create_or_update_primary_transport_for_watcher(
         webhook_url_str = str(webhook_url_from_schema)
         if not transport_type:
             if db_transport: db.delete(db_transport)
-            # print(f"Warning: Webhook URL '{webhook_url_str}' para Watcher ID={watcher_model_instance.id} no es de tipo conocido. No se creó/actualizó Transport.")
             return
 
         config_data = {"url": webhook_url_str}
@@ -85,7 +84,7 @@ def get_active_watchers(db: Session, skip: int = 0, limit: int = 100) -> List[mo
 def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int = 100) -> List[models.Watcher]:
     return (db.query(models.Watcher)
             .filter(models.Watcher.owner_id == owner_id)
-            .order_by(models.Watcher.id) # Default order by ID
+            .order_by(models.Watcher.name) # Ordenamos por nombre para el desplegable
             .options(selectinload(models.Watcher.transports))
             .offset(skip).limit(limit).all())
 
@@ -162,14 +161,15 @@ def get_all_events_for_owner(
     owner_id: int,
     skip: int = 0,
     limit: int = 100,
-    watcher_id: Optional[int] = None, # <-- NUEVO PARÁMETRO para filtrar por Watcher específico
-    token_address: Optional[str] = None,
+    watcher_id: Optional[int] = None,
+    token_address: Optional[str] = None, # Mantendremos este por si se usa en el futuro o para más granularidad
+    token_symbol: Optional[str] = None,  # Añadiremos token_symbol como filtro
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     from_address: Optional[str] = None,
     to_address: Optional[str] = None,
     min_usd_value: Optional[float] = None,
-    max_usd_value: Optional[float] = None, # <-- Asumimos que lo añadiremos también
+    max_usd_value: Optional[float] = None,
     sort_by: Optional[str] = "created_at",
     sort_order: Optional[str] = "desc",
     active_watchers_only: Optional[bool] = False
@@ -182,26 +182,32 @@ def get_all_events_for_owner(
     if active_watchers_only:
         base_query = base_query.filter(models.Watcher.is_active == True)
 
-    # --- NUEVO FILTRO POR WATCHER_ID ---
     if watcher_id is not None:
         base_query = base_query.filter(models.TokenEvent.watcher_id == watcher_id)
-    # --- FIN NUEVO FILTRO ---
 
-    if token_address: # Este podría ser reemplazado/complementado por token_symbol más adelante
-        base_query = base_query.filter(models.TokenEvent.token_address_observed.ilike(f"%{token_address}%"))
+    if token_address:
+         base_query = base_query.filter(models.TokenEvent.token_address_observed.ilike(f"%{token_address}%"))
+    if token_symbol: # Filtro por token_symbol
+        base_query = base_query.filter(models.TokenEvent.token_symbol.ilike(f"%{token_symbol}%"))
+
     if start_date:
-        base_query = base_query.filter(models.TokenEvent.created_at >= start_date)
+        # Aseguramos que start_date sea el inicio del día en UTC si solo se pasa la fecha
+        start_date_utc = datetime(start_date.year, start_date.month, start_date.day, 0, 0, 0)
+        base_query = base_query.filter(models.TokenEvent.created_at >= start_date_utc)
     if end_date:
-        base_query = base_query.filter(models.TokenEvent.created_at <= end_date)
+        # Para que end_date incluya todo el día, vamos hasta el final de ese día
+        # (o equivalentemente, hasta el inicio del día siguiente)
+        end_date_utc_exclusive = datetime(end_date.year, end_date.month, end_date.day) + timedelta(days=1)
+        base_query = base_query.filter(models.TokenEvent.created_at < end_date_utc_exclusive)
+
     if from_address:
         base_query = base_query.filter(models.TokenEvent.from_address.ilike(from_address))
     if to_address:
         base_query = base_query.filter(models.TokenEvent.to_address.ilike(to_address))
     if min_usd_value is not None:
         base_query = base_query.filter(models.TokenEvent.usd_value >= min_usd_value)
-    if max_usd_value is not None: # Filtro para Max USD Value (asumiendo que lo añadiremos)
+    if max_usd_value is not None:
         base_query = base_query.filter(models.TokenEvent.usd_value <= max_usd_value)
-
 
     total_events = base_query.with_entities(sql_func.count(models.TokenEvent.id)).scalar() or 0
 
@@ -219,14 +225,10 @@ def get_all_events_for_owner(
         ordered_query = base_query.order_by(desc(sort_column))
 
     events = ordered_query.offset(skip).limit(limit).all()
-
     return {"total_events": total_events, "events": events}
 
 def get_events_for_watcher(db: Session, watcher_id: int, owner_id: int, skip: int = 0, limit: int = 100) -> Dict[str, Any]:
     db_watcher = get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
-    # if not db_watcher.is_active: # Decidimos mostrar siempre el histórico para este endpoint específico
-    #     return {"total_events": 0, "events": []}
-
     base_query = db.query(models.TokenEvent)\
                    .filter(models.TokenEvent.watcher_id == watcher_id)
     total_events = base_query.with_entities(sql_func.count(models.TokenEvent.id)).scalar() or 0
@@ -237,7 +239,7 @@ def get_events_for_watcher(db: Session, watcher_id: int, owner_id: int, skip: in
     return {"total_events": total_events, "events": events}
 
 # --- Transport CRUD (sin cambios) ---
-# ...
+# ... (resto)
 def get_transport_by_id(db: Session, transport_id: int, owner_id: int) -> models.Transport | None:
     transport = (db.query(models.Transport)
                  .join(models.Watcher, models.Transport.watcher_id == models.Watcher.id)
