@@ -7,7 +7,7 @@ import { EventTable } from "./EventTable";
 import Button from "@components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import type { EventFilters } from "./EventFilterBar";
-import type { SortOptions } from "@/app/page";
+import type { SortOptions } from "@/app/dashboard/page";
 import { PaginationControls } from "@components/ui/PaginationControls";
 
 interface EventListProps {

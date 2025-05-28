@@ -6,7 +6,7 @@ import Image from "next/image";
 import { Event } from "@/lib/useEvents";
 import { formatDistanceToNow, parseISO } from 'date-fns';
 // import { enUS } from 'date-fns/locale'; // Import English locale if needed for specific formatting
-import type { SortOptions } from "@/app/page";
+import type { SortOptions } from "@/app/dashboard/page";
 import { ArrowUp, ArrowDown } from 'lucide-react';
 
 interface Props {
