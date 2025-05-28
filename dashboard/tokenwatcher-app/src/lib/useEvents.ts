@@ -24,6 +24,7 @@ export interface FetchEventsParams {
     sortOrder?: 'asc' | 'desc';
     skip?: number;
     limit?: number;
+    activeWatchersOnly?: boolean; // <-- NUEVO PARÁMETRO
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -38,16 +39,16 @@ export function useEvents() {
   const handleFetchError = useCallback(async (response: Response, defaultErrorMessage: string) => {
     console.error(`[useEvents] handleFetchError. Status: ${response.status}, URL: ${response.url}`);
     if (response.status === 401) {
-      setError("Your session may have expired or token is invalid. Please login again."); // English
+      setError("Your session may have expired or token is invalid. Please login again.");
       logout();
     } else {
       try {
         const errorData = await response.json();
         console.error("[useEvents] Error data from API:", errorData);
-        setError(errorData.detail || defaultErrorMessage); // Assumes errorData.detail is English or backend provides it.
+        setError(errorData.detail || defaultErrorMessage);
       } catch (e) {
         console.error("[useEvents] Error parsing error JSON:", e);
-        setError(defaultErrorMessage); // Default error message in English
+        setError(defaultErrorMessage);
       }
     }
     setEvents([]);
@@ -55,11 +56,12 @@ export function useEvents() {
   }, [logout]);
 
   const fetchAllMyEvents = useCallback(async (params: FetchEventsParams) => {
-    const { filters, sortBy = 'created_at', sortOrder = 'desc', skip = 0, limit = 100 } = params;
+    // Desestructuramos con un valor por defecto para activeWatchersOnly
+    const { filters, sortBy = 'created_at', sortOrder = 'desc', skip = 0, limit = 100, activeWatchersOnly = false } = params;
 
     console.log("[useEvents] Attempting fetchAllMyEvents with params:", params);
     if (!token) {
-      setError("Not authenticated to fetch events."); // English
+      setError("Not authenticated to fetch events.");
       setEvents([]);
       setTotalEvents(0);
       setIsLoading(false);
@@ -82,6 +84,11 @@ export function useEvents() {
     if (filters.toAddress) queryParams.append('to_address', filters.toAddress);
     if (filters.minUsdValue) queryParams.append('min_usd_value', filters.minUsdValue);
 
+    // Añadir active_watchers_only si es true
+    if (activeWatchersOnly) {
+      queryParams.append('active_watchers_only', 'true');
+    }
+
     const url = `${API_BASE_URL}/events/?${queryParams.toString()}`;
     console.log("[useEvents] Fetching URL:", url);
 
@@ -93,7 +100,7 @@ export function useEvents() {
       console.log("[useEvents] Response from fetchAllMyEvents:", {status: res.status, statusText: res.statusText, ok: res.ok});
 
       if (!res.ok) {
-        await handleFetchError(res, `Failed to fetch all events`); // English
+        await handleFetchError(res, `Failed to fetch all events`);
         return;
       }
       const data = await res.json();
@@ -103,13 +110,13 @@ export function useEvents() {
         setEvents(data.events);
         setTotalEvents(data.total_events);
       } else {
-        console.warn("[useEvents] Response from fetchAllMyEvents does not have the expected format. Data:", data); // English console warn
+        console.warn("[useEvents] Response from fetchAllMyEvents does not have the expected format. Data:", data);
         setEvents([]);
         setTotalEvents(0);
       }
-    } catch (err: unknown) { // Changed to unknown
+    } catch (err: unknown) {
       console.error("[useEvents] Catch in fetchAllMyEvents:", err);
-      let errorMessage = "An unexpected error occurred while fetching events."; // English
+      let errorMessage = "An unexpected error occurred while fetching events.";
       if (err instanceof Error) {
         errorMessage = err.message;
       } else if (typeof err === 'string') {
@@ -121,12 +128,13 @@ export function useEvents() {
     } finally {
       setIsLoading(false);
     }
-  }, [token, handleFetchError]); // logout is dependency of handleFetchError
+  }, [token, handleFetchError]);
 
    const fetchEventsByWatcher = useCallback(async (watcherId: number) => {
+    // ... (sin cambios en esta función por ahora)
     console.log(`[useEvents] Attempting fetchEventsByWatcher for watcherId: ${watcherId}. Current token:`, token);
     if (!token) {
-      setError("Not authenticated to fetch events (token is null or empty in useEvents for fetchEventsByWatcher)."); // English
+      setError("Not authenticated to fetch events (token is null or empty in useEvents for fetchEventsByWatcher).");
       setEvents(currentEvents => currentEvents.length > 0 ? [] : currentEvents);
       setIsLoading(false);
       return;
@@ -141,7 +149,7 @@ export function useEvents() {
       console.log(`[useEvents] Response from fetchEventsByWatcher for watcherId ${watcherId}:`, res.status, res.statusText);
 
       if (!res.ok) {
-        await handleFetchError(res, `Failed to fetch events for watcher ${watcherId}`); // English
+        await handleFetchError(res, `Failed to fetch events for watcher ${watcherId}`);
         return;
       }
       const data = await res.json();
@@ -150,13 +158,13 @@ export function useEvents() {
         setEvents(data.events);
         setTotalEvents(data.total_events);
       } else {
-        console.warn("[useEvents] Response from fetchEventsByWatcher does not have the expected format (PaginatedTokenEventResponse). Data:", data); // English console warn
+        console.warn("[useEvents] Response from fetchEventsByWatcher does not have the expected format (PaginatedTokenEventResponse). Data:", data);
         setEvents([]);
         setTotalEvents(0);
       }
-    } catch (err: unknown) { // Changed to unknown
+    } catch (err: unknown) {
       console.error("[useEvents] Catch in fetchEventsByWatcher:", err);
-      let errorMessage = "An unexpected error occurred while fetching events for watcher."; // English
+      let errorMessage = "An unexpected error occurred while fetching events for watcher.";
       if (err instanceof Error) {
         errorMessage = err.message;
       } else if (typeof err === 'string') {
@@ -168,7 +176,7 @@ export function useEvents() {
     } finally {
       setIsLoading(false);
     }
-  }, [token, handleFetchError]); // logout is dependency of handleFetchError
+  }, [token, handleFetchError]);
 
 
   return {

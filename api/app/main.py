@@ -20,7 +20,7 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.7.4", # Incrementamos versión
+    version="0.7.5", # Incrementamos versión por nuevos filtros
     description="API para monitorizar transferencias de tokens ERC-20, con filtrado y ordenación de eventos."
 )
 
@@ -53,7 +53,6 @@ def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Sessi
             try: active_webhook_url = HttpUrl(config_data["url"])
             except Exception:
                 active_webhook_url = None
-                # print(f"Warning: URL en config de Transport ID={first_transport.id} no es HttpUrl válida: {config_data.get('url')}")
     return schemas.WatcherRead(
         id=db_watcher.id, owner_id=db_watcher.owner_id, name=db_watcher.name,
         token_address=db_watcher.token_address, threshold=db_watcher.threshold,
@@ -65,7 +64,7 @@ def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Sessi
 def health_check(): return {"status": "ok", "message": "TokenWatcher API is healthy"}
 
 @app.get("/", tags=["System"], include_in_schema=False)
-def api_root_demo(): return {"message": "🎉 Welcome to TokenWatcher API v0.7.4! Visit /docs for API documentation."}
+def api_root_demo(): return {"message": "🎉 Welcome to TokenWatcher API v0.7.5! Visit /docs for API documentation."}
 
 # --- Watchers CRUD (sin cambios) ---
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
@@ -121,43 +120,47 @@ def create_new_event_for_authed_user_testing(
     created_event = crud.create_event(db=db, event_data=event_data)
     return created_event
 
-# --- MODIFICADO PARA ACEPTAR active_watchers_only ---
+# --- MODIFICADO PARA ACEPTAR watcher_id y max_usd_value ---
 @app.get("/events/", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
 def list_all_events_for_current_user(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
     skip: int = Query(0, ge=0, description="Número de eventos a saltar"),
     limit: int = Query(100, ge=1, le=500, description="Número máximo de eventos a devolver"),
-    token_address: Optional[str] = Query(None, description="Filtrar por dirección de token (búsqueda parcial)"),
+    watcher_id: Optional[int] = Query(None, description="Filter events by a specific watcher ID"), # <-- NUEVO PARÁMETRO
+    token_address: Optional[str] = Query(None, description="Filtrar por dirección de token (búsqueda parcial)"), # Se mantendrá por ahora, podría eliminarse si Watcher y Token Symbol lo cubren todo
     start_date: Optional[datetime] = Query(None, description="Fecha de inicio (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="Fecha de fin (ISO format)"),
     from_address: Optional[str] = Query(None, description="Filtrar por dirección de origen (exacta, case-insensitive)"),
     to_address: Optional[str] = Query(None, description="Filtrar por dirección de destino (exacta, case-insensitive)"),
     min_usd_value: Optional[float] = Query(None, ge=0, description="Filtrar por valor USD mínimo"),
+    max_usd_value: Optional[float] = Query(None, ge=0, description="Filter by maximum USD value"), # <-- NUEVO PARÁMETRO
     sort_by: Optional[str] = Query("created_at", description="Ordenar por: created_at, amount, usd_value, block_number"),
     sort_order: Optional[str] = Query("desc", description="Orden: asc o desc"),
-    active_watchers_only: Optional[bool] = Query(False, description="Filter events by currently active watchers only") # <-- NUEVO PARÁMETRO
+    active_watchers_only: Optional[bool] = Query(False, description="Filter events by currently active watchers only")
 ):
     allowed_sort_by = ["created_at", "amount", "usd_value", "block_number"]
-    if sort_by is not None and sort_by not in allowed_sort_by: # Asegurar que sort_by no sea None antes de 'not in'
-        raise HTTPException(status_code=400, detail=f"Valor de 'sort_by' no válido. Use uno de: {', '.join(allowed_sort_by)}")
-    if sort_order is not None and sort_order.lower() not in ["asc", "desc"]: # Asegurar que sort_order no sea None
-        raise HTTPException(status_code=400, detail="Valor de 'sort_order' no válido. Use 'asc' o 'desc'.")
+    if sort_by is not None and sort_by not in allowed_sort_by:
+        raise HTTPException(status_code=400, detail=f"Invalid 'sort_by' value. Use one of: {', '.join(allowed_sort_by)}")
+    if sort_order is not None and sort_order.lower() not in ["asc", "desc"]:
+        raise HTTPException(status_code=400, detail="Invalid 'sort_order' value. Use 'asc' or 'desc'.")
 
     data = crud.get_all_events_for_owner(
         db=db,
         owner_id=current_user.id,
         skip=skip,
         limit=limit,
+        watcher_id=watcher_id, # <-- Pasamos el nuevo parámetro
         token_address=token_address,
         start_date=start_date,
         end_date=end_date,
         from_address=from_address,
         to_address=to_address,
         min_usd_value=min_usd_value,
+        max_usd_value=max_usd_value, # <-- Pasamos el nuevo parámetro
         sort_by=sort_by,
         sort_order=sort_order,
-        active_watchers_only=active_watchers_only # <-- Pasamos el nuevo parámetro
+        active_watchers_only=active_watchers_only
     )
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
 # --- FIN MODIFICACIÓN ---
@@ -182,7 +185,7 @@ def get_single_event_for_current_user(
     return db_event
 
 # --- Transports CRUD (sin cambios) ---
-# ... (resto de los endpoints de Transports y Tokens sin cambios) ...
+# ...
 @app.post("/watchers/{watcher_id}/transports/", response_model=schemas.TransportRead, status_code=status.HTTP_201_CREATED, tags=["Transports (Watcher-Specific)"])
 def add_new_transport_to_watcher(
     watcher_id: int, transport_payload: schemas.TransportCreate,
@@ -215,7 +218,6 @@ def read_token_total_volume(contract_address: str, db: Session = Depends(get_db)
             from web3 import Web3
             contract_address = Web3.to_checksum_address(contract_address)
         except ImportError:
-            # print("WARN: web3 no instalado, no se pudo convertir a checksum address para /tokens/{contract_address}/volume")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid contract address format and web3 not available for checksum.")
         except Exception:
              raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid contract address format.")

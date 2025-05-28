@@ -4,7 +4,7 @@
 import React, { useEffect } from "react";
 import { useEvents } from "@/lib/useEvents";
 import { EventTable } from "./EventTable";
-import Button from "@components/ui/button"; // Tu componente Button
+import Button from "@components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import type { EventFilters } from "./EventFilterBar";
 import type { SortOptions } from "@/app/page";
@@ -18,6 +18,8 @@ interface EventListProps {
     currentPage: number;
     pageSize: number;
     onPageChange: (page: number) => void;
+    showActiveOnlyEvents: boolean; // <-- NUEVA PROP
+    onToggleShowActiveOnly: () => void; // <-- NUEVA PROP
 }
 
 export function EventList({
@@ -27,7 +29,9 @@ export function EventList({
     setIsLoading,
     currentPage,
     pageSize,
-    onPageChange
+    onPageChange,
+    showActiveOnlyEvents, // <-- Recibida
+    onToggleShowActiveOnly // <-- Recibida
 }: EventListProps) {
   const { token } = useAuth();
   const {
@@ -48,10 +52,19 @@ export function EventList({
           sortBy: sortOptions.sortBy,
           sortOrder: sortOptions.sortOrder,
           skip: skip,
-          limit: pageSize
+          limit: pageSize,
+          activeWatchersOnly: showActiveOnlyEvents // <-- Usamos la nueva prop aquí
       });
     }
-  }, [fetchAllMyEvents, token, appliedFilters, sortOptions, currentPage, pageSize]);
+  }, [
+      fetchAllMyEvents,
+      token,
+      appliedFilters,
+      sortOptions,
+      currentPage,
+      pageSize,
+      showActiveOnlyEvents // <-- Añadida a las dependencias
+  ]);
 
   useEffect(() => {
     setIsLoading(isLoading);
@@ -65,7 +78,8 @@ export function EventList({
               sortBy: sortOptions.sortBy,
               sortOrder: sortOptions.sortOrder,
               skip: skip,
-              limit: pageSize
+              limit: pageSize,
+              activeWatchersOnly: showActiveOnlyEvents // <-- También aquí al refrescar
           });
       }
   };
@@ -98,17 +112,24 @@ export function EventList({
     <div className="space-y-4 mt-8">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Recent Events</h2>
-        <Button
-            intent="secondary" // <--- CAMBIADO A "secondary"
-            size="md" // Puedes ajustar el tamaño si es necesario
-            onClick={handleRefresh}
-            disabled={isLoading || !token}
-            // className ya no necesita tantas clases de estilo base,
-            // pero puedes añadir márgenes o ajustes finos aquí si quieres.
-            // Por ejemplo: className="px-4 py-2 text-sm" si el size="md" no es suficiente
-        >
-          {isLoading ? "Refreshing..." : "Refresh Events"}
-        </Button>
+        <div className="flex space-x-2"> {/* Contenedor para los botones */}
+            <Button
+                intent="secondary" // Usamos el intent secundario que creamos
+                onClick={onToggleShowActiveOnly} // Llama al manejador de page.tsx
+                disabled={isLoading || !token}
+                size="md"
+            >
+                {showActiveOnlyEvents ? "Show All Events" : "Show Active Only"}
+            </Button>
+            <Button
+                intent="secondary" // Usamos el intent secundario
+                onClick={handleRefresh}
+                disabled={isLoading || !token}
+                size="md"
+            >
+            {isLoading ? "Refreshing..." : "Refresh Events"}
+            </Button>
+        </div>
       </div>
       <EventTable
           events={events}
