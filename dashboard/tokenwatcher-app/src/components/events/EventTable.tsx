@@ -28,20 +28,20 @@ const SortableHeader: React.FC<{
     const Icon = currentSort.sortOrder === 'asc' ? ArrowUp : ArrowDown;
 
     return (
-        <th
-            className={`px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${className}`}
-            onClick={() => onSort(columnKey)}
-        >
-            <div className={`flex items-center ${className === 'text-right' ? 'justify-end' : 'justify-start'}`}>
-                <span>{label}</span>
-                {isCurrent ? (
-                    <Icon className="ml-1 h-3 w-3" />
-                ) : (
-                    // Optionally, show a faint default arrow or no arrow if not sorted
-                    <ArrowDown className="ml-1 h-3 w-3 text-gray-300 dark:text-gray-500 opacity-50" />
-                )}
-            </div>
-        </th>
+      <th
+          className={`px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 ${className}`}
+          onClick={() => onSort(columnKey)}
+      >
+        <div className={`flex items-center ${className === 'text-right' ? 'justify-end' : 'justify-start'}`}>
+            <span>{label}</span>
+            {isCurrent ? (
+                <Icon className="ml-1 h-3 w-3" />
+            ) : (
+                // Optionally, show a faint default arrow or no arrow if not sorted
+                (<ArrowDown className="ml-1 h-3 w-3 text-gray-300 dark:text-gray-500 opacity-50" />)
+            )}
+        </div>
+      </th>
     );
 };
 
