@@ -78,11 +78,12 @@ export function useEvents() {
     });
 
     // Aplicar filtros a queryParams
-    if (filters.watcherId) { // <--- LÓGICA PARA ENVIAR watcher_id
+    if (filters.watcherId) {
         queryParams.append('watcher_id', filters.watcherId);
     }
-    // El filtro tokenSymbol se implementará en el siguiente paso
-    // if (filters.tokenSymbol) queryParams.append('token_symbol', filters.tokenSymbol);
+    if (filters.tokenSymbol) { // <--- AÑADIDO: Lógica para enviar token_symbol
+        queryParams.append('token_symbol', filters.tokenSymbol);
+    }
     if (filters.startDate) queryParams.append('start_date', filters.startDate);
     if (filters.endDate) queryParams.append('end_date', filters.endDate);
     if (filters.fromAddress) queryParams.append('from_address', filters.fromAddress);
@@ -136,7 +137,7 @@ export function useEvents() {
   }, [token, handleFetchError]);
 
    const fetchEventsByWatcher = useCallback(async (watcherId: number) => {
-    // ... (esta función no cambia por ahora) ...
+    // ... (sin cambios en esta función) ...
     console.log(`[useEvents] Attempting fetchEventsByWatcher for watcherId: ${watcherId}. Current token:`, token);
     if (!token) {
       setError("Not authenticated to fetch events (token is null or empty in useEvents for fetchEventsByWatcher).");
@@ -182,7 +183,6 @@ export function useEvents() {
       setIsLoading(false);
     }
   }, [token, handleFetchError]);
-
 
   return {
     events,

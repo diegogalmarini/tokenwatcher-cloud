@@ -1,15 +1,15 @@
 # api/app/crud.py
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import desc, asc, func as sql_func
+from sqlalchemy import desc, asc, func as sql_func, distinct # <-- AÑADIDO distinct
 from fastapi import HTTPException
 from pydantic import HttpUrl
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta # <-- AÑADIDO timedelta
+from datetime import datetime, timedelta
 
 from . import models, schemas, auth
 
-# ... (resto de las funciones auxiliares y CRUD de User/Watcher sin cambios) ...
 # --- Funciones Auxiliares para Transports (sin cambios) ---
+# ... (código existente) ...
 def get_transport_type_from_url(webhook_url: HttpUrl | str) -> Optional[str]:
     url_str = str(webhook_url)
     if not url_str: return None
@@ -46,6 +46,7 @@ def _create_or_update_primary_transport_for_watcher(
         db.delete(db_transport)
 
 # --- User CRUD (sin cambios) ---
+# ... (código existente) ...
 def get_user(db: Session, user_id: int) -> models.User | None:
     return db.query(models.User).filter(models.User.id == user_id).first()
 
@@ -61,6 +62,7 @@ def create_user(db: Session, user: schemas.UserCreate) -> models.User:
     return db_user
 
 # --- Watcher CRUD (sin cambios) ---
+# ... (código existente) ...
 def get_watcher_db(db: Session, watcher_id: int, owner_id: Optional[int] = None) -> models.Watcher:
     query = db.query(models.Watcher).options(selectinload(models.Watcher.transports))
     query = query.filter(models.Watcher.id == watcher_id)
@@ -76,7 +78,7 @@ def get_watcher_db(db: Session, watcher_id: int, owner_id: Optional[int] = None)
 
 def get_active_watchers(db: Session, skip: int = 0, limit: int = 100) -> List[models.Watcher]:
     return (db.query(models.Watcher)
-            .filter(models.Watcher.is_active == True)
+            .filter(models.Watcher.is_active == True) # Solo watchers activos
             .order_by(models.Watcher.id)
             .options(selectinload(models.Watcher.transports))
             .offset(skip).limit(limit).all())
@@ -84,7 +86,7 @@ def get_active_watchers(db: Session, skip: int = 0, limit: int = 100) -> List[mo
 def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int = 100) -> List[models.Watcher]:
     return (db.query(models.Watcher)
             .filter(models.Watcher.owner_id == owner_id)
-            .order_by(models.Watcher.name) # Ordenamos por nombre para el desplegable
+            .order_by(models.Watcher.name)
             .options(selectinload(models.Watcher.transports))
             .offset(skip).limit(limit).all())
 
@@ -122,8 +124,10 @@ def delete_watcher(db: Session, watcher_id: int, owner_id: int) -> None:
     db.delete(db_watcher)
     db.commit()
 
+
 # --- Event (TokenEvent) CRUD ---
 def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[models.TokenEvent]:
+    # ... (código existente sin cambios) ...
     existing_event = db.query(models.TokenEvent).filter(
         models.TokenEvent.transaction_hash == event_data.transaction_hash,
         models.TokenEvent.watcher_id == event_data.watcher_id
@@ -154,7 +158,9 @@ def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[
         raise
 
 def get_event_by_id(db: Session, event_id: int) -> models.TokenEvent | None:
+    # ... (código existente sin cambios) ...
     return db.query(models.TokenEvent).filter(models.TokenEvent.id == event_id).first()
+
 
 def get_all_events_for_owner(
     db: Session,
@@ -162,8 +168,8 @@ def get_all_events_for_owner(
     skip: int = 0,
     limit: int = 100,
     watcher_id: Optional[int] = None,
-    token_address: Optional[str] = None, # Mantendremos este por si se usa en el futuro o para más granularidad
-    token_symbol: Optional[str] = None,  # Añadiremos token_symbol como filtro
+    token_address: Optional[str] = None,
+    token_symbol: Optional[str] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     from_address: Optional[str] = None,
@@ -174,7 +180,7 @@ def get_all_events_for_owner(
     sort_order: Optional[str] = "desc",
     active_watchers_only: Optional[bool] = False
 ) -> Dict[str, Any]:
-
+    # ... (código existente sin cambios, ya incluye filtro por token_symbol) ...
     base_query = db.query(models.TokenEvent)\
                    .join(models.Watcher, models.TokenEvent.watcher_id == models.Watcher.id)\
                    .filter(models.Watcher.owner_id == owner_id)
@@ -184,19 +190,16 @@ def get_all_events_for_owner(
 
     if watcher_id is not None:
         base_query = base_query.filter(models.TokenEvent.watcher_id == watcher_id)
-
+    
     if token_address:
          base_query = base_query.filter(models.TokenEvent.token_address_observed.ilike(f"%{token_address}%"))
-    if token_symbol: # Filtro por token_symbol
+    if token_symbol:
         base_query = base_query.filter(models.TokenEvent.token_symbol.ilike(f"%{token_symbol}%"))
 
     if start_date:
-        # Aseguramos que start_date sea el inicio del día en UTC si solo se pasa la fecha
         start_date_utc = datetime(start_date.year, start_date.month, start_date.day, 0, 0, 0)
         base_query = base_query.filter(models.TokenEvent.created_at >= start_date_utc)
     if end_date:
-        # Para que end_date incluya todo el día, vamos hasta el final de ese día
-        # (o equivalentemente, hasta el inicio del día siguiente)
         end_date_utc_exclusive = datetime(end_date.year, end_date.month, end_date.day) + timedelta(days=1)
         base_query = base_query.filter(models.TokenEvent.created_at < end_date_utc_exclusive)
 
@@ -227,7 +230,9 @@ def get_all_events_for_owner(
     events = ordered_query.offset(skip).limit(limit).all()
     return {"total_events": total_events, "events": events}
 
+
 def get_events_for_watcher(db: Session, watcher_id: int, owner_id: int, skip: int = 0, limit: int = 100) -> Dict[str, Any]:
+    # ... (código existente sin cambios) ...
     db_watcher = get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
     base_query = db.query(models.TokenEvent)\
                    .filter(models.TokenEvent.watcher_id == watcher_id)
@@ -238,8 +243,26 @@ def get_events_for_watcher(db: Session, watcher_id: int, owner_id: int, skip: in
                        .all()
     return {"total_events": total_events, "events": events}
 
+# --- NUEVA FUNCIÓN PARA OBTENER SÍMBOLOS DE TOKEN DISTINTOS ---
+def get_distinct_token_symbols_for_owner(db: Session, owner_id: int) -> List[str]:
+    """
+    Obtiene una lista de token_symbol distintos de los eventos
+    pertenecientes a los watchers de un owner específico.
+    """
+    query = (
+        db.query(distinct(models.TokenEvent.token_symbol))
+        .join(models.Watcher, models.TokenEvent.watcher_id == models.Watcher.id)
+        .filter(models.Watcher.owner_id == owner_id)
+        .filter(models.TokenEvent.token_symbol.isnot(None)) # Excluir nulos
+        .filter(models.TokenEvent.token_symbol != '')      # Excluir strings vacíos
+        .order_by(models.TokenEvent.token_symbol)
+    )
+    symbols = [item[0] for item in query.all()]
+    return symbols
+# --- FIN NUEVA FUNCIÓN ---
+
 # --- Transport CRUD (sin cambios) ---
-# ... (resto)
+# ... (código existente) ...
 def get_transport_by_id(db: Session, transport_id: int, owner_id: int) -> models.Transport | None:
     transport = (db.query(models.Transport)
                  .join(models.Watcher, models.Transport.watcher_id == models.Watcher.id)

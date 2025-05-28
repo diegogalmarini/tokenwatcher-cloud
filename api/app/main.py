@@ -20,7 +20,7 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.7.6", # Incrementamos versión por nuevo filtro token_symbol
+    version="0.7.7", # Incrementamos versión por nuevo endpoint
     description="API para monitorizar transferencias de tokens ERC-20, con filtrado y ordenación de eventos."
 )
 
@@ -41,6 +41,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Session) -> schemas.WatcherRead:
+    # ... (código existente sin cambios) ...
     active_webhook_url: Optional[HttpUrl] = None
     if db_watcher.transports:
         first_transport = db_watcher.transports[0]
@@ -64,11 +65,10 @@ def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Sessi
 def health_check(): return {"status": "ok", "message": "TokenWatcher API is healthy"}
 
 @app.get("/", tags=["System"], include_in_schema=False)
-def api_root_demo(): return {"message": "🎉 Welcome to TokenWatcher API v0.7.6! Visit /docs for API documentation."}
+def api_root_demo(): return {"message": "🎉 Welcome to TokenWatcher API v0.7.7! Visit /docs for API documentation."}
 
 # --- Watchers CRUD (sin cambios) ---
-# ... (los endpoints de /watchers/ no cambian)
-
+# ... (código existente) ...
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
 def create_new_watcher_for_current_user(
     watcher_data: schemas.WatcherCreate,
@@ -114,6 +114,7 @@ def delete_existing_watcher_for_current_user(
 
 # --- Events CRUD ---
 @app.post("/events/", response_model=schemas.TokenEventRead, status_code=status.HTTP_201_CREATED, tags=["Events"], include_in_schema=False)
+# ... (código existente sin cambios) ...
 def create_new_event_for_authed_user_testing(
     event_data: schemas.TokenEventCreate, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -122,16 +123,16 @@ def create_new_event_for_authed_user_testing(
     created_event = crud.create_event(db=db, event_data=event_data)
     return created_event
 
-# --- MODIFICADO PARA ACEPTAR token_symbol ---
 @app.get("/events/", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
+# ... (código existente sin cambios, ya acepta token_symbol) ...
 def list_all_events_for_current_user(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
     skip: int = Query(0, ge=0, description="Número de eventos a saltar"),
     limit: int = Query(100, ge=1, le=500, description="Número máximo de eventos a devolver"),
     watcher_id: Optional[int] = Query(None, description="Filter events by a specific watcher ID"),
-    token_address: Optional[str] = Query(None, description="Filter by token contract address (partial match)"), # Lo mantenemos por si acaso
-    token_symbol: Optional[str] = Query(None, description="Filter by token symbol (partial match, case-insensitive)"), # <-- NUEVO PARÁMETRO
+    token_address: Optional[str] = Query(None, description="Filter by token contract address (partial match)"),
+    token_symbol: Optional[str] = Query(None, description="Filter by token symbol (partial match, case-insensitive)"),
     start_date: Optional[datetime] = Query(None, description="Fecha de inicio (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="Fecha de fin (ISO format)"),
     from_address: Optional[str] = Query(None, description="Filtrar por dirección de origen (exacta, case-insensitive)"),
@@ -154,8 +155,8 @@ def list_all_events_for_current_user(
         skip=skip,
         limit=limit,
         watcher_id=watcher_id,
-        token_address=token_address, # Pasamos token_address
-        token_symbol=token_symbol, # <-- Pasamos el nuevo parámetro
+        token_address=token_address,
+        token_symbol=token_symbol,
         start_date=start_date,
         end_date=end_date,
         from_address=from_address,
@@ -167,10 +168,22 @@ def list_all_events_for_current_user(
         active_watchers_only=active_watchers_only
     )
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
-# --- FIN MODIFICACIÓN ---
+
+# --- NUEVO ENDPOINT PARA OBTENER SÍMBOLOS DE TOKEN DISTINTOS ---
+@app.get("/events/distinct-token-symbols/", response_model=List[str], tags=["Events"])
+def list_distinct_token_symbols_for_current_user(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Retrieves a list of unique token symbols from events associated with the current user's watchers.
+    """
+    symbols = crud.get_distinct_token_symbols_for_owner(db=db, owner_id=current_user.id)
+    return symbols
+# --- FIN NUEVO ENDPOINT ---
 
 @app.get("/events/watcher/{watcher_id}", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
-# ... (sin cambios)
+# ... (código existente sin cambios) ...
 def list_events_for_a_specific_watcher_of_current_user(
     watcher_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -178,9 +191,8 @@ def list_events_for_a_specific_watcher_of_current_user(
     data = crud.get_events_for_watcher(db, watcher_id=watcher_id, owner_id=current_user.id, skip=skip, limit=limit)
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
 
-
 @app.get("/events/{event_id}", response_model=schemas.TokenEventRead, tags=["Events"])
-# ... (sin cambios)
+# ... (código existente sin cambios) ...
 def get_single_event_for_current_user(
     event_id: int, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -192,7 +204,7 @@ def get_single_event_for_current_user(
     return db_event
 
 # --- Transports CRUD (sin cambios) ---
-# ...
+# ... (código existente) ...
 @app.post("/watchers/{watcher_id}/transports/", response_model=schemas.TransportRead, status_code=status.HTTP_201_CREATED, tags=["Transports (Watcher-Specific)"])
 def add_new_transport_to_watcher(
     watcher_id: int, transport_payload: schemas.TransportCreate,
@@ -219,7 +231,7 @@ def delete_specific_transport_by_id(
     return
 
 # --- Token Volume Endpoint (sin cambios) ---
-# ...
+# ... (código existente) ...
 @app.get("/tokens/{contract_address}/volume", response_model=schemas.TokenRead, tags=["Tokens"])
 def read_token_total_volume(contract_address: str, db: Session = Depends(get_db)):
     if not contract_address.startswith("0x") or len(contract_address) != 42:
