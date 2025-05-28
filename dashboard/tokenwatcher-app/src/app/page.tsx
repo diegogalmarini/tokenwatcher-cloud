@@ -7,12 +7,11 @@ import WatcherList from "@/components/watchers/WatcherList";
 import { EventList } from "@/components/events/EventList";
 import { useAuth } from '@/contexts/AuthContext';
 import LogoutButton from '@/components/auth/LogoutButton';
-import { EventFilterBar, EventFilters } from '@/components/events/EventFilterBar'; // EventFilters viene de aquí
-import { useWatchers, Watcher } from '@/lib/useWatchers'; // <-- AÑADIDO para obtener watchers
+import { EventFilterBar, EventFilters } from '@/components/events/EventFilterBar';
+import { useWatchers, Watcher } from '@/lib/useWatchers';
 
-// initialFilters ahora usará watcherId en lugar de watcherName
 const initialFilters: EventFilters = {
-  watcherId: '', // <-- CAMBIADO de watcherName a watcherId, para el ID del watcher
+  watcherId: '',
   tokenSymbol: '',
   fromAddress: '',
   toAddress: '',
@@ -33,24 +32,53 @@ const initialSortOptions: SortOptions = {
 };
 
 const PAGE_SIZE = 25;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 function AuthenticatedPageContent() {
-  const { isAuthenticated, isLoading: authIsLoading, user, token } = useAuth(); // <-- Obtenemos token para useWatchers
+  const { isAuthenticated, isLoading: authIsLoading, user, token } = useAuth();
   const router = useRouter();
 
-  // --- Obteniendo Watchers para el Desplegable ---
-  const { watchers, fetchWatchers, isLoading: isLoadingWatchers } = useWatchers(); // <-- Usamos el hook
+  const { watchers, fetchWatchers, isLoading: isLoadingWatchers } = useWatchers();
+  const [distinctTokenSymbols, setDistinctTokenSymbols] = useState<string[]>([]);
+  const [isLoadingTokenSymbols, setIsLoadingTokenSymbols] = useState(false);
+
   useEffect(() => {
-    if (token) { // Solo cargar si hay token
+    if (token) {
       fetchWatchers();
     }
   }, [fetchWatchers, token]);
-  // --- Fin Obtención de Watchers ---
+
+  const fetchDistinctTokenSymbols = useCallback(async () => {
+    if (!token) return;
+    setIsLoadingTokenSymbols(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/events/distinct-token-symbols/`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch token symbols');
+      }
+      const symbols: string[] = await response.json();
+      setDistinctTokenSymbols(symbols);
+    } catch (error) {
+      console.error("Error fetching distinct token symbols:", error);
+      setDistinctTokenSymbols([]);
+    } finally {
+      setIsLoadingTokenSymbols(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchDistinctTokenSymbols();
+  }, [fetchDistinctTokenSymbols]);
+
 
   const [draftFilters, setDraftFilters] = useState<EventFilters>(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState<EventFilters>(initialFilters);
   const [sortOptions, setSortOptions] = useState<SortOptions>(initialSortOptions);
-  const [isEventsLoading, setIsEventsLoading] = useState(false);
+  const [isEventsLoading, setIsEventsLoading] = useState(false); // Este es el que EventList actualiza
   const [currentPage, setCurrentPage] = useState(1);
   const [showActiveOnlyEvents, setShowActiveOnlyEvents] = useState(false);
 
@@ -72,7 +100,7 @@ function AuthenticatedPageContent() {
     setCurrentPage(1);
     setDraftFilters(initialFilters);
     setAppliedFilters(initialFilters);
-    setShowActiveOnlyEvents(false); // También reseteamos el toggle de activos
+    setShowActiveOnlyEvents(false);
   }, []);
 
   const handleSortChange = useCallback((newSortBy: string) => {
@@ -93,7 +121,11 @@ function AuthenticatedPageContent() {
     }
   }, [authIsLoading, isAuthenticated, router]);
 
-  if (authIsLoading || isLoadingWatchers) { // Añadimos isLoadingWatchers
+  // El estado de carga general se basa en la autenticación, watchers y símbolos.
+  // EventList manejará su propio estado de carga para los eventos.
+  const overallInitialLoading = authIsLoading || isLoadingWatchers || isLoadingTokenSymbols;
+
+  if (overallInitialLoading) { // <--- CORRECCIÓN AQUÍ: Eliminada la dependencia de !events.length
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
         <p className="text-gray-600 dark:text-gray-300 text-lg">Loading application data...</p>
@@ -101,7 +133,7 @@ function AuthenticatedPageContent() {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !authIsLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
         <p className="text-gray-600 dark:text-gray-300 text-lg">Redirecting to login...</p>
@@ -138,16 +170,17 @@ function AuthenticatedPageContent() {
                 onFilterChange={handleFilterChange}
                 onApplyFilters={handleApplyFilters}
                 onClearFilters={handleClearFilters}
-                isLoading={isEventsLoading}
+                isLoading={isEventsLoading || isLoadingTokenSymbols} // La barra puede estar 'ocupada' si se cargan símbolos O eventos
                 showActiveOnlyEvents={showActiveOnlyEvents}
                 onToggleShowActiveOnly={handleToggleShowActiveOnly}
-                userWatchers={watchers} // <-- Pasamos la lista de watchers
+                userWatchers={watchers}
+                distinctTokenSymbols={distinctTokenSymbols}
             />
             <EventList
                 appliedFilters={appliedFilters}
                 sortOptions={sortOptions}
                 onSortChange={handleSortChange}
-                setIsLoading={setIsEventsLoading}
+                setIsLoading={setIsEventsLoading} // EventList sigue informando sobre su propia carga de eventos
                 currentPage={currentPage}
                 pageSize={PAGE_SIZE}
                 onPageChange={handlePageChange}

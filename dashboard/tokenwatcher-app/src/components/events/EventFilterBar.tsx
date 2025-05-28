@@ -1,11 +1,11 @@
 // dashboard/tokenwatcher-app/src/components/events/EventFilterBar.tsx
 import React from 'react';
 import Button from '@/components/ui/button';
-import type { Watcher } from '@/lib/useWatchers'; // Importamos el tipo Watcher
+import type { Watcher } from '@/lib/useWatchers';
 
 export interface EventFilters {
-  watcherId: string; // ID del Watcher seleccionado
-  tokenSymbol: string;
+  watcherId: string;
+  tokenSymbol: string; // Este campo ahora se llenará desde el nuevo desplegable
   fromAddress: string;
   toAddress: string;
   minUsdValue: string;
@@ -22,10 +22,11 @@ interface EventFilterBarProps {
   isLoading: boolean;
   showActiveOnlyEvents: boolean;
   onToggleShowActiveOnly: () => void;
-  userWatchers: Watcher[]; // <-- NUEVA PROP para la lista de watchers
+  userWatchers: Watcher[];
+  distinctTokenSymbols: string[]; // <-- NUEVA PROP para la lista de símbolos
 }
 
-// Componente Input reutilizable
+// Componente Input reutilizable (sin cambios)
 const FilterInput: React.FC<{
   label: string;
   id: keyof EventFilters;
@@ -58,12 +59,12 @@ export const EventFilterBar: React.FC<EventFilterBarProps> = ({
   isLoading,
   showActiveOnlyEvents,
   onToggleShowActiveOnly,
-  userWatchers, // <-- Recibimos la lista de watchers
+  userWatchers,
+  distinctTokenSymbols, // <-- Recibimos la lista de símbolos
 }) => {
   return (
     <div className="p-4 mb-6 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
       <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {/* --- CAMBIO A DESPLEGABLE PARA WATCHER --- */}
         <div className="flex flex-col">
           <label htmlFor="watcherId" className="mb-1 text-sm font-medium text-gray-600 dark:text-gray-300">
             Watcher
@@ -83,15 +84,29 @@ export const EventFilterBar: React.FC<EventFilterBarProps> = ({
             ))}
           </select>
         </div>
+
+        {/* --- CAMBIO A DESPLEGABLE PARA TOKEN SYMBOL --- */}
+        <div className="flex flex-col">
+          <label htmlFor="tokenSymbol" className="mb-1 text-sm font-medium text-gray-600 dark:text-gray-300">
+            Token Symbol
+          </label>
+          <select
+            id="tokenSymbol"
+            name="tokenSymbol"
+            value={filters.tokenSymbol}
+            onChange={(e) => onFilterChange('tokenSymbol', e.target.value)}
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+          >
+            <option value="">All Tokens</option>
+            {distinctTokenSymbols.map((symbol) => (
+              <option key={symbol} value={symbol}>
+                {symbol}
+              </option>
+            ))}
+          </select>
+        </div>
         {/* --- FIN CAMBIO A DESPLEGABLE --- */}
 
-        <FilterInput
-          label="Token Symbol" // Sigue como input de texto por ahora
-          id="tokenSymbol"
-          value={filters.tokenSymbol}
-          onChange={onFilterChange}
-          placeholder="E.g., WETH, DAI"
-        />
         <FilterInput
           label="From Address"
           id="fromAddress"
@@ -139,6 +154,7 @@ export const EventFilterBar: React.FC<EventFilterBarProps> = ({
       </div>
 
       <div className="flex flex-wrap items-center justify-end mt-6 pt-4 border-t border-gray-200 dark:border-gray-600 gap-2">
+        {/* ... (botones sin cambios) ... */}
         <Button
             intent="secondary"
             onClick={onToggleShowActiveOnly}
