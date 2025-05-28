@@ -6,7 +6,7 @@ from pydantic import HttpUrl
 import json
 from datetime import datetime
 
-from fastapi.middleware.cors import CORSMiddleware # Asegúrate que esté importado
+from fastapi.middleware.cors import CORSMiddleware
 
 from .database import engine, get_db
 from . import models, schemas, crud, auth
@@ -20,26 +20,23 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.7.3", # Incrementamos versión por el fix de CORS
+    version="0.7.4", # Incrementamos versión
     description="API para monitorizar transferencias de tokens ERC-20, con filtrado y ordenación de eventos."
 )
 
-# --- CONFIGURACIÓN DE CORS ACTUALIZADA ---
 origins = [
-    "https://tokenwatcher-frontend.onrender.com", # Tu frontend desplegado en Render
-    "http://localhost:3000", # Para desarrollo local del frontend (si usas este puerto)
-    "http://localhost:3001", # Para desarrollo local del frontend (el que estabas usando)
-    # Puedes añadir otros orígenes si los necesitas, ej. otra URL de preview de Render
+    "https://tokenwatcher-frontend.onrender.com",
+    "http://localhost:3000",
+    "http://localhost:3001",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,       # <--- CAMBIO IMPORTANTE: Usar la lista 'origins'
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],         # Permite todos los métodos (GET, POST, PUT, DELETE, etc.)
-    allow_headers=["*"],         # Permite todas las cabeceras
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-# --- FIN CONFIGURACIÓN DE CORS ---
 
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
@@ -56,7 +53,7 @@ def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Sessi
             try: active_webhook_url = HttpUrl(config_data["url"])
             except Exception:
                 active_webhook_url = None
-                print(f"Warning: URL en config de Transport ID={first_transport.id} no es HttpUrl válida: {config_data.get('url')}")
+                # print(f"Warning: URL en config de Transport ID={first_transport.id} no es HttpUrl válida: {config_data.get('url')}")
     return schemas.WatcherRead(
         id=db_watcher.id, owner_id=db_watcher.owner_id, name=db_watcher.name,
         token_address=db_watcher.token_address, threshold=db_watcher.threshold,
@@ -68,9 +65,9 @@ def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Sessi
 def health_check(): return {"status": "ok", "message": "TokenWatcher API is healthy"}
 
 @app.get("/", tags=["System"], include_in_schema=False)
-def api_root_demo(): return {"message": "🎉 Welcome to TokenWatcher API v0.7.3! Visit /docs for API documentation."}
+def api_root_demo(): return {"message": "🎉 Welcome to TokenWatcher API v0.7.4! Visit /docs for API documentation."}
 
-# --- Watchers CRUD ---
+# --- Watchers CRUD (sin cambios) ---
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
 def create_new_watcher_for_current_user(
     watcher_data: schemas.WatcherCreate,
@@ -124,6 +121,7 @@ def create_new_event_for_authed_user_testing(
     created_event = crud.create_event(db=db, event_data=event_data)
     return created_event
 
+# --- MODIFICADO PARA ACEPTAR active_watchers_only ---
 @app.get("/events/", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
 def list_all_events_for_current_user(
     db: Session = Depends(get_db),
@@ -137,12 +135,13 @@ def list_all_events_for_current_user(
     to_address: Optional[str] = Query(None, description="Filtrar por dirección de destino (exacta, case-insensitive)"),
     min_usd_value: Optional[float] = Query(None, ge=0, description="Filtrar por valor USD mínimo"),
     sort_by: Optional[str] = Query("created_at", description="Ordenar por: created_at, amount, usd_value, block_number"),
-    sort_order: Optional[str] = Query("desc", description="Orden: asc o desc")
+    sort_order: Optional[str] = Query("desc", description="Orden: asc o desc"),
+    active_watchers_only: Optional[bool] = Query(False, description="Filter events by currently active watchers only") # <-- NUEVO PARÁMETRO
 ):
     allowed_sort_by = ["created_at", "amount", "usd_value", "block_number"]
-    if sort_by not in allowed_sort_by:
+    if sort_by is not None and sort_by not in allowed_sort_by: # Asegurar que sort_by no sea None antes de 'not in'
         raise HTTPException(status_code=400, detail=f"Valor de 'sort_by' no válido. Use uno de: {', '.join(allowed_sort_by)}")
-    if sort_order.lower() not in ["asc", "desc"]:
+    if sort_order is not None and sort_order.lower() not in ["asc", "desc"]: # Asegurar que sort_order no sea None
         raise HTTPException(status_code=400, detail="Valor de 'sort_order' no válido. Use 'asc' o 'desc'.")
 
     data = crud.get_all_events_for_owner(
@@ -157,9 +156,11 @@ def list_all_events_for_current_user(
         to_address=to_address,
         min_usd_value=min_usd_value,
         sort_by=sort_by,
-        sort_order=sort_order
+        sort_order=sort_order,
+        active_watchers_only=active_watchers_only # <-- Pasamos el nuevo parámetro
     )
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
+# --- FIN MODIFICACIÓN ---
 
 @app.get("/events/watcher/{watcher_id}", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
 def list_events_for_a_specific_watcher_of_current_user(
@@ -177,10 +178,10 @@ def get_single_event_for_current_user(
     db_event = crud.get_event_by_id(db, event_id=event_id)
     if not db_event:
         raise HTTPException(status_code=404, detail="Event not found")
-    crud.get_watcher_db(db, watcher_id=db_event.watcher_id, owner_id=current_user.id) # Check ownership
+    crud.get_watcher_db(db, watcher_id=db_event.watcher_id, owner_id=current_user.id)
     return db_event
 
-# --- Transports CRUD ---
+# --- Transports CRUD (sin cambios) ---
 # ... (resto de los endpoints de Transports y Tokens sin cambios) ...
 @app.post("/watchers/{watcher_id}/transports/", response_model=schemas.TransportRead, status_code=status.HTTP_201_CREATED, tags=["Transports (Watcher-Specific)"])
 def add_new_transport_to_watcher(
@@ -207,7 +208,6 @@ def delete_specific_transport_by_id(
     crud.delete_transport_by_id(db=db, transport_id=transport_id, owner_id=current_user.id)
     return
 
-# --- Token Volume Endpoint ---
 @app.get("/tokens/{contract_address}/volume", response_model=schemas.TokenRead, tags=["Tokens"])
 def read_token_total_volume(contract_address: str, db: Session = Depends(get_db)):
     if not contract_address.startswith("0x") or len(contract_address) != 42:
@@ -215,7 +215,7 @@ def read_token_total_volume(contract_address: str, db: Session = Depends(get_db)
             from web3 import Web3
             contract_address = Web3.to_checksum_address(contract_address)
         except ImportError:
-            print("WARN: web3 no instalado, no se pudo convertir a checksum address para /tokens/{contract_address}/volume")
+            # print("WARN: web3 no instalado, no se pudo convertir a checksum address para /tokens/{contract_address}/volume")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid contract address format and web3 not available for checksum.")
         except Exception:
              raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid contract address format.")
