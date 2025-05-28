@@ -1,6 +1,7 @@
 // dashboard/tokenwatcher-app/src/lib/useEvents.ts
 import { useCallback, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+// Asegúrate que la ruta de importación sea correcta
 import type { EventFilters } from "@/components/events/EventFilterBar";
 
 export interface Event {
@@ -19,12 +20,12 @@ export interface Event {
 }
 
 export interface FetchEventsParams {
-    filters: Partial<EventFilters>;
+    filters: Partial<EventFilters>; // EventFilters ahora incluye watcherId, tokenSymbol, maxUsdValue
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
     skip?: number;
     limit?: number;
-    activeWatchersOnly?: boolean; // <-- NUEVO PARÁMETRO
+    activeWatchersOnly?: boolean;
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -56,7 +57,6 @@ export function useEvents() {
   }, [logout]);
 
   const fetchAllMyEvents = useCallback(async (params: FetchEventsParams) => {
-    // Desestructuramos con un valor por defecto para activeWatchersOnly
     const { filters, sortBy = 'created_at', sortOrder = 'desc', skip = 0, limit = 100, activeWatchersOnly = false } = params;
 
     console.log("[useEvents] Attempting fetchAllMyEvents with params:", params);
@@ -77,14 +77,19 @@ export function useEvents() {
         sort_order: sortOrder,
     });
 
-    if (filters.tokenAddress) queryParams.append('token_address', filters.tokenAddress);
+    // Aplicar filtros a queryParams
+    if (filters.watcherId) { // <--- LÓGICA PARA ENVIAR watcher_id
+        queryParams.append('watcher_id', filters.watcherId);
+    }
+    // El filtro tokenSymbol se implementará en el siguiente paso
+    // if (filters.tokenSymbol) queryParams.append('token_symbol', filters.tokenSymbol);
     if (filters.startDate) queryParams.append('start_date', filters.startDate);
     if (filters.endDate) queryParams.append('end_date', filters.endDate);
     if (filters.fromAddress) queryParams.append('from_address', filters.fromAddress);
     if (filters.toAddress) queryParams.append('to_address', filters.toAddress);
     if (filters.minUsdValue) queryParams.append('min_usd_value', filters.minUsdValue);
+    if (filters.maxUsdValue) queryParams.append('max_usd_value', filters.maxUsdValue);
 
-    // Añadir active_watchers_only si es true
     if (activeWatchersOnly) {
       queryParams.append('active_watchers_only', 'true');
     }
@@ -131,7 +136,7 @@ export function useEvents() {
   }, [token, handleFetchError]);
 
    const fetchEventsByWatcher = useCallback(async (watcherId: number) => {
-    // ... (sin cambios en esta función por ahora)
+    // ... (esta función no cambia por ahora) ...
     console.log(`[useEvents] Attempting fetchEventsByWatcher for watcherId: ${watcherId}. Current token:`, token);
     if (!token) {
       setError("Not authenticated to fetch events (token is null or empty in useEvents for fetchEventsByWatcher).");

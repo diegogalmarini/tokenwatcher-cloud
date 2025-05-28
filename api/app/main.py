@@ -20,7 +20,7 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.7.5", # Incrementamos versión por nuevos filtros
+    version="0.7.6", # Incrementamos versión por nuevo filtro token_symbol
     description="API para monitorizar transferencias de tokens ERC-20, con filtrado y ordenación de eventos."
 )
 
@@ -64,9 +64,11 @@ def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Sessi
 def health_check(): return {"status": "ok", "message": "TokenWatcher API is healthy"}
 
 @app.get("/", tags=["System"], include_in_schema=False)
-def api_root_demo(): return {"message": "🎉 Welcome to TokenWatcher API v0.7.5! Visit /docs for API documentation."}
+def api_root_demo(): return {"message": "🎉 Welcome to TokenWatcher API v0.7.6! Visit /docs for API documentation."}
 
 # --- Watchers CRUD (sin cambios) ---
+# ... (los endpoints de /watchers/ no cambian)
+
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
 def create_new_watcher_for_current_user(
     watcher_data: schemas.WatcherCreate,
@@ -120,21 +122,22 @@ def create_new_event_for_authed_user_testing(
     created_event = crud.create_event(db=db, event_data=event_data)
     return created_event
 
-# --- MODIFICADO PARA ACEPTAR watcher_id y max_usd_value ---
+# --- MODIFICADO PARA ACEPTAR token_symbol ---
 @app.get("/events/", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
 def list_all_events_for_current_user(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
     skip: int = Query(0, ge=0, description="Número de eventos a saltar"),
     limit: int = Query(100, ge=1, le=500, description="Número máximo de eventos a devolver"),
-    watcher_id: Optional[int] = Query(None, description="Filter events by a specific watcher ID"), # <-- NUEVO PARÁMETRO
-    token_address: Optional[str] = Query(None, description="Filtrar por dirección de token (búsqueda parcial)"), # Se mantendrá por ahora, podría eliminarse si Watcher y Token Symbol lo cubren todo
+    watcher_id: Optional[int] = Query(None, description="Filter events by a specific watcher ID"),
+    token_address: Optional[str] = Query(None, description="Filter by token contract address (partial match)"), # Lo mantenemos por si acaso
+    token_symbol: Optional[str] = Query(None, description="Filter by token symbol (partial match, case-insensitive)"), # <-- NUEVO PARÁMETRO
     start_date: Optional[datetime] = Query(None, description="Fecha de inicio (ISO format)"),
     end_date: Optional[datetime] = Query(None, description="Fecha de fin (ISO format)"),
     from_address: Optional[str] = Query(None, description="Filtrar por dirección de origen (exacta, case-insensitive)"),
     to_address: Optional[str] = Query(None, description="Filtrar por dirección de destino (exacta, case-insensitive)"),
     min_usd_value: Optional[float] = Query(None, ge=0, description="Filtrar por valor USD mínimo"),
-    max_usd_value: Optional[float] = Query(None, ge=0, description="Filter by maximum USD value"), # <-- NUEVO PARÁMETRO
+    max_usd_value: Optional[float] = Query(None, ge=0, description="Filter by maximum USD value"),
     sort_by: Optional[str] = Query("created_at", description="Ordenar por: created_at, amount, usd_value, block_number"),
     sort_order: Optional[str] = Query("desc", description="Orden: asc o desc"),
     active_watchers_only: Optional[bool] = Query(False, description="Filter events by currently active watchers only")
@@ -150,14 +153,15 @@ def list_all_events_for_current_user(
         owner_id=current_user.id,
         skip=skip,
         limit=limit,
-        watcher_id=watcher_id, # <-- Pasamos el nuevo parámetro
-        token_address=token_address,
+        watcher_id=watcher_id,
+        token_address=token_address, # Pasamos token_address
+        token_symbol=token_symbol, # <-- Pasamos el nuevo parámetro
         start_date=start_date,
         end_date=end_date,
         from_address=from_address,
         to_address=to_address,
         min_usd_value=min_usd_value,
-        max_usd_value=max_usd_value, # <-- Pasamos el nuevo parámetro
+        max_usd_value=max_usd_value,
         sort_by=sort_by,
         sort_order=sort_order,
         active_watchers_only=active_watchers_only
@@ -166,6 +170,7 @@ def list_all_events_for_current_user(
 # --- FIN MODIFICACIÓN ---
 
 @app.get("/events/watcher/{watcher_id}", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
+# ... (sin cambios)
 def list_events_for_a_specific_watcher_of_current_user(
     watcher_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -173,7 +178,9 @@ def list_events_for_a_specific_watcher_of_current_user(
     data = crud.get_events_for_watcher(db, watcher_id=watcher_id, owner_id=current_user.id, skip=skip, limit=limit)
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
 
+
 @app.get("/events/{event_id}", response_model=schemas.TokenEventRead, tags=["Events"])
+# ... (sin cambios)
 def get_single_event_for_current_user(
     event_id: int, db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
@@ -181,7 +188,7 @@ def get_single_event_for_current_user(
     db_event = crud.get_event_by_id(db, event_id=event_id)
     if not db_event:
         raise HTTPException(status_code=404, detail="Event not found")
-    crud.get_watcher_db(db, watcher_id=db_event.watcher_id, owner_id=current_user.id)
+    crud.get_watcher_db(db, watcher_id=db_event.watcher_id, owner_id=current_user.id) # Check ownership
     return db_event
 
 # --- Transports CRUD (sin cambios) ---
@@ -211,6 +218,8 @@ def delete_specific_transport_by_id(
     crud.delete_transport_by_id(db=db, transport_id=transport_id, owner_id=current_user.id)
     return
 
+# --- Token Volume Endpoint (sin cambios) ---
+# ...
 @app.get("/tokens/{contract_address}/volume", response_model=schemas.TokenRead, tags=["Tokens"])
 def read_token_total_volume(contract_address: str, db: Session = Depends(get_db)):
     if not contract_address.startswith("0x") or len(contract_address) != 42:

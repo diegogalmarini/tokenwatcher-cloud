@@ -1,15 +1,15 @@
 // dashboard/tokenwatcher-app/src/components/events/EventFilterBar.tsx
 import React from 'react';
-import Button from '@/components/ui/button'; // Importamos nuestro Button
+import Button from '@/components/ui/button';
+import type { Watcher } from '@/lib/useWatchers'; // Importamos el tipo Watcher
 
-// Actualizamos la interfaz para incluir los nuevos filtros
 export interface EventFilters {
-  watcherName: string; // Nuevo: Para filtrar por nombre de Watcher (placeholder por ahora)
-  tokenSymbol: string; // Nuevo: Para filtrar por símbolo de Token (placeholder por ahora)
+  watcherId: string; // ID del Watcher seleccionado
+  tokenSymbol: string;
   fromAddress: string;
   toAddress: string;
   minUsdValue: string;
-  maxUsdValue: string; // Nuevo: Max USD Value
+  maxUsdValue: string;
   startDate: string;
   endDate: string;
 }
@@ -20,14 +20,15 @@ interface EventFilterBarProps {
   onApplyFilters: () => void;
   onClearFilters: () => void;
   isLoading: boolean;
-  showActiveOnlyEvents: boolean; // Nuevo: para el texto del botón y la lógica
-  onToggleShowActiveOnly: () => void; // Nuevo: manejador para el botón
+  showActiveOnlyEvents: boolean;
+  onToggleShowActiveOnly: () => void;
+  userWatchers: Watcher[]; // <-- NUEVA PROP para la lista de watchers
 }
 
-// Componente Input reutilizable (sin cambios, solo lo usamos más veces)
+// Componente Input reutilizable
 const FilterInput: React.FC<{
   label: string;
-  id: keyof EventFilters; // Ahora se refiere a la nueva interfaz EventFilters
+  id: keyof EventFilters;
   value: string;
   onChange: (id: keyof EventFilters, value: string) => void;
   placeholder?: string;
@@ -57,20 +58,35 @@ export const EventFilterBar: React.FC<EventFilterBarProps> = ({
   isLoading,
   showActiveOnlyEvents,
   onToggleShowActiveOnly,
+  userWatchers, // <-- Recibimos la lista de watchers
 }) => {
   return (
     <div className="p-4 mb-6 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
-      {/* Aumentamos el número de columnas para acomodar más filtros */}
       <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        {/* --- CAMBIO A DESPLEGABLE PARA WATCHER --- */}
+        <div className="flex flex-col">
+          <label htmlFor="watcherId" className="mb-1 text-sm font-medium text-gray-600 dark:text-gray-300">
+            Watcher
+          </label>
+          <select
+            id="watcherId"
+            name="watcherId"
+            value={filters.watcherId}
+            onChange={(e) => onFilterChange('watcherId', e.target.value)}
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+          >
+            <option value="">All Watchers</option>
+            {userWatchers.map((watcher) => (
+              <option key={watcher.id} value={watcher.id.toString()}>
+                {watcher.name} (ID: {watcher.id})
+              </option>
+            ))}
+          </select>
+        </div>
+        {/* --- FIN CAMBIO A DESPLEGABLE --- */}
+
         <FilterInput
-          label="Watcher Name" // Placeholder para futuro dropdown
-          id="watcherName"
-          value={filters.watcherName}
-          onChange={onFilterChange}
-          placeholder="Enter Watcher Name..."
-        />
-        <FilterInput
-          label="Token Symbol" // Placeholder para futuro dropdown/autocomplete
+          label="Token Symbol" // Sigue como input de texto por ahora
           id="tokenSymbol"
           value={filters.tokenSymbol}
           onChange={onFilterChange}
@@ -99,7 +115,7 @@ export const EventFilterBar: React.FC<EventFilterBarProps> = ({
           type="number"
         />
         <FilterInput
-          label="Max. USD Value" // Nuevo campo
+          label="Max. USD Value"
           id="maxUsdValue"
           value={filters.maxUsdValue}
           onChange={onFilterChange}
@@ -122,20 +138,19 @@ export const EventFilterBar: React.FC<EventFilterBarProps> = ({
         />
       </div>
 
-      {/* Botones de acción agrupados */}
       <div className="flex flex-wrap items-center justify-end mt-6 pt-4 border-t border-gray-200 dark:border-gray-600 gap-2">
         <Button
-            intent="secondary" // Usamos nuestro intent secundario
+            intent="secondary"
             onClick={onToggleShowActiveOnly}
             disabled={isLoading}
             size="md"
-            className="order-first md:order-none" // Para que en móviles aparezca primero si se apilan
+            className="order-first md:order-none"
         >
             {showActiveOnlyEvents ? "Show All Events" : "Show Active Only"}
         </Button>
-        <div className="flex-grow md:flex-grow-0"></div> {/* Espaciador para empujar los siguientes botones a la derecha en pantallas grandes */}
+        <div className="flex-grow md:flex-grow-0"></div>
         <Button
-            intent="secondary" // Usamos nuestro intent secundario
+            intent="secondary"
             onClick={onClearFilters}
             disabled={isLoading}
             size="md"
@@ -143,11 +158,11 @@ export const EventFilterBar: React.FC<EventFilterBarProps> = ({
             Clear Filters
         </Button>
         <Button
-            intent="default" // Botón primario
+            intent="default"
             onClick={onApplyFilters}
             disabled={isLoading}
             size="md"
-            className="bg-blue-600 hover:bg-blue-700 text-white" // Asegurando el estilo primario
+            className="bg-blue-600 hover:bg-blue-700 text-white"
         >
             {isLoading ? 'Applying...' : 'Apply Filters'}
         </Button>

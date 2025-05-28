@@ -7,17 +7,17 @@ import WatcherList from "@/components/watchers/WatcherList";
 import { EventList } from "@/components/events/EventList";
 import { useAuth } from '@/contexts/AuthContext';
 import LogoutButton from '@/components/auth/LogoutButton';
-// Importamos EventFilters y EventFilterBar desde su nueva ubicación
-import { EventFilterBar, EventFilters } from '@/components/events/EventFilterBar';
+import { EventFilterBar, EventFilters } from '@/components/events/EventFilterBar'; // EventFilters viene de aquí
+import { useWatchers, Watcher } from '@/lib/useWatchers'; // <-- AÑADIDO para obtener watchers
 
-// Actualizamos initialFilters para que coincida con la nueva interfaz EventFilters
+// initialFilters ahora usará watcherId en lugar de watcherName
 const initialFilters: EventFilters = {
-  watcherName: '',
+  watcherId: '', // <-- CAMBIADO de watcherName a watcherId, para el ID del watcher
   tokenSymbol: '',
   fromAddress: '',
   toAddress: '',
   minUsdValue: '',
-  maxUsdValue: '', // Nuevo campo
+  maxUsdValue: '',
   startDate: '',
   endDate: '',
 };
@@ -35,13 +35,22 @@ const initialSortOptions: SortOptions = {
 const PAGE_SIZE = 25;
 
 function AuthenticatedPageContent() {
-  const { isAuthenticated, isLoading: authIsLoading, user } = useAuth(); // Renombrado isLoading a authIsLoading para claridad
+  const { isAuthenticated, isLoading: authIsLoading, user, token } = useAuth(); // <-- Obtenemos token para useWatchers
   const router = useRouter();
+
+  // --- Obteniendo Watchers para el Desplegable ---
+  const { watchers, fetchWatchers, isLoading: isLoadingWatchers } = useWatchers(); // <-- Usamos el hook
+  useEffect(() => {
+    if (token) { // Solo cargar si hay token
+      fetchWatchers();
+    }
+  }, [fetchWatchers, token]);
+  // --- Fin Obtención de Watchers ---
 
   const [draftFilters, setDraftFilters] = useState<EventFilters>(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState<EventFilters>(initialFilters);
   const [sortOptions, setSortOptions] = useState<SortOptions>(initialSortOptions);
-  const [isEventsLoading, setIsEventsLoading] = useState(false); // Para la barra de filtros y la lista de eventos
+  const [isEventsLoading, setIsEventsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [showActiveOnlyEvents, setShowActiveOnlyEvents] = useState(false);
 
@@ -63,8 +72,7 @@ function AuthenticatedPageContent() {
     setCurrentPage(1);
     setDraftFilters(initialFilters);
     setAppliedFilters(initialFilters);
-    // Opcional: si quieres que limpiar filtros también desactive "Show Active Only"
-    // setShowActiveOnlyEvents(false);
+    setShowActiveOnlyEvents(false); // También reseteamos el toggle de activos
   }, []);
 
   const handleSortChange = useCallback((newSortBy: string) => {
@@ -85,7 +93,7 @@ function AuthenticatedPageContent() {
     }
   }, [authIsLoading, isAuthenticated, router]);
 
-    if (authIsLoading) { // Usamos authIsLoading
+  if (authIsLoading || isLoadingWatchers) { // Añadimos isLoadingWatchers
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
         <p className="text-gray-600 dark:text-gray-300 text-lg">Loading application data...</p>
@@ -131,18 +139,19 @@ function AuthenticatedPageContent() {
                 onApplyFilters={handleApplyFilters}
                 onClearFilters={handleClearFilters}
                 isLoading={isEventsLoading}
-                showActiveOnlyEvents={showActiveOnlyEvents} // Prop para el botón de toggle
-                onToggleShowActiveOnly={handleToggleShowActiveOnly} // Manejador para el botón de toggle
+                showActiveOnlyEvents={showActiveOnlyEvents}
+                onToggleShowActiveOnly={handleToggleShowActiveOnly}
+                userWatchers={watchers} // <-- Pasamos la lista de watchers
             />
             <EventList
                 appliedFilters={appliedFilters}
                 sortOptions={sortOptions}
                 onSortChange={handleSortChange}
-                setIsLoading={setIsEventsLoading} // EventList informará a page.tsx sobre su estado de carga
+                setIsLoading={setIsEventsLoading}
                 currentPage={currentPage}
                 pageSize={PAGE_SIZE}
                 onPageChange={handlePageChange}
-                showActiveOnlyEvents={showActiveOnlyEvents} // Pasar el estado a EventList para que useEvents lo use
+                showActiveOnlyEvents={showActiveOnlyEvents}
             />
         </div>
       </div>
@@ -152,11 +161,7 @@ function AuthenticatedPageContent() {
 
 export default function HomePage() {
   const [hasMounted, setHasMounted] = useState(false);
-
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
-
+  useEffect(() => { setHasMounted(true); }, []);
   if (!hasMounted) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
@@ -164,7 +169,6 @@ export default function HomePage() {
       </div>
     );
   }
-
   return (
     <main className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 md:p-8">
       <AuthenticatedPageContent />
