@@ -8,7 +8,8 @@ import { EventList } from "@/components/events/EventList";
 import { useAuth } from '@/contexts/AuthContext';
 import LogoutButton from '@/components/auth/LogoutButton';
 import { EventFilterBar, EventFilters } from '@/components/events/EventFilterBar';
-import { useWatchers, Watcher } from '@/lib/useWatchers';
+// --- CORRECCIÓN EN LA SIGUIENTE LÍNEA ---
+import { useWatchers } from '@/lib/useWatchers'; // Se elimina la importación de 'Watcher' si no se usa explícitamente
 
 const initialFilters: EventFilters = {
   watcherId: '',
@@ -38,6 +39,7 @@ function AuthenticatedPageContent() {
   const { isAuthenticated, isLoading: authIsLoading, user, token } = useAuth();
   const router = useRouter();
 
+  // 'watchers' aquí inferirá su tipo desde useWatchers, que es Watcher[]
   const { watchers, fetchWatchers, isLoading: isLoadingWatchers } = useWatchers();
   const [distinctTokenSymbols, setDistinctTokenSymbols] = useState<string[]>([]);
   const [isLoadingTokenSymbols, setIsLoadingTokenSymbols] = useState(false);
@@ -78,7 +80,7 @@ function AuthenticatedPageContent() {
   const [draftFilters, setDraftFilters] = useState<EventFilters>(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState<EventFilters>(initialFilters);
   const [sortOptions, setSortOptions] = useState<SortOptions>(initialSortOptions);
-  const [isEventsLoading, setIsEventsLoading] = useState(false); // Este es el que EventList actualiza
+  const [isEventsLoading, setIsEventsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [showActiveOnlyEvents, setShowActiveOnlyEvents] = useState(false);
 
@@ -121,11 +123,9 @@ function AuthenticatedPageContent() {
     }
   }, [authIsLoading, isAuthenticated, router]);
 
-  // El estado de carga general se basa en la autenticación, watchers y símbolos.
-  // EventList manejará su propio estado de carga para los eventos.
   const overallInitialLoading = authIsLoading || isLoadingWatchers || isLoadingTokenSymbols;
 
-  if (overallInitialLoading) { // <--- CORRECCIÓN AQUÍ: Eliminada la dependencia de !events.length
+  if (overallInitialLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
         <p className="text-gray-600 dark:text-gray-300 text-lg">Loading application data...</p>
@@ -170,17 +170,17 @@ function AuthenticatedPageContent() {
                 onFilterChange={handleFilterChange}
                 onApplyFilters={handleApplyFilters}
                 onClearFilters={handleClearFilters}
-                isLoading={isEventsLoading || isLoadingTokenSymbols} // La barra puede estar 'ocupada' si se cargan símbolos O eventos
+                isLoading={isEventsLoading || isLoadingTokenSymbols}
                 showActiveOnlyEvents={showActiveOnlyEvents}
                 onToggleShowActiveOnly={handleToggleShowActiveOnly}
-                userWatchers={watchers}
+                userWatchers={watchers} // watchers ya viene tipado desde useWatchers
                 distinctTokenSymbols={distinctTokenSymbols}
             />
             <EventList
                 appliedFilters={appliedFilters}
                 sortOptions={sortOptions}
                 onSortChange={handleSortChange}
-                setIsLoading={setIsEventsLoading} // EventList sigue informando sobre su propia carga de eventos
+                setIsLoading={setIsEventsLoading}
                 currentPage={currentPage}
                 pageSize={PAGE_SIZE}
                 onPageChange={handlePageChange}
