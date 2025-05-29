@@ -19,7 +19,7 @@ export default function Navbar() {
               Login
             </Link>
             {/* --- CORRECCIÓN MÁS SIMPLE --- */}
-            <Link href="/register" passHref>
+            <Link href="/register" passHref legacyBehavior>
               {/* Link envolverá a Button con una <a>. Button recibe las props de <a> a través de passHref y su ref. */}
               <Button intent="default" size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
                 Sign Up
