@@ -145,7 +145,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // setIsLoading(false) no es estrictamente necesario aquí si clearAuthState ya lo hace indirectamente
     // o si la redirección desmonta componentes que dependen de isLoading. Pero por seguridad:
     setIsLoading(false);
-    router.push('/login');
+    router.push('/');
   };
 
   const isAuthenticatedValue = !!token && !!user && !!user.is_active;
