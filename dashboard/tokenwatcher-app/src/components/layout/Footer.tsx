@@ -1,6 +1,6 @@
 // File: dashboard/tokenwatcher-app/src/components/layout/Footer.tsx
 import React from "react";
-import Link from "next/link";
+// import Link from "next/link"; // <--- LÍNEA ELIMINADA O COMENTADA
 
 export default function Footer() {
   return (
@@ -16,7 +16,7 @@ export default function Footer() {
           >
             Diego Galmarini
           </a>
-          . 
+          .
           <span className="mx-1">|</span>
           <a
             href="https://etherscan.io/address/0xd924750a51cd789813cab62e3665725cce8b0c61"
