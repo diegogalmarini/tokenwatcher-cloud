@@ -1,4 +1,4 @@
-// File: dashboard/tokenwatcher-app/src/components/home/FAQSection.tsx
+// File: src/components/home/FAQSection.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -10,24 +10,24 @@ interface FAQItem {
 
 const FAQS: FAQItem[] = [
   {
-    question: "¿Qué tokens puedo monitorear?",
+    question: "Which tokens can I monitor?",
     answer:
-      "Puedes monitorear cualquier token ERC-20 en las redes Ethereum, Polygon y Arbitrum. Pronto agregaremos más cadenas.",
+      "You can monitor any ERC-20 token on Ethereum, Polygon, and Arbitrum. More chains are coming soon.",
   },
   {
-    question: "¿Cuánto cuesta?",
+    question: "How much does it cost?",
     answer:
-      "Tenemos un plan freemium que incluye hasta 3 watchers activos y 100 alertas diarias. Consulta nuestra sección de Pricing para más detalles.",
+      "We offer a freemium tier that includes up to 3 active watchers and 100 alerts per day. Check our Pricing section for details.",
   },
   {
-    question: "¿Puedo cambiar mis webhooks?",
+    question: "Can I change my webhooks?",
     answer:
-      "Sí. Desde el dashboard, edita tu watcher y modifica la URL de tu webhook en cualquier momento.",
+      "Yes. From the dashboard, simply edit your watcher and update the webhook URL at any time.",
   },
   {
-    question: "¿Cómo sé que la alerta fue enviada?",
+    question: "How do I know if an alert was delivered?",
     answer:
-      "En el dashboard verás el historial de eventos y marcadores de estado. Además, tu integración de Slack/Discord/Telegram confirmará la recepción.",
+      "Your dashboard shows each event’s status, and your Slack/Discord/Telegram integration will confirm receipt.",
   },
 ];
 
@@ -46,7 +46,10 @@ export default function FAQSection() {
         </h2>
         <div className="space-y-4">
           {FAQS.map((item, idx) => (
-            <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            <div
+              key={idx}
+              className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+            >
               <button
                 className="w-full flex justify-between items-center px-4 py-3 bg-white dark:bg-gray-800 text-left"
                 onClick={() => toggleIndex(idx)}
@@ -63,7 +66,12 @@ export default function FAQSection() {
                   viewBox="0 0 24 24"
                   xmlns="http://www.w3.org/2000/svg"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"></path>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  ></path>
                 </svg>
               </button>
               {openIndex === idx && (

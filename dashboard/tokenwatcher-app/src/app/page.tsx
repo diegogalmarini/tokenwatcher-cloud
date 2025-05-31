@@ -1,57 +1,69 @@
-// File: dashboard/tokenwatcher-app/src/app/page.tsx
+// File: src/app/page.tsx
 "use client";
 
-import React from "react";
-import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/layout/Footer";
+import React, { useEffect } from "react";
 import HeroSection from "@/components/home/HeroSection";
 import FAQSection from "@/components/home/FAQSection";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
 
 export default function HomePage() {
+  // Escuchamos el CustomEvent para abrir el modal de registro desde HeroSection
+  useEffect(() => {
+    function openRegisterListener() {
+      const btn = document.querySelector<HTMLButtonElement>(
+        "button[aria-label='open-register']"
+      );
+      btn?.click();
+    }
+    window.addEventListener("open-register-modal", openRegisterListener);
+    return () => {
+      window.removeEventListener("open-register-modal", openRegisterListener);
+    };
+  }, []);
+
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col min-h-screen">
       <Navbar />
-
       <main className="flex-grow">
-        {/* Sección Hero */}
         <HeroSection />
-
-        {/* Sección “Why TokenWatcher?” (ahora con fondo consistente) */}
         <section className="py-16 bg-gray-50 dark:bg-gray-900">
           <div className="max-w-5xl mx-auto text-center px-6">
-            <h2 className="text-3xl font-bold mb-4 text-gray-900 dark:text-gray-100">
+            <h2 className="text-3xl font-bold mb-4">
               Why TokenWatcher?
             </h2>
             <p className="text-lg text-gray-700 dark:text-gray-300 mb-6">
-              Monitoring large token transfers manually is slow and error-prone. Traditional
-              solutions rely on expensive data feeds or require you to maintain your own node.
+              Monitoring large token transfers manually is slow and
+              error-prone. Traditional solutions rely on expensive data
+              feeds or require you to maintain your own node.
             </p>
             <p className="text-lg text-gray-700 dark:text-gray-300">
-              TokenWatcher solves this by providing an easy, plug-and-play service: simply specify
-              which ERC-20 contract to watch and what volume matters to you. Instantly get notified
-              to Slack, Discord, or Telegram—no devops required.
+              TokenWatcher solves this by providing an easy, plug-and-play
+              service: simply specify which ERC-20 contract to watch and
+              what volume matters to you. Instantly get notified to Slack,
+              Discord, or Telegram—no devops required.
             </p>
           </div>
         </section>
 
-        {/* Sección “Key Features” */}
+        {/* Key Features */}
         <section className="py-16 bg-gray-50 dark:bg-gray-900">
           <div className="max-w-6xl mx-auto px-6">
-            <h2 className="text-3xl font-bold text-center mb-12 text-gray-900 dark:text-gray-100">
+            <h2 className="text-3xl font-bold text-center mb-12">
               Key Features
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                <h3 className="text-xl font-semibold mb-2">
                   Instant Alerts
                 </h3>
                 <p className="text-gray-600 dark:text-gray-300">
-                  Configure custom thresholds and receive notifications the moment a transfer
-                  exceeds your limit.
+                  Configure custom thresholds and receive notifications the
+                  moment a transfer exceeds your limit.
                 </p>
               </div>
               <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                <h3 className="text-xl font-semibold mb-2">
                   Multi-Chain Support
                 </h3>
                 <p className="text-gray-600 dark:text-gray-300">
@@ -59,45 +71,48 @@ export default function HomePage() {
                 </p>
               </div>
               <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                <h3 className="text-xl font-semibold mb-2">
                   Flexible Webhooks
                 </h3>
                 <p className="text-gray-600 dark:text-gray-300">
-                  Send alerts to Slack, Discord, Telegram, or any custom webhook endpoint.
+                  Send alerts to Slack, Discord, Telegram, or any custom
+                  webhook endpoint.
                 </p>
               </div>
               <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                <h3 className="text-xl font-semibold mb-2">
                   Zero Infrastructure
                 </h3>
                 <p className="text-gray-600 dark:text-gray-300">
-                  No nodes, no servers—everything runs “in the cloud” and is maintenance-free.
+                  No nodes, no servers—everything runs “in the cloud” and is
+                  maintenance-free.
                 </p>
               </div>
               <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
-                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                <h3 className="text-xl font-semibold mb-2">
                   Secure & Reliable
                 </h3>
                 <p className="text-gray-600 dark:text-gray-300">
-                  Built on FastAPI and PostgreSQL, with event partitioning for infinite scale.
+                  Built on FastAPI and PostgreSQL, with event partitioning for
+                  infinite scale.
                 </p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Sección “How It Works” */}
+        {/* How It Works */}
         <section className="py-16 bg-gray-50 dark:bg-gray-900">
           <div className="max-w-6xl mx-auto px-6 text-center">
-            <h2 className="text-3xl font-bold mb-12 text-gray-900 dark:text-gray-100">
+            <h2 className="text-3xl font-bold mb-12">
               How It Works
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
               <div className="flex flex-col items-center">
-                <div className="bg-blue-100 p-4 rounded-full mb-4">
+                <div className="bg-blue-100 dark:bg-blue-900 p-4 rounded-full mb-4">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="w-8 h-8 text-blue-600"
+                    className="w-8 h-8 text-blue-600 dark:text-blue-300"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -110,14 +125,16 @@ export default function HomePage() {
                     />
                   </svg>
                 </div>
-                <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-100">Sign Up</h4>
-                <p className="text-gray-600 dark:text-gray-300">Create your account in seconds.</p>
+                <h4 className="font-semibold mb-2">Sign Up</h4>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Create your account in seconds.
+                </p>
               </div>
               <div className="flex flex-col items-center">
-                <div className="bg-blue-100 p-4 rounded-full mb-4">
+                <div className="bg-blue-100 dark:bg-blue-900 p-4 rounded-full mb-4">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="w-8 h-8 text-blue-600"
+                    className="w-8 h-8 text-blue-600 dark:text-blue-300"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -130,18 +147,16 @@ export default function HomePage() {
                     />
                   </svg>
                 </div>
-                <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-100">
-                  Create a Watcher
-                </h4>
+                <h4 className="font-semibold mb-2">Create a Watcher</h4>
                 <p className="text-gray-600 dark:text-gray-300">
                   Enter token address & threshold.
                 </p>
               </div>
               <div className="flex flex-col items-center">
-                <div className="bg-blue-100 p-4 rounded-full mb-4">
+                <div className="bg-blue-100 dark:bg-blue-900 p-4 rounded-full mb-4">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="w-8 h-8 text-blue-600"
+                    className="w-8 h-8 text-blue-600 dark:text-blue-300"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -154,18 +169,16 @@ export default function HomePage() {
                     />
                   </svg>
                 </div>
-                <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-100">
-                  Choose Webhook
-                </h4>
+                <h4 className="font-semibold mb-2">Choose Webhook</h4>
                 <p className="text-gray-600 dark:text-gray-300">
                   Connect Slack, Discord, or Telegram.
                 </p>
               </div>
               <div className="flex flex-col items-center">
-                <div className="bg-blue-100 p-4 rounded-full mb-4">
+                <div className="bg-blue-100 dark:bg-blue-900 p-4 rounded-full mb-4">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="w-8 h-8 text-blue-600"
+                    className="w-8 h-8 text-blue-600 dark:text-blue-300"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -178,9 +191,7 @@ export default function HomePage() {
                     />
                   </svg>
                 </div>
-                <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-100">
-                  Get Notified
-                </h4>
+                <h4 className="font-semibold mb-2">Get Notified</h4>
                 <p className="text-gray-600 dark:text-gray-300">
                   Receive instant alerts on large transfers.
                 </p>
@@ -189,7 +200,7 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* Sección de FAQs */}
+        {/* FAQs */}
         <FAQSection />
       </main>
 
