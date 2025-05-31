@@ -1,57 +1,199 @@
-// dashboard/tokenwatcher-app/src/app/page.tsx (NUEVA HOME PAGE)
+// File: dashboard/tokenwatcher-app/src/app/page.tsx
 "use client";
 
-import Link from 'next/link';
-import Button from '@/components/ui/button';
-import Navbar from '@/components/layout/Navbar'; // <-- AÑADIDO Navbar
-import Footer from '@/components/layout/Footer'; // <-- AÑADIDO Footer
+import React from "react";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
+import HeroSection from "@/components/home/HeroSection";
+import FAQSection from "@/components/home/FAQSection";
 
 export default function HomePage() {
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Navbar /> {/* <-- Navbar aquí */}
+      <Navbar />
 
-      <main className="flex-grow"> {/* Contenedor principal para el contenido de la página */}
+      <main className="flex-grow">
         {/* Sección Hero */}
-        <section className="text-center py-20 md:py-32 mt-16"> {/* mt-16 para dejar espacio al Navbar fijo */}
-          <div className="container mx-auto max-w-3xl px-4">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 text-gray-900 dark:text-gray-100">
-              Real-Time ERC-20 Event Monitoring, Simplified.
-            </h1>
-            <p className="text-lg md:text-xl text-gray-700 dark:text-gray-300 mb-10">
-              Gain immediate on-chain visibility. Receive instant, configurable alerts
-              for significant ERC-20 token transfers on Ethereum, Polygon, and Arbitrum—no
-              complex infrastructure required.
+        <HeroSection />
+
+        {/* Sección “Why TokenWatcher?” (ahora con fondo consistente) */}
+        <section className="py-16 bg-gray-50 dark:bg-gray-900">
+          <div className="max-w-5xl mx-auto text-center px-6">
+            <h2 className="text-3xl font-bold mb-4 text-gray-900 dark:text-gray-100">
+              Why TokenWatcher?
+            </h2>
+            <p className="text-lg text-gray-700 dark:text-gray-300 mb-6">
+              Monitoring large token transfers manually is slow and error-prone. Traditional
+              solutions rely on expensive data feeds or require you to maintain your own node.
             </p>
-            <Link href="/register" legacyBehavior>
-              <Button
-                intent="default"
-                size="lg"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 text-lg"
-              >
-                Get Started for Free
-              </Button>
-            </Link>
+            <p className="text-lg text-gray-700 dark:text-gray-300">
+              TokenWatcher solves this by providing an easy, plug-and-play service: simply specify
+              which ERC-20 contract to watch and what volume matters to you. Instantly get notified
+              to Slack, Discord, or Telegram—no devops required.
+            </p>
           </div>
         </section>
 
-        <section className="py-16 w-full">
-          <div className="container mx-auto max-w-4xl text-center px-4">
-            <div className="bg-gray-200 dark:bg-gray-700 h-64 md:h-96 rounded-lg flex items-center justify-center">
-              <p className="text-gray-500 dark:text-gray-400">
-                [Placeholder for Product Visual / Short Demo Video]
-              </p>
+        {/* Sección “Key Features” */}
+        <section className="py-16 bg-gray-50 dark:bg-gray-900">
+          <div className="max-w-6xl mx-auto px-6">
+            <h2 className="text-3xl font-bold text-center mb-12 text-gray-900 dark:text-gray-100">
+              Key Features
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                  Instant Alerts
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Configure custom thresholds and receive notifications the moment a transfer
+                  exceeds your limit.
+                </p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                  Multi-Chain Support
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Ethereum, Polygon, Arbitrum—and more chains coming soon.
+                </p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                  Flexible Webhooks
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Send alerts to Slack, Discord, Telegram, or any custom webhook endpoint.
+                </p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                  Zero Infrastructure
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300">
+                  No nodes, no servers—everything runs “in the cloud” and is maintenance-free.
+                </p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow">
+                <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                  Secure & Reliable
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Built on FastAPI and PostgreSQL, with event partitioning for infinite scale.
+                </p>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Aquí irían las otras secciones: Características, Cómo Funciona, etc. */}
-        {/* <FeaturesSection /> */}
-        {/* <HowItWorksSection /> */}
-        {/* <CallToActionSection /> */}
+        {/* Sección “How It Works” */}
+        <section className="py-16 bg-gray-50 dark:bg-gray-900">
+          <div className="max-w-6xl mx-auto px-6 text-center">
+            <h2 className="text-3xl font-bold mb-12 text-gray-900 dark:text-gray-100">
+              How It Works
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+              <div className="flex flex-col items-center">
+                <div className="bg-blue-100 p-4 rounded-full mb-4">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-8 h-8 text-blue-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5.121 17.804A4 4 0 017 16h10a4 4 0 011.879.804M15 11a3 3 0 11-6 0 3 3 0 016 0zm6 2v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-1m14-6h2a2 2 0 012 2v1m-4-3V4a2 2 0 00-2-2H8a2 2 0 00-2 2v7m6 4v4m0-4l-2-2m2 2l2-2"
+                    />
+                  </svg>
+                </div>
+                <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-100">Sign Up</h4>
+                <p className="text-gray-600 dark:text-gray-300">Create your account in seconds.</p>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="bg-blue-100 p-4 rounded-full mb-4">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-8 h-8 text-blue-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m-1-4h4v2H9a2 2 0 00-2 2v5h6v-1m-4 1h4m-4 0a2 2 0 01-2-2v-1h6v-1m0 2v-1"
+                    />
+                  </svg>
+                </div>
+                <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                  Create a Watcher
+                </h4>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Enter token address & threshold.
+                </p>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="bg-blue-100 p-4 rounded-full mb-4">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-8 h-8 text-blue-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M11 17a4 4 0 100-8 4 4 0 000 8zm10 0v1a3 3 0 01-3 3H6a3 3 0 01-3-3v-1m14-6h2a2 2 0 012 2v1m-4-3V4a2 2 0 00-2-2H8a2 2 0 00-2 2v7m6 4v4m0-4l-2-2m2 2l2-2"
+                    />
+                  </svg>
+                </div>
+                <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                  Choose Webhook
+                </h4>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Connect Slack, Discord, or Telegram.
+                </p>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="bg-blue-100 p-4 rounded-full mb-4">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-8 h-8 text-blue-600"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14m0 0l-4.553 2.276A1 1 0 009 14.618V7.854a1 1 0 011.447-.894L15 10zm0 0V4m0 10v6"
+                    />
+                  </svg>
+                </div>
+                <h4 className="font-semibold mb-2 text-gray-900 dark:text-gray-100">
+                  Get Notified
+                </h4>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Receive instant alerts on large transfers.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Sección de FAQs */}
+        <FAQSection />
       </main>
 
-      <Footer /> {/* <-- Footer aquí */}
+      <Footer />
     </div>
   );
 }

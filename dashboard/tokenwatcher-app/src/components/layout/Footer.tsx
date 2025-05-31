@@ -1,19 +1,35 @@
-// dashboard/tokenwatcher-app/src/components/layout/Footer.tsx
-"use client";
+// File: dashboard/tokenwatcher-app/src/components/layout/Footer.tsx
+import React from "react";
+import Link from "next/link";
 
 export default function Footer() {
-  const currentYear = new Date().getFullYear();
   return (
-    <footer className="w-full bg-gray-100 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
-      <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8 text-center">
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          &copy; {currentYear} TokenWatcher. All rights reserved.
+    <footer className="bg-white dark:bg-gray-800 py-6">
+      <div className="max-w-6xl mx-auto px-4 text-center text-gray-700 dark:text-gray-300">
+        <p>
+          Created by{" "}
+          <a
+            href="https://www.linkedin.com/in/diegogalmarini/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+          >
+            Diego Galmarini
+          </a>
+          . 
+          <span className="mx-1">|</span>
+          <a
+            href="https://etherscan.io/address/0xd924750a51cd789813cab62e3665725cce8b0c61"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+          >
+            Donate ETH
+          </a>
         </p>
-        {/* Futuro: Enlaces a Política de Privacidad, Términos de Servicio */}
-        {/* <div className="mt-2 space-x-4">
-          <a href="/privacy" className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Privacy Policy</a>
-          <a href="/terms" className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Terms of Service</a>
-        </div> */}
+        <p className="mt-2 text-sm">
+          © {new Date().getFullYear()} TokenWatcher. All rights reserved.
+        </p>
       </div>
     </footer>
   );

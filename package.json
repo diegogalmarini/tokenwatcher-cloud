@@ -3,6 +3,9 @@
     "pg": "^8.16.0"
   },
   "devDependencies": {
-    "@types/pg": "^8.15.2"
+    "@types/pg": "^8.15.2",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.4",
+    "tailwindcss": "^4.1.8"
   }
 }

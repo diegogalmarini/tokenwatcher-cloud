@@ -176,7 +176,7 @@ function AuthenticatedDashboardContent() { // Renombrado para claridad
         <WatcherList />
         <div>
             {dashboardContentLoading && !isEventsLoading ? ( // Muestra un loader si watchers o symbols están cargando pero los eventos no
-                 <div className="text-center py-4"><p>Loading dashboard components...</p></div>
+                 (<div className="text-center py-4"><p>Loading dashboard components...</p></div>)
             ) : (
                 <EventFilterBar
                     filters={draftFilters}
