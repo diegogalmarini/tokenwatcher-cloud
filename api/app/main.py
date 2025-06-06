@@ -1,4 +1,5 @@
 # api/app/main.py
+
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -11,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, get_db
 from . import models, schemas, crud, auth
 
+# ─── Inicializa tablas ─────────────────────────────
 try:
     print("ℹ️ [DB_INIT] Intentando crear/verificar todas las tablas definidas en Base...")
     models.Base.metadata.create_all(bind=engine)
@@ -20,7 +22,7 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.7.7", # Incrementamos versión por nuevo endpoint
+    version="0.7.7",  # Versión incrementada por endpoints de reset‐password
     description="API para monitorizar transferencias de tokens ERC-20, con filtrado y ordenación de eventos."
 )
 
@@ -38,37 +40,57 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ───────────────────────────────────────────
+#   INCLUIR ROUTER /auth (Forgot/Reset) 
+# ───────────────────────────────────────────
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
+
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Session) -> schemas.WatcherRead:
-    # ... (código existente sin cambios) ...
+    """
+    Rellena el esquema WatcherRead desde models.Watcher + transport[]. 
+    (tu lógica ya existente)
+    """
     active_webhook_url: Optional[HttpUrl] = None
     if db_watcher.transports:
         first_transport = db_watcher.transports[0]
         config_data = first_transport.config
         if isinstance(config_data, str):
-            try: config_data = json.loads(config_data)
-            except json.JSONDecodeError: config_data = {}
+            try:
+                config_data = json.loads(config_data)
+            except json.JSONDecodeError:
+                config_data = {}
 
         if isinstance(config_data, dict) and "url" in config_data:
-            try: active_webhook_url = HttpUrl(config_data["url"])
+            try:
+                active_webhook_url = HttpUrl(config_data["url"])
             except Exception:
                 active_webhook_url = None
+
     return schemas.WatcherRead(
-        id=db_watcher.id, owner_id=db_watcher.owner_id, name=db_watcher.name,
-        token_address=db_watcher.token_address, threshold=db_watcher.threshold,
-        is_active=db_watcher.is_active, webhook_url=active_webhook_url,
-        created_at=db_watcher.created_at, updated_at=db_watcher.updated_at
+        id=db_watcher.id,
+        owner_id=db_watcher.owner_id,
+        name=db_watcher.name,
+        token_address=db_watcher.token_address,
+        threshold=db_watcher.threshold,
+        is_active=db_watcher.is_active,
+        webhook_url=active_webhook_url,
+        created_at=db_watcher.created_at,
+        updated_at=db_watcher.updated_at
     )
 
+
 @app.get("/health", tags=["System"])
-def health_check(): return {"status": "ok", "message": "TokenWatcher API is healthy"}
+def health_check():
+    return {"status": "ok", "message": "TokenWatcher API is healthy"}
+
 
 @app.get("/", tags=["System"], include_in_schema=False)
-def api_root_demo(): return {"message": "🎉 Welcome to TokenWatcher API v0.7.7! Visit /docs for API documentation."}
+def api_root_demo():
+    return {"message": "🎉 Welcome to TokenWatcher API v0.7.7! Visit /docs for API documentation."}
+
 
 # --- Watchers CRUD (sin cambios) ---
-# ... (código existente) ...
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
 def create_new_watcher_for_current_user(
     watcher_data: schemas.WatcherCreate,
@@ -79,52 +101,64 @@ def create_new_watcher_for_current_user(
     db.refresh(db_watcher, attribute_names=['transports'])
     return _populate_watcher_read_from_db_watcher(db_watcher, db)
 
+
 @app.get("/watchers/", response_model=List[schemas.WatcherRead], tags=["Watchers"])
 def list_watchers_for_current_user(
-    skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
+    skip: int = 0, limit: int = 100, 
+    db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     db_watchers = crud.get_watchers_for_owner(db, owner_id=current_user.id, skip=skip, limit=limit)
     return [_populate_watcher_read_from_db_watcher(w, db) for w in db_watchers]
 
+
 @app.get("/watchers/{watcher_id}", response_model=schemas.WatcherRead, tags=["Watchers"])
 def get_single_watcher_for_current_user(
-    watcher_id: int, db: Session = Depends(get_db),
+    watcher_id: int, 
+    db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     db_watcher = crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id)
     return _populate_watcher_read_from_db_watcher(db_watcher, db)
 
+
 @app.put("/watchers/{watcher_id}", response_model=schemas.WatcherRead, tags=["Watchers"])
 def update_existing_watcher_for_current_user(
-    watcher_id: int, watcher_update_data: schemas.WatcherUpdatePayload,
-    db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
+    watcher_id: int, 
+    watcher_update_data: schemas.WatcherUpdatePayload,
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(auth.get_current_user)
 ):
-    db_watcher = crud.update_watcher(db=db, watcher_id=watcher_id, watcher_update_data=watcher_update_data, owner_id=current_user.id)
+    db_watcher = crud.update_watcher(
+        db=db, watcher_id=watcher_id, watcher_update_data=watcher_update_data, owner_id=current_user.id
+    )
     db.refresh(db_watcher, attribute_names=['transports'])
     return _populate_watcher_read_from_db_watcher(db_watcher, db)
 
+
 @app.delete("/watchers/{watcher_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Watchers"])
 def delete_existing_watcher_for_current_user(
-    watcher_id: int, db: Session = Depends(get_db),
+    watcher_id: int, 
+    db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     crud.delete_watcher(db=db, watcher_id=watcher_id, owner_id=current_user.id)
     return
 
-# --- Events CRUD ---
+
+# --- Events CRUD (sin cambios) ---
 @app.post("/events/", response_model=schemas.TokenEventRead, status_code=status.HTTP_201_CREATED, tags=["Events"], include_in_schema=False)
-# ... (código existente sin cambios) ...
 def create_new_event_for_authed_user_testing(
-    event_data: schemas.TokenEventCreate, db: Session = Depends(get_db),
+    event_data: schemas.TokenEventCreate, 
+    db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
     crud.get_watcher_db(db, watcher_id=event_data.watcher_id, owner_id=current_user.id)
     created_event = crud.create_event(db=db, event_data=event_data)
     return created_event
 
+
 @app.get("/events/", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
-# ... (código existente sin cambios, ya acepta token_symbol) ...
 def list_all_events_for_current_user(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
@@ -147,7 +181,7 @@ def list_all_events_for_current_user(
     if sort_by is not None and sort_by not in allowed_sort_by:
         raise HTTPException(status_code=400, detail=f"Invalid 'sort_by' value. Use one of: {', '.join(allowed_sort_by)}")
     if sort_order is not None and sort_order.lower() not in ["asc", "desc"]:
-        raise HTTPException(status_code=400, detail="Invalid 'sort_order' value. Use 'asc' or 'desc'.")
+        raise HTTPException(status_code=400, detail="Invalid 'sort_order' value. Use 'asc' o 'desc'.")
 
     data = crud.get_all_events_for_owner(
         db=db,
@@ -169,69 +203,77 @@ def list_all_events_for_current_user(
     )
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
 
+
 # --- NUEVO ENDPOINT PARA OBTENER SÍMBOLOS DE TOKEN DISTINTOS ---
 @app.get("/events/distinct-token-symbols/", response_model=List[str], tags=["Events"])
 def list_distinct_token_symbols_for_current_user(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    """
-    Retrieves a list of unique token symbols from events associated with the current user's watchers.
-    """
     symbols = crud.get_distinct_token_symbols_for_owner(db=db, owner_id=current_user.id)
     return symbols
 # --- FIN NUEVO ENDPOINT ---
 
+
 @app.get("/events/watcher/{watcher_id}", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
-# ... (código existente sin cambios) ...
 def list_events_for_a_specific_watcher_of_current_user(
-    watcher_id: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db),
+    watcher_id: int, 
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db), 
     current_user: models.User = Depends(auth.get_current_user)
 ):
     data = crud.get_events_for_watcher(db, watcher_id=watcher_id, owner_id=current_user.id, skip=skip, limit=limit)
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
 
+
 @app.get("/events/{event_id}", response_model=schemas.TokenEventRead, tags=["Events"])
-# ... (código existente sin cambios) ...
 def get_single_event_for_current_user(
-    event_id: int, db: Session = Depends(get_db),
+    event_id: int, 
+    db: Session = Depends(get_db), 
     current_user: models.User = Depends(auth.get_current_user)
 ):
     db_event = crud.get_event_by_id(db, event_id=event_id)
     if not db_event:
         raise HTTPException(status_code=404, detail="Event not found")
-    crud.get_watcher_db(db, watcher_id=db_event.watcher_id, owner_id=current_user.id) # Check ownership
+    crud.get_watcher_db(db, watcher_id=db_event.watcher_id, owner_id=current_user.id)
     return db_event
 
-# --- Transports CRUD (sin cambios) ---
-# ... (código existente) ...
+
+# --- Transports CRUD ---
 @app.post("/watchers/{watcher_id}/transports/", response_model=schemas.TransportRead, status_code=status.HTTP_201_CREATED, tags=["Transports (Watcher-Specific)"])
 def add_new_transport_to_watcher(
-    watcher_id: int, transport_payload: schemas.TransportCreate,
-    db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
+    watcher_id: int, 
+    transport_payload: schemas.TransportCreate,
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(auth.get_current_user)
 ):
     if transport_payload.watcher_id != watcher_id:
-         raise HTTPException(status_code=400, detail="Watcher ID in path does not match watcher ID in transport payload.")
+        raise HTTPException(status_code=400, detail="Watcher ID in path does not match watcher ID in transport payload.")
     return crud.create_new_transport_for_watcher(db=db, transport_data=transport_payload, watcher_id=watcher_id, owner_id=current_user.id)
 
 @app.get("/watchers/{watcher_id}/transports/", response_model=List[schemas.TransportRead], tags=["Transports (Watcher-Specific)"])
 def list_all_transports_for_specific_watcher(
-    watcher_id: int, skip: int = 0, limit: int = 100,
-    db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)
+    watcher_id: int, 
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(auth.get_current_user)
 ):
     crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id)
     return crud.get_transports_for_watcher_owner_checked(db, watcher_id=watcher_id, owner_id=current_user.id, skip=skip, limit=limit)
 
 @app.delete("/transports/{transport_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Transports (Global ID)"])
 def delete_specific_transport_by_id(
-    transport_id: int, db: Session = Depends(get_db),
+    transport_id: int, 
+    db: Session = Depends(get_db), 
     current_user: models.User = Depends(auth.get_current_user)
 ):
     crud.delete_transport_by_id(db=db, transport_id=transport_id, owner_id=current_user.id)
     return
 
+
 # --- Token Volume Endpoint (sin cambios) ---
-# ... (código existente) ...
 @app.get("/tokens/{contract_address}/volume", response_model=schemas.TokenRead, tags=["Tokens"])
 def read_token_total_volume(contract_address: str, db: Session = Depends(get_db)):
     if not contract_address.startswith("0x") or len(contract_address) != 42:
@@ -241,6 +283,6 @@ def read_token_total_volume(contract_address: str, db: Session = Depends(get_db)
         except ImportError:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid contract address format and web3 not available for checksum.")
         except Exception:
-             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid contract address format.")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid contract address format.")
     volume = crud.get_volume(db, contract_address=contract_address)
     return schemas.TokenRead(contract=contract_address, volume=volume)

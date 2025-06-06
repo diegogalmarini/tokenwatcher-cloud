@@ -1,6 +1,7 @@
 # api/app/crud.py
+
 from sqlalchemy.orm import Session, selectinload
-from sqlalchemy import desc, asc, func as sql_func, distinct # <-- AÑADIDO distinct
+from sqlalchemy import desc, asc, func as sql_func, distinct
 from fastapi import HTTPException
 from pydantic import HttpUrl
 from typing import Optional, List, Dict, Any
@@ -9,12 +10,14 @@ from datetime import datetime, timedelta
 from . import models, schemas, auth
 
 # --- Funciones Auxiliares para Transports (sin cambios) ---
-# ... (código existente) ...
 def get_transport_type_from_url(webhook_url: HttpUrl | str) -> Optional[str]:
     url_str = str(webhook_url)
-    if not url_str: return None
-    if "discord.com/api/webhooks" in url_str: return "discord"
-    elif "hooks.slack.com/services" in url_str: return "slack"
+    if not url_str:
+        return None
+    if "discord.com/api/webhooks" in url_str:
+        return "discord"
+    elif "hooks.slack.com/services" in url_str:
+        return "slack"
     return None
 
 def _create_or_update_primary_transport_for_watcher(
@@ -22,12 +25,17 @@ def _create_or_update_primary_transport_for_watcher(
     watcher_model_instance: models.Watcher,
     webhook_url_from_schema: Optional[HttpUrl]
 ):
-    db_transport = db.query(models.Transport).filter(models.Transport.watcher_id == watcher_model_instance.id).first()
+    db_transport = (
+        db.query(models.Transport)
+        .filter(models.Transport.watcher_id == watcher_model_instance.id)
+        .first()
+    )
     if webhook_url_from_schema:
         transport_type = get_transport_type_from_url(webhook_url_from_schema)
         webhook_url_str = str(webhook_url_from_schema)
         if not transport_type:
-            if db_transport: db.delete(db_transport)
+            if db_transport:
+                db.delete(db_transport)
             return
 
         config_data = {"url": webhook_url_str}
@@ -39,30 +47,49 @@ def _create_or_update_primary_transport_for_watcher(
             db_transport = models.Transport(
                 watcher_id=watcher_model_instance.id,
                 type=transport_type,
-                config=config_data
+                config=config_data,
             )
             db.add(db_transport)
     elif db_transport:
         db.delete(db_transport)
 
-# --- User CRUD (sin cambios) ---
-# ... (código existente) ...
+
+# --- User CRUD ---
 def get_user(db: Session, user_id: int) -> models.User | None:
     return db.query(models.User).filter(models.User.id == user_id).first()
 
 def get_user_by_email(db: Session, email: str) -> models.User | None:
     return db.query(models.User).filter(models.User.email == email).first()
 
-def create_user(db: Session, user: schemas.UserCreate) -> models.User:
+def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) -> models.User:
+    """
+    Crea un usuario en la base de datos con is_active=False por defecto.
+    """
     hashed_password = auth.get_password_hash(user.password)
-    db_user = models.User(email=user.email, hashed_password=hashed_password, is_active=True)
+    db_user = models.User(
+        email=user.email,
+        hashed_password=hashed_password,
+        is_active=is_active  # <— ahora es False por defecto
+    )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
 
-# --- Watcher CRUD (sin cambios) ---
-# ... (código existente) ...
+
+# --- NUEVA FUNCIÓN PARA ACTUALIZAR LA CONTRASEÑA DEL USUARIO ---
+def set_user_password(db: Session, user: models.User, new_password: str) -> models.User:
+    """
+    Hashea la nueva contraseña y la guarda en el registro del usuario.
+    """
+    hashed = auth.get_password_hash(new_password)
+    user.hashed_password = hashed
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+# --- Watcher CRUD ---
 def get_watcher_db(db: Session, watcher_id: int, owner_id: Optional[int] = None) -> models.Watcher:
     query = db.query(models.Watcher).options(selectinload(models.Watcher.transports))
     query = query.filter(models.Watcher.id == watcher_id)
@@ -77,23 +104,30 @@ def get_watcher_db(db: Session, watcher_id: int, owner_id: Optional[int] = None)
     return db_watcher
 
 def get_active_watchers(db: Session, skip: int = 0, limit: int = 100) -> List[models.Watcher]:
-    return (db.query(models.Watcher)
-            .filter(models.Watcher.is_active == True) # Solo watchers activos
-            .order_by(models.Watcher.id)
-            .options(selectinload(models.Watcher.transports))
-            .offset(skip).limit(limit).all())
+    return (
+        db.query(models.Watcher)
+        .filter(models.Watcher.is_active == True)
+        .order_by(models.Watcher.id)
+        .options(selectinload(models.Watcher.transports))
+        .offset(skip).limit(limit).all()
+    )
 
 def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int = 100) -> List[models.Watcher]:
-    return (db.query(models.Watcher)
-            .filter(models.Watcher.owner_id == owner_id)
-            .order_by(models.Watcher.name)
-            .options(selectinload(models.Watcher.transports))
-            .offset(skip).limit(limit).all())
+    return (
+        db.query(models.Watcher)
+        .filter(models.Watcher.owner_id == owner_id)
+        .order_by(models.Watcher.name)
+        .options(selectinload(models.Watcher.transports))
+        .offset(skip).limit(limit).all()
+    )
 
 def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: int) -> models.Watcher:
     db_watcher = models.Watcher(
-        name=watcher_data.name, token_address=watcher_data.token_address,
-        threshold=watcher_data.threshold, is_active=watcher_data.is_active, owner_id=owner_id
+        name=watcher_data.name,
+        token_address=watcher_data.token_address,
+        threshold=watcher_data.threshold,
+        is_active=watcher_data.is_active,
+        owner_id=owner_id
     )
     db.add(db_watcher)
     db.flush()
@@ -109,8 +143,10 @@ def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.Wa
     new_webhook_url_value = watcher_update_data.webhook_url if webhook_url_in_payload else None
 
     for field, value in update_data.items():
-        if field == "webhook_url": continue
-        if hasattr(db_watcher, field): setattr(db_watcher, field, value)
+        if field == "webhook_url":
+            continue
+        if hasattr(db_watcher, field):
+            setattr(db_watcher, field, value)
 
     if webhook_url_in_payload:
         _create_or_update_primary_transport_for_watcher(db, db_watcher, new_webhook_url_value)
@@ -127,12 +163,10 @@ def delete_watcher(db: Session, watcher_id: int, owner_id: int) -> None:
 
 # --- Event (TokenEvent) CRUD ---
 def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[models.TokenEvent]:
-    # ... (código existente sin cambios) ...
     existing_event = db.query(models.TokenEvent).filter(
         models.TokenEvent.transaction_hash == event_data.transaction_hash,
         models.TokenEvent.watcher_id == event_data.watcher_id
     ).first()
-
     if existing_event:
         return existing_event
 
@@ -153,14 +187,12 @@ def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[
         db.commit()
         db.refresh(db_event)
         return db_event
-    except Exception as e_crud_create:
+    except Exception:
         db.rollback()
         raise
 
 def get_event_by_id(db: Session, event_id: int) -> models.TokenEvent | None:
-    # ... (código existente sin cambios) ...
     return db.query(models.TokenEvent).filter(models.TokenEvent.id == event_id).first()
-
 
 def get_all_events_for_owner(
     db: Session,
@@ -180,7 +212,6 @@ def get_all_events_for_owner(
     sort_order: Optional[str] = "desc",
     active_watchers_only: Optional[bool] = False
 ) -> Dict[str, Any]:
-    # ... (código existente sin cambios, ya incluye filtro por token_symbol) ...
     base_query = db.query(models.TokenEvent)\
                    .join(models.Watcher, models.TokenEvent.watcher_id == models.Watcher.id)\
                    .filter(models.Watcher.owner_id == owner_id)
@@ -190,9 +221,8 @@ def get_all_events_for_owner(
 
     if watcher_id is not None:
         base_query = base_query.filter(models.TokenEvent.watcher_id == watcher_id)
-    
     if token_address:
-         base_query = base_query.filter(models.TokenEvent.token_address_observed.ilike(f"%{token_address}%"))
+        base_query = base_query.filter(models.TokenEvent.token_address_observed.ilike(f"%{token_address}%"))
     if token_symbol:
         base_query = base_query.filter(models.TokenEvent.token_symbol.ilike(f"%{token_symbol}%"))
 
@@ -200,6 +230,7 @@ def get_all_events_for_owner(
         start_date_utc = datetime(start_date.year, start_date.month, start_date.day, 0, 0, 0)
         base_query = base_query.filter(models.TokenEvent.created_at >= start_date_utc)
     if end_date:
+        from datetime import timedelta
         end_date_utc_exclusive = datetime(end_date.year, end_date.month, end_date.day) + timedelta(days=1)
         base_query = base_query.filter(models.TokenEvent.created_at < end_date_utc_exclusive)
 
@@ -230,60 +261,54 @@ def get_all_events_for_owner(
     events = ordered_query.offset(skip).limit(limit).all()
     return {"total_events": total_events, "events": events}
 
-
 def get_events_for_watcher(db: Session, watcher_id: int, owner_id: int, skip: int = 0, limit: int = 100) -> Dict[str, Any]:
-    # ... (código existente sin cambios) ...
     db_watcher = get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
-    base_query = db.query(models.TokenEvent)\
-                   .filter(models.TokenEvent.watcher_id == watcher_id)
+    base_query = db.query(models.TokenEvent).filter(models.TokenEvent.watcher_id == watcher_id)
     total_events = base_query.with_entities(sql_func.count(models.TokenEvent.id)).scalar() or 0
-    events = base_query.order_by(desc(models.TokenEvent.created_at))\
-                       .offset(skip)\
-                       .limit(limit)\
-                       .all()
+    events = base_query.order_by(desc(models.TokenEvent.created_at)).offset(skip).limit(limit).all()
     return {"total_events": total_events, "events": events}
 
-# --- NUEVA FUNCIÓN PARA OBTENER SÍMBOLOS DE TOKEN DISTINTOS ---
 def get_distinct_token_symbols_for_owner(db: Session, owner_id: int) -> List[str]:
-    """
-    Obtiene una lista de token_symbol distintos de los eventos
-    pertenecientes a los watchers de un owner específico.
-    """
     query = (
         db.query(distinct(models.TokenEvent.token_symbol))
-        .join(models.Watcher, models.TokenEvent.watcher_id == models.Watcher.id)
-        .filter(models.Watcher.owner_id == owner_id)
-        .filter(models.TokenEvent.token_symbol.isnot(None)) # Excluir nulos
-        .filter(models.TokenEvent.token_symbol != '')      # Excluir strings vacíos
-        .order_by(models.TokenEvent.token_symbol)
+          .join(models.Watcher, models.TokenEvent.watcher_id == models.Watcher.id)
+          .filter(models.Watcher.owner_id == owner_id)
+          .filter(models.TokenEvent.token_symbol.isnot(None))
+          .filter(models.TokenEvent.token_symbol != '')
+          .order_by(models.TokenEvent.token_symbol)
     )
     symbols = [item[0] for item in query.all()]
     return symbols
-# --- FIN NUEVA FUNCIÓN ---
 
-# --- Transport CRUD (sin cambios) ---
-# ... (código existente) ...
+# --- Transport CRUD ---
 def get_transport_by_id(db: Session, transport_id: int, owner_id: int) -> models.Transport | None:
-    transport = (db.query(models.Transport)
-                 .join(models.Watcher, models.Transport.watcher_id == models.Watcher.id)
-                 .filter(models.Transport.id == transport_id, models.Watcher.owner_id == owner_id)
-                 .first())
+    transport = (
+        db.query(models.Transport)
+          .join(models.Watcher, models.Transport.watcher_id == models.Watcher.id)
+          .filter(models.Transport.id == transport_id, models.Watcher.owner_id == owner_id)
+          .first()
+    )
     if not transport:
         raise HTTPException(status_code=404, detail="Transport not found or not owned by user")
     return transport
 
 def get_transports_for_watcher_owner_checked(db: Session, watcher_id: int, owner_id: int, skip: int = 0, limit: int = 100) -> List[models.Transport]:
     get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
-    return (db.query(models.Transport)
-            .filter(models.Transport.watcher_id == watcher_id)
-            .order_by(models.Transport.id)
-            .offset(skip)
-            .limit(limit)
-            .all())
+    return (
+        db.query(models.Transport)
+          .filter(models.Transport.watcher_id == watcher_id)
+          .order_by(models.Transport.id)
+          .offset(skip)
+          .limit(limit)
+          .all()
+    )
 
 def create_new_transport_for_watcher(db: Session, transport_data: schemas.TransportCreate, watcher_id: int, owner_id: int) -> models.Transport:
     if transport_data.watcher_id != watcher_id:
-        raise HTTPException(status_code=400, detail=f"Watcher ID en payload ({transport_data.watcher_id}) no coincide con Watcher ID en path ({watcher_id}).")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Watcher ID en payload ({transport_data.watcher_id}) no coincide con Watcher ID en path ({watcher_id})."
+        )
     get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
 
     db_transport = models.Transport(
@@ -304,7 +329,7 @@ def delete_transport_by_id(db: Session, transport_id: int, owner_id: int) -> Non
 def get_volume(db: Session, contract_address: str) -> float:
     total_volume = (
         db.query(sql_func.sum(models.TokenEvent.amount))
-        .filter(models.TokenEvent.token_address_observed == contract_address)
-        .scalar()
+          .filter(models.TokenEvent.token_address_observed == contract_address)
+          .scalar()
     )
     return total_volume if total_volume is not None else 0.0

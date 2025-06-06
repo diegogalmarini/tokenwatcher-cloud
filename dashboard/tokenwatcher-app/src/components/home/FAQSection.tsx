@@ -1,85 +1,92 @@
 // File: src/components/home/FAQSection.tsx
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
+import { Disclosure } from "@headlessui/react";
+import { ChevronUpIcon } from "@heroicons/react/24/solid";
 
-interface FAQItem {
-  question: string;
-  answer: string;
-}
-
-const FAQS: FAQItem[] = [
+const faqs = [
   {
     question: "Which tokens can I monitor?",
     answer:
-      "You can monitor any ERC-20 token on Ethereum, Polygon, and Arbitrum. More chains are coming soon.",
+      "You can monitor any ERC-20 token on Ethereum, Polygon, and Arbitrum. If you need multi-chain beyond these, please reach out to support@tokenwatcher.app.",
   },
   {
     question: "How much does it cost?",
     answer:
-      "We offer a freemium tier that includes up to 3 active watchers and 100 alerts per day. Check our Pricing section for details.",
+      "We offer a free tier that supports up to 5 watchers. If you need more watchers, contact support@tokenwatcher.app.",
   },
   {
-    question: "Can I change my webhooks?",
+    question: "Can I change my webhooks later?",
     answer:
-      "Yes. From the dashboard, simply edit your watcher and update the webhook URL at any time.",
+      "Yes. In your dashboard, click 'Edit' on any watcher to update the webhook URL at any time.",
   },
   {
-    question: "How do I know if an alert was delivered?",
+    question: "How do I know my alert was sent?",
     answer:
-      "Your dashboard shows each event’s status, and your Slack/Discord/Telegram integration will confirm receipt.",
+      "Every time a transfer exceeds your threshold, an alert is logged under the corresponding watcher. You can view the alert history in the “Events” section of the dashboard. If you still have questions, reach out to support@tokenwatcher.app.",
   },
 ];
 
-export default function FAQSection() {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+/**
+ * Recibe `isDark` desde el padre para decidir colores de fondo y texto.
+ */
+interface FAQSectionProps {
+  isDark: boolean;
+}
 
-  const toggleIndex = (index: number) => {
-    setOpenIndex(openIndex === index ? null : index);
-  };
-
+export default function FAQSection({ isDark }: FAQSectionProps) {
   return (
-    <section className="py-16 bg-gray-50 dark:bg-gray-900">
+    <section
+      className={`py-16 w-full ${
+        isDark ? "bg-[#262626] text-white" : "bg-[#e8e8e8] text-gray-900"
+      }`}
+    >
       <div className="max-w-4xl mx-auto px-6">
-        <h2 className="text-3xl font-bold text-center mb-8 text-gray-900 dark:text-gray-100">
+        <h2
+          className={`text-3xl font-bold text-center mb-8 ${
+            isDark ? "text-white" : "text-gray-900"
+          }`}
+        >
           Frequently Asked Questions
         </h2>
         <div className="space-y-4">
-          {FAQS.map((item, idx) => (
-            <div
-              key={idx}
-              className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
-            >
-              <button
-                className="w-full flex justify-between items-center px-4 py-3 bg-white dark:bg-gray-800 text-left"
-                onClick={() => toggleIndex(idx)}
-              >
-                <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {item.question}
-                </span>
-                <svg
-                  className={`w-5 h-5 text-gray-500 dark:text-gray-300 transform transition-transform ${
-                    openIndex === idx ? "rotate-180" : ""
+          {faqs.map((faq) => (
+            <Disclosure key={faq.question}>
+              {({ open }) => (
+                <div
+                  className={`border rounded-lg ${
+                    isDark
+                      ? "bg-[#a1a1a1] bg-[#262626]"
+                      : "border-gray-300 bg-white"
                   }`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  ></path>
-                </svg>
-              </button>
-              {openIndex === idx && (
-                <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
-                  {item.answer}
+                  <Disclosure.Button
+                    className={`flex justify-between w-full px-6 py-4 text-left rounded-lg focus:outline-none focus-visible:ring focus-visible:ring-primary ${
+                      isDark ? "bg-[#262626] text-white" : "bg-white text-gray-900"
+                    }`}
+                  >
+                    <span className="font-medium">{faq.question}</span>
+                    <ChevronUpIcon
+                      className={`${
+                        open ? "transform rotate-180" : ""
+                      } h-6 w-6 ${
+                        isDark ? "text-gray-400" : "text-gray-500"
+                      }`}
+                    />
+                  </Disclosure.Button>
+                  <Disclosure.Panel
+                    className={`px-6 pt-4 pb-6 rounded-b-lg ${
+                      isDark
+                        ? "bg-[#262626] text-gray-300"
+                        : "bg-white text-gray-700"
+                    }`}
+                  >
+                    {faq.answer}
+                  </Disclosure.Panel>
                 </div>
               )}
-            </div>
+            </Disclosure>
           ))}
         </div>
       </div>

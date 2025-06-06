@@ -1,23 +1,25 @@
-// dashboard/tokenwatcher-app/src/components/auth/LogoutButton.tsx
+// File: src/components/auth/LogoutButton.tsx
 "use client";
 
-import React from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import Button from '@/components/ui/button'; // Usando tu componente Button
+import React from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function LogoutButton() {
-  const { logout, user } = useAuth();
+  const { logout } = useAuth();
+  const router = useRouter();
 
-  if (!user) return null; // No mostrar si no hay usuario (ya está deslogueado o cargando)
+  const handleClick = () => {
+    // Llamo a la función que limpia estado y redirige a "/"
+    logout();
+  };
 
   return (
-    <Button
-      onClick={logout}
-      intent="destructive" // O la variante que prefieras para logout
-      size="md"
-      className="ml-auto" // Para alinearlo si está en un flex container
+    <button
+      onClick={handleClick}
+      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg"
     >
-      Sign Out ({user.email})
-    </Button>
+      Logout
+    </button>
   );
 }
