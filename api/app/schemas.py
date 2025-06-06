@@ -1,4 +1,5 @@
 # api/app/schemas.py
+
 from pydantic import BaseModel, HttpUrl, EmailStr
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -25,7 +26,6 @@ class TokenEventRead(TokenEventBase):
 
     class Config:
         from_attributes = True
-
 
 # --- SCHEMA PARA RESPUESTA PAGINADA DE EVENTOS ---
 class PaginatedTokenEventResponse(BaseModel):
@@ -64,7 +64,7 @@ class WatcherUpdatePayload(BaseModel):
     name: Optional[str] = None
     token_address: Optional[str] = None
     threshold: Optional[float] = None
-    webhook_url: Optional[HttpUrl | None] = None
+    webhook_url: Optional[HttpUrl] = None
     is_active: Optional[bool] = None
 
 class WatcherRead(WatcherBase):
@@ -93,6 +93,7 @@ class UserRead(UserBase):
     class Config:
         from_attributes = True
 
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -100,9 +101,24 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     email: Optional[str] = None
 
-class TokenRead(BaseModel): # Para /tokens/{contract_address}/volume
+class TokenRead(BaseModel):  # Para /tokens/{contract_address}/volume
     contract: str
     volume: float
 
     class Config:
         from_attributes = True
+
+
+# --- NUEVOS SCHEMAS PARA “FORGOT / RESET PASSWORD” ---
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ForgotPasswordResponse(BaseModel):
+    msg: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+class ResetPasswordResponse(BaseModel):
+    msg: str

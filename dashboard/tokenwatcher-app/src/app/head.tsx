@@ -1,5 +1,5 @@
-// dashboard/tokenwatcher-app/src/app/head.tsx
-import React from 'react';
+// File: src/app/head.tsx
+import React from "react";
 
 export default function Head() {
   return (
@@ -9,6 +9,7 @@ export default function Head() {
         name="description"
         content="Gain immediate on-chain visibility and receive instant ERC-20 token transfer alerts on Ethereum, Polygon & Arbitrum."
       />
+
       {/* Open Graph */}
       <meta property="og:title" content="TokenWatcher – Real-Time ERC-20 Event Alerts" />
       <meta
@@ -17,9 +18,10 @@ export default function Head() {
       />
       <meta
         property="og:image"
-        content="https://your-domain.com/og-image.png"
+        content="/og-image.png"
       />
       <meta property="og:type" content="website" />
+
       {/* Twitter Card */}
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content="TokenWatcher – Real-Time ERC-20 Event Alerts" />
@@ -27,7 +29,7 @@ export default function Head() {
         name="twitter:description"
         content="Gain immediate on-chain visibility and receive instant ERC-20 token transfer alerts."
       />
-      <meta name="twitter:image" content="https://your-domain.com/og-image.png" />
+      <meta name="twitter:image" content="/og-image.png" />
     </>
   );
 }

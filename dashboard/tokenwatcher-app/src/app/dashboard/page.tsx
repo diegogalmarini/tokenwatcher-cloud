@@ -1,45 +1,40 @@
-// dashboard/tokenwatcher-app/src/app/dashboard/page.tsx
+// src/app/dashboard/page.tsx
 "use client";
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+
 import WatcherList from "@/components/watchers/WatcherList";
 import { EventList } from "@/components/events/EventList";
-import { useAuth } from '@/contexts/AuthContext';
-import LogoutButton from '@/components/auth/LogoutButton';
-import { EventFilterBar, EventFilters } from '@/components/events/EventFilterBar';
-import { useWatchers } from '@/lib/useWatchers';
-
-// Esta es la interfaz EventFilters que usa la barra, ya la define EventFilterBar.tsx
-// No necesitamos redefinirla aquí si la importamos o la barra la maneja internamente.
-// Pero si draftFilters y appliedFilters son de este tipo, debe estar disponible.
-// La importamos de EventFilterBar.
+import { useAuth } from "@/contexts/AuthContext";
+import { EventFilterBar, EventFilters } from "@/components/events/EventFilterBar";
+import { useWatchers } from "@/lib/useWatchers";
 
 const initialFilters: EventFilters = {
-  watcherId: '',
-  tokenSymbol: '',
-  fromAddress: '',
-  toAddress: '',
-  minUsdValue: '',
-  maxUsdValue: '',
-  startDate: '',
-  endDate: '',
+  watcherId: "",
+  tokenSymbol: "",
+  fromAddress: "",
+  toAddress: "",
+  minUsdValue: "",
+  maxUsdValue: "",
+  startDate: "",
+  endDate: "",
 };
 
-export interface SortOptions { // Este export puede quedarse si otras páginas necesitaran este tipo
-    sortBy: string;
-    sortOrder: 'asc' | 'desc';
+export interface SortOptions {
+  sortBy: string;
+  sortOrder: "asc" | "desc";
 }
 
 const initialSortOptions: SortOptions = {
-    sortBy: 'created_at',
-    sortOrder: 'desc',
+  sortBy: "created_at",
+  sortOrder: "desc",
 };
 
 const PAGE_SIZE = 25;
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
-function AuthenticatedDashboardContent() { // Renombrado para claridad
+function AuthenticatedDashboardContent() {
   const { isAuthenticated, isLoading: authIsLoading, user, token } = useAuth();
   const router = useRouter();
 
@@ -47,51 +42,48 @@ function AuthenticatedDashboardContent() { // Renombrado para claridad
   const [distinctTokenSymbols, setDistinctTokenSymbols] = useState<string[]>([]);
   const [isLoadingTokenSymbols, setIsLoadingTokenSymbols] = useState(false);
 
+  // Si no está autenticado, redirigir a la Home ("/").
   useEffect(() => {
-    // Log para ver cuándo se monta este componente y el estado de autenticación
-    console.log('[DashboardPage] AuthenticatedDashboardContent mounted/updated. AuthLoading:', authIsLoading, 'IsAuth:', isAuthenticated);
     if (!authIsLoading && !isAuthenticated) {
-      console.log('[DashboardPage] Not authenticated, redirecting to /login');
-      router.replace('/login');
+      router.replace("/");
     }
   }, [authIsLoading, isAuthenticated, router]);
 
+  // Cuando tenemos token & isAuthenticated, traemos la lista de watchers.
   useEffect(() => {
-    if (token && isAuthenticated) { // Solo cargar si hay token y está autenticado
-      console.log('[DashboardPage] Token exists, fetching watchers.');
+    if (token && isAuthenticated) {
       fetchWatchers();
     }
-  }, [fetchWatchers, token, isAuthenticated]); // Añadido isAuthenticated
+  }, [fetchWatchers, token, isAuthenticated]);
 
+  // Obtener símbolos distintos para filtro de eventos.
   const fetchDistinctTokenSymbols = useCallback(async () => {
-    if (!token || !isAuthenticated) return; // Solo si hay token y está autenticado
-    console.log('[DashboardPage] Fetching distinct token symbols...');
+    if (!token || !isAuthenticated) return;
     setIsLoadingTokenSymbols(true);
     try {
       const response = await fetch(`${API_BASE_URL}/events/distinct-token-symbols/`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
       if (!response.ok) {
-        throw new Error('Failed to fetch token symbols');
+        throw new Error("Failed to fetch token symbols");
       }
       const symbols: string[] = await response.json();
       setDistinctTokenSymbols(symbols);
-      console.log('[DashboardPage] Distinct token symbols fetched:', symbols);
     } catch (error) {
-      console.error("[DashboardPage] Error fetching distinct token symbols:", error);
+      console.error("Error fetching distinct token symbols:", error);
       setDistinctTokenSymbols([]);
     } finally {
       setIsLoadingTokenSymbols(false);
     }
-  }, [token, isAuthenticated]); // Añadido isAuthenticated
+  }, [token, isAuthenticated]);
 
   useEffect(() => {
     fetchDistinctTokenSymbols();
   }, [fetchDistinctTokenSymbols]);
 
-
+  // Estados y handlers para filtros/sorting/paginación de eventos.
   const [draftFilters, setDraftFilters] = useState<EventFilters>(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState<EventFilters>(initialFilters);
   const [sortOptions, setSortOptions] = useState<SortOptions>(initialSortOptions);
@@ -100,13 +92,16 @@ function AuthenticatedDashboardContent() { // Renombrado para claridad
   const [showActiveOnlyEvents, setShowActiveOnlyEvents] = useState(false);
 
   const handleToggleShowActiveOnly = useCallback(() => {
-    setShowActiveOnlyEvents(prev => !prev);
+    setShowActiveOnlyEvents((prev) => !prev);
     setCurrentPage(1);
   }, []);
 
-  const handleFilterChange = useCallback((field: keyof EventFilters, value: string) => {
-    setDraftFilters(prev => ({ ...prev, [field]: value }));
-  }, []);
+  const handleFilterChange = useCallback(
+    (field: keyof EventFilters, value: string) => {
+      setDraftFilters((prev) => ({ ...prev, [field]: value }));
+    },
+    []
+  );
 
   const handleApplyFilters = useCallback(() => {
     setCurrentPage(1);
@@ -121,76 +116,76 @@ function AuthenticatedDashboardContent() { // Renombrado para claridad
   }, []);
 
   const handleSortChange = useCallback((newSortBy: string) => {
-      setCurrentPage(1);
-      setSortOptions(prev => {
-          const newSortOrder = (prev.sortBy === newSortBy && prev.sortOrder === 'desc') ? 'asc' : 'desc';
-          return { sortBy: newSortBy, sortOrder: newSortOrder };
-      });
+    setCurrentPage(1);
+    setSortOptions((prev) => {
+      const newSortOrder =
+        prev.sortBy === newSortBy && prev.sortOrder === "desc" ? "asc" : "desc";
+      return { sortBy: newSortBy, sortOrder: newSortOrder };
+    });
   }, []);
 
   const handlePageChange = useCallback((newPage: number) => {
-      setCurrentPage(newPage);
+    setCurrentPage(newPage);
   }, []);
 
-  // El estado de carga principal para el contenido del dashboard
   const dashboardContentLoading = isLoadingWatchers || isLoadingTokenSymbols;
 
-  if (authIsLoading) { // Si el contexto de Auth aún está cargando (ej. verificando token inicial)
+  // Mientras verificamos autenticación…
+  if (authIsLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
-        <p className="text-gray-600 dark:text-gray-300 text-lg">Verifying authentication...</p>
-      </div>
-    );
-  }
-  
-  if (!isAuthenticated) { // Si después de cargar Auth, no está autenticado, el useEffect ya habrá redirigido
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
-        <p className="text-gray-600 dark:text-gray-300 text-lg">Redirecting to login...</p>
+      <div className="flex min-h-screen items-center justify-center bg-background dark:bg-background">
+        <p className="text-muted-text text-lg">Verifying authentication...</p>
       </div>
     );
   }
 
-  // Si está autenticado, mostramos el contenido del dashboard
+  // Si no está autenticado, lo llevamos a Home ("/")
+  if (!isAuthenticated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background dark:bg-background">
+        <p className="text-muted-text text-lg">Redirecting to home...</p>
+      </div>
+    );
+  }
+
+  // Usuario autenticado: mostramos el dashboard
   return (
-    <>
-      <header className="max-w-full mx-auto mb-8">
-         <div className="flex flex-wrap justify-between items-center gap-4">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100">
-              TokenWatcher Dashboard
-            </h1>
-            {user && (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Welcome, {user.email}
-              </p>
-            )}
-          </div>
-          <LogoutButton />
-        </div>
-        <p className="mt-4 text-md md:text-lg text-gray-700 dark:text-gray-300">
-          Manage your watchers and view recent on-chain events.
-        </p>
-      </header>
-      <div className="max-w-full mx-auto space-y-12">
-        <WatcherList />
-        <div>
-            {dashboardContentLoading && !isEventsLoading ? ( // Muestra un loader si watchers o symbols están cargando pero los eventos no
-                 (<div className="text-center py-4"><p>Loading dashboard components...</p></div>)
-            ) : (
-                <EventFilterBar
-                    filters={draftFilters}
-                    onFilterChange={handleFilterChange}
-                    onApplyFilters={handleApplyFilters}
-                    onClearFilters={handleClearFilters}
-                    isLoading={isEventsLoading || isLoadingTokenSymbols || isLoadingWatchers}
-                    showActiveOnlyEvents={showActiveOnlyEvents}
-                    onToggleShowActiveOnly={handleToggleShowActiveOnly}
-                    userWatchers={watchers}
-                    distinctTokenSymbols={distinctTokenSymbols}
-                />
-            )}
-            <EventList
+    <div className="min-h-screen bg-background dark:bg-[#121212]">
+      {/* 
+        He cambiado aquí “max-w-7xl mx-auto px-6 py-8” 
+        por “w-full px-6 py-8” para que ocupe todo el ancho disponible.
+        Si quisieras un poco de margenes a los lados, puedes usar “px-4 lg:px-6” 
+        o “mx-auto” sin el max-w-7xl:
+          Ejemplo: <div className="w-full mx-auto px-6 py-8">
+      */}
+      <div className="w-full px-6 py-8">
+        {/* El header “Your Watchers + saludo + Logout” está separado en DashboardHeader.tsx */}
+        
+        {/* ► Listado de Watchers */}
+        <section className="mb-6">
+          <WatcherList />
+        </section>
+
+        {/* ► Filtros y listado de eventos */}
+        <section>
+          {dashboardContentLoading && !isEventsLoading ? (
+            <div className="text-center py-4 text-muted-text">
+              Loading dashboard components...
+            </div>
+          ) : (
+            <>
+              <EventFilterBar
+                filters={draftFilters}
+                onFilterChange={handleFilterChange}
+                onApplyFilters={handleApplyFilters}
+                onClearFilters={handleClearFilters}
+                isLoading={isEventsLoading || isLoadingTokenSymbols || isLoadingWatchers}
+                showActiveOnlyEvents={showActiveOnlyEvents}
+                onToggleShowActiveOnly={handleToggleShowActiveOnly}
+                userWatchers={watchers}
+                distinctTokenSymbols={distinctTokenSymbols}
+              />
+              <EventList
                 appliedFilters={appliedFilters}
                 sortOptions={sortOptions}
                 onSortChange={handleSortChange}
@@ -199,30 +194,15 @@ function AuthenticatedDashboardContent() { // Renombrado para claridad
                 pageSize={PAGE_SIZE}
                 onPageChange={handlePageChange}
                 showActiveOnlyEvents={showActiveOnlyEvents}
-            />
-        </div>
+              />
+            </>
+          )}
+        </section>
       </div>
-    </>
+    </div>
   );
 }
 
-// Exportación correcta para una página en el App Router
 export default function DashboardPage() {
-  const [hasMounted, setHasMounted] = useState(false);
-  useEffect(() => { setHasMounted(true); }, []);
-
-  // Prevenir mismatch de hidratación si AuthProvider hace algo que solo ocurre en cliente
-  if (!hasMounted) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-900">
-        <p className="text-gray-600 dark:text-gray-300 text-lg">Initializing Dashboard...</p>
-      </div>
-    );
-  }
-
-  return (
-    <main className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 md:p-8">
-      <AuthenticatedDashboardContent />
-    </main>
-  );
+  return <AuthenticatedDashboardContent />;
 }

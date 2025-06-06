@@ -2,8 +2,7 @@
 #   Python / FastAPI (API)    #
 # ########################### #
 
-# Entornos Virtuales
-# ¡IMPORTANTE! Ignora tu carpeta venv específica
+# Entornos Virtuales (pipenv, venv, etc.)
 api/venv/
 .venv/
 venv/
@@ -18,7 +17,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Archivos de distribución / build
+# Archivos de distribución / build de Python
 /build/
 /dist/
 /downloads/
@@ -34,16 +33,16 @@ pip-wheel-metadata/
 share/python-wheels/
 *.wheel
 
-# Bases de datos (si usas sqlite localmente para pruebas)
-*.db
-*.sqlite3
+# Bases de datos SQLite local (si se usan para pruebas)
+/*.db
+/*.sqlite3
 
-# Logs
+# Logs y archivos temporales
 *.log
 logs/
 *.log.*
 
-# Tests y Cobertura
+# Testing / coverage
 .pytest_cache/
 .coverage
 .coverage.*
@@ -58,11 +57,11 @@ coverage.xml
 #   Node.js / Next.js (Dashboard) #
 # ########################### #
 
-# Dependencias
+# Dependencias de Node.js
 dashboard/tokenwatcher-app/node_modules/
 node_modules/
 
-# Logs
+# Logs de Node/npm/yarn
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -75,7 +74,10 @@ dashboard/tokenwatcher-app/out/
 .next/
 out/
 
-# Archivos de configuración local (¡MUY IMPORTANTE!)
+# Caché de Next.js
+.next/
+
+# Archivos de configuración local de entorno
 .env
 .env.local
 .env.development.local
@@ -85,7 +87,12 @@ out/
 .env.*
 .env copy
 
-# Otros
+# Archivos de lock generados en node_modules
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Otros archivos generados por Node
 .npm
 .pnp.*
 
@@ -118,7 +125,7 @@ $RECYCLE.BIN/
 *.swo
 
 # ########################### #
-#       Otros               #
+#       Otros                   #
 # ########################### #
 
 # Archivos comprimidos temporales

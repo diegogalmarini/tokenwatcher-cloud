@@ -1,4 +1,5 @@
 # api/app/models.py
+
 from sqlalchemy import (
     Column,
     Integer,
@@ -15,7 +16,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import datetime
-from typing import List, Dict, Any, Optional # <-- AÑADIDO Optional
+from typing import List, Dict, Any, Optional  # <-- AÑADIDO Optional
 
 from .database import Base
 
@@ -25,10 +26,13 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Cambiamos default=True a default=False para que inicialmente esté inactivo
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    watchers: Mapped[List["Watcher"]] = relationship("Watcher", back_populates="owner", cascade="all, delete-orphan")
+    watchers: Mapped[List["Watcher"]] = relationship(
+        "Watcher", back_populates="owner", cascade="all, delete-orphan"
+    )
 
 class Watcher(Base):
     __tablename__ = "watchers"
@@ -39,12 +43,20 @@ class Watcher(Base):
     token_address: Mapped[str] = mapped_column(String, index=True)
     threshold: Mapped[float] = mapped_column(Numeric(30, 18))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     owner: Mapped["User"] = relationship("User", back_populates="watchers")
-    transports: Mapped[List["Transport"]] = relationship("Transport", back_populates="watcher", cascade="all, delete-orphan")
-    events: Mapped[List["TokenEvent"]] = relationship("TokenEvent", back_populates="watcher", cascade="all, delete-orphan")
+    transports: Mapped[List["Transport"]] = relationship(
+        "Transport", back_populates="watcher", cascade="all, delete-orphan"
+    )
+    events: Mapped[List["TokenEvent"]] = relationship(
+        "TokenEvent", back_populates="watcher", cascade="all, delete-orphan"
+    )
 
 class Transport(Base):
     __tablename__ = "transports"
@@ -67,10 +79,12 @@ class TokenEvent(Base):
     amount: Mapped[float] = mapped_column(Numeric(30, 18))
     transaction_hash: Mapped[str] = mapped_column(String, index=True)
     block_number: Mapped[int] = mapped_column(Integer)
-    usd_value: Mapped[Optional[float]] = mapped_column(Numeric(20, 4), nullable=True) # Usamos Optional[float]
+    usd_value: Mapped[Optional[float]] = mapped_column(
+        Numeric(20, 4), nullable=True
+    )  # Usamos Optional[float]
 
     # --- NUEVOS CAMPOS para nombre y símbolo del token ---
-    token_name: Mapped[Optional[str]] = mapped_column(String, nullable=True) # <-- AÑADIDO
+    token_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)   # <-- AÑADIDO
     token_symbol: Mapped[Optional[str]] = mapped_column(String, nullable=True) # <-- AÑADIDO
     # --- FIN NUEVOS CAMPOS ---
 
@@ -81,7 +95,9 @@ class TokenEvent(Base):
     watcher: Mapped["Watcher"] = relationship(back_populates="events")
 
     __table_args__ = (
-         PrimaryKeyConstraint('id', 'created_at'),
-         UniqueConstraint('transaction_hash', 'id', 'created_at', name='uq_tx_hash_id_created'),
-         {'postgresql_partition_by': 'RANGE (created_at)'}
+        PrimaryKeyConstraint("id", "created_at"),
+        UniqueConstraint(
+            "transaction_hash", "id", "created_at", name="uq_tx_hash_id_created"
+        ),
+        {"postgresql_partition_by": "RANGE (created_at)"},
     )
