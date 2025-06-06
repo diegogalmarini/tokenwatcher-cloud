@@ -84,6 +84,8 @@ out/
 .env.production.local
 .env.test.local
 .env.*.local
+.env.*
+.env copy
 
 # Archivos de lock generados en node_modules
 package-lock.json
