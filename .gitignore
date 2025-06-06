@@ -82,6 +82,8 @@ out/
 .env.production.local
 .env.test.local
 .env.*.local
+.env.*
+.env copy
 
 # Otros
 .npm
