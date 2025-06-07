@@ -1,4 +1,4 @@
-// File: src/app/(marketing)/login/page.tsx
+// File: dashboard/tokenwatcher-app/src/app/(marketing)/login/page.tsx
 "use client";
 
 import React, { useState, useEffect, FormEvent } from "react";
@@ -8,7 +8,7 @@ import { useTheme } from "next-themes";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function LoginPage() {
-  const { theme, systemTheme, setTheme } = useTheme();
+  const { theme, systemTheme } = useTheme();
   const currentTheme = theme === "system" ? systemTheme : theme;
   const isDark = currentTheme === "dark";
 
@@ -41,8 +41,9 @@ export default function LoginPage() {
       //  4) Actualizar isAuthenticated en el contexto
       await login(email, password);
 
-      // Si login() lanza, el catch lo manejará; si no lanza, el contexto ya debe 
-      // haber actualizado isAuthenticated => useEffect anterior redirige a /dashboard.
+      // Si login() lanza, el catch lo manejará; si no lanza, 
+      // el contexto ya debe haber actualizado isAuthenticated => 
+      // useEffect anterior redirige a /dashboard.
     } catch (err: any) {
       setError(err.message || "Error inesperado al iniciar sesión.");
       setSubmitting(false);
@@ -56,9 +57,7 @@ export default function LoginPage() {
           {/* Back to Home */}
           <Link
             href="/"
-            className={`text-sm mb-4 inline-block ${
-              isDark ? "text-gray-300" : "text-gray-700"
-            }`}
+            className={`text-sm mb-4 inline-block ${isDark ? "text-gray-300" : "text-gray-700"}`}
           >
             ← Back to Home
           </Link>
@@ -112,6 +111,18 @@ export default function LoginPage() {
                 autoComplete="current-password"
               />
             </label>
+
+            {/* ⇨ Enlace "Forgot password?" agregado justo después del campo de contraseña ⇦ */}
+            <div className="mb-4 text-right">
+              <Link
+                href="/forgot-password"
+                className={`text-sm font-medium ${
+                  isDark ? "text-gray-300 hover:text-gray-200" : "text-primary hover:underline"
+                }`}
+              >
+                Forgot password?
+              </Link>
+            </div>
 
             <button
               type="submit"

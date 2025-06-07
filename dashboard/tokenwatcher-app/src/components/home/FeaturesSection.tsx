@@ -135,7 +135,7 @@ export default function FeaturesSection() {
           {features.map((feature) => (
             <div
               key={feature.title}
-              className="bg-white dark:bg-gray-700 p-6 rounded-lg shadow-lg flex flex-col items-center text-center"
+              className="bg-white dark:bg-neutral-700 p-6 rounded-lg shadow-lg flex flex-col items-center text-center"
             >
               <div className="mb-4">{feature.icon}</div>
               <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-gray-100">

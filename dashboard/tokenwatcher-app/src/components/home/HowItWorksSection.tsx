@@ -1,20 +1,28 @@
 // File: src/components/home/HowItWorksSection.tsx
+"use client";
+
 import React from "react";
+import { useTheme } from "next-themes";
 
 export default function HowItWorksSection() {
+  const { theme, systemTheme } = useTheme();
+  const currentTheme = theme === "system" ? systemTheme : theme;
+  const isDark = currentTheme === "dark";
+
   return (
-    <section className="py-16 bg-gray-50 dark:bg-gray-50">
+    <section className={`py-16 ${isDark ? "bg-[#262626]" : "bg-[#e8e8e8]"}`}>
       <div className="max-w-6xl mx-auto px-6 text-center">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-900 mb-12">
+        <h2 className="text-3xl font-bold text-center text-gray-900 mb-8 dark:text-white">
           How It Works
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Paso 1 */}
           <div className="flex flex-col items-center">
-            <div className="bg-blue-100 dark:bg-blue-100 p-4 rounded-full mb-4">
+            <div className="bg-white dark:bg-neutral-700 p-4 rounded-full mb-4 shadow-lg">
+              {/* … icono … */}
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="w-8 h-8 text-blue-600"
+                className="w-8 h-8 text-neutral-600 dark:text-neutral-200"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -27,19 +35,20 @@ export default function HowItWorksSection() {
                 />
               </svg>
             </div>
-            <h4 className="font-semibold text-gray-900 dark:text-gray-900 mb-2">
+            <h4 className="font-semibold text-gray-900 dark:text-gray-200 mb-2">
               Sign Up
             </h4>
-            <p className="text-gray-600 dark:text-gray-600">
+            <p className="text-gray-600 dark:text-gray-200">
               Create your account in seconds.
             </p>
           </div>
           {/* Paso 2 */}
           <div className="flex flex-col items-center">
-            <div className="bg-blue-100 dark:bg-blue-100 p-4 rounded-full mb-4">
+            <div className="bg-white dark:bg-neutral-700 p-4 rounded-full mb-4 shadow-lg">
+              {/* … icono … */}
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="w-8 h-8 text-blue-600"
+                className="w-8 h-8 text-neutral-600 dark:text-neutral-200"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -52,19 +61,20 @@ export default function HowItWorksSection() {
                 />
               </svg>
             </div>
-            <h4 className="font-semibold text-gray-900 dark:text-gray-900 mb-2">
+            <h4 className="font-semibold text-gray-900 dark:text-gray-200 mb-2">
               Create a Watcher
             </h4>
-            <p className="text-gray-600 dark:text-gray-600">
+            <p className="text-gray-600 dark:text-gray-200">
               Enter token address & threshold.
             </p>
           </div>
           {/* Paso 3 */}
           <div className="flex flex-col items-center">
-            <div className="bg-blue-100 dark:bg-blue-100 p-4 rounded-full mb-4">
+            <div className="bg-white dark:bg-neutral-700 p-4 rounded-full mb-4 shadow-lg">
+              {/* … icono … */}
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="w-8 h-8 text-blue-600"
+                className="w-8 h-8 text-neutral-600 dark:text-neutral-200"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -77,19 +87,20 @@ export default function HowItWorksSection() {
                 />
               </svg>
             </div>
-            <h4 className="font-semibold text-gray-900 dark:text-gray-900 mb-2">
+            <h4 className="font-semibold text-gray-900 dark:text-gray-200 mb-2">
               Choose Webhook
             </h4>
-            <p className="text-gray-600 dark:text-gray-600">
+            <p className="text-gray-600 dark:text-gray-200">
               Connect Slack, Discord, or Telegram.
             </p>
           </div>
           {/* Paso 4 */}
           <div className="flex flex-col items-center">
-            <div className="bg-blue-100 dark:bg-blue-100 p-4 rounded-full mb-4">
+            <div className="bg-white dark:bg-neutral-700 p-4 rounded-full mb-4 shadow-lg">
+              {/* … icono … */}
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="w-8 h-8 text-blue-600"
+                className="w-8 h-8 text-neutral-600 dark:text-neutral-200"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -102,10 +113,10 @@ export default function HowItWorksSection() {
                 />
               </svg>
             </div>
-            <h4 className="font-semibold text-gray-900 dark:text-gray-900 mb-2">
+            <h4 className="font-semibold text-gray-900 dark:text-gray-200 mb-2">
               Get Notified
             </h4>
-            <p className="text-gray-600 dark:text-gray-600">
+            <p className="text-gray-600 dark:text-gray-200">
               Receive instant alerts on large transfers.
             </p>
           </div>

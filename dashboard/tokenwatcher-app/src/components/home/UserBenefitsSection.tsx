@@ -14,37 +14,37 @@ const userBenefits = [
     profile: 'For Developers',
     challenge: 'Building dApps requires monitoring smart contract interactions and specific on-chain events. Setting up and maintaining custom monitoring scripts or nodes diverts focus from core development tasks and can be complex.',
     solution: 'Get a "plug-and-play" solution to receive real-time alerts on relevant ERC-20 token transfers for your dApps or services, without managing complex infrastructure. Focus on development and react swiftly to on-chain events impacting your applications, with configurable webhooks for easy workflow integration.',
-    icon: <CodeBracketIcon className="h-10 w-10 text-blue-600 mb-4" />,
+    icon: <CodeBracketIcon className="h-10 w-10 text-grey-600 mb-4" />,
   },
   {
     profile: 'For Blockchain Analysts',
     challenge: 'Tracking fund flows, identifying transaction patterns, and understanding market dynamics is tough with massive daily transaction volumes. Manually detecting relevant events in real-time is nearly impossible.',
     solution: 'Instantly spot large transactions or "whale" movements with configurable alerts for significant token transfers. The upcoming "Unified Dashboard" will further enhance event visualization and discovery, turning raw data into actionable insights.',
-    icon: <ChartPieIcon className="h-10 w-10 text-blue-600 mb-4" />,
+    icon: <ChartPieIcon className="h-10 w-10 text-grey-600 mb-4" />,
   },
   {
     profile: 'For Crypto Traders',
     challenge: 'Volatile crypto markets demand rapid decision-making based on real-time information. Missing large token movements can mean missed opportunities or unmanaged risks. The "need for immediacy" is paramount.',
     solution: 'Gain a competitive edge with "Real-Time and Configurable Alerts". Receive instant notifications via Slack, Discord (and soon Telegram/email) for critical token activities, enabling you to act fast.',
-    icon: <ArrowTrendingUpIcon className="h-10 w-10 text-blue-600 mb-4" />,
+    icon: <ArrowTrendingUpIcon className="h-10 w-10 text-grey-600 mb-4" />,
   },
   {
     profile: 'For DAOs',
     challenge: 'DAOs manage treasuries and on-chain operations requiring transparency and vigilance. Manually monitoring governance token movements or treasury assets is inefficient and prone to oversight, yet DAOs "cannot manually monitor the chain effectively".',
     solution: 'Set up dedicated "watchers" for your specific tokens and relevant thresholds. Receive alerts for any activity needing attention, enhancing oversight of your assets and on-chain operations securely and efficiently.',
-    icon: <UserGroupIcon className="h-10 w-10 text-blue-600 mb-4" />,
+    icon: <UserGroupIcon className="h-10 w-10 text-grey-600 mb-4" />,
   },
   {
     profile: 'For Web3 Enthusiasts',
     challenge: 'Following specific projects, tokens, or airdrops often means constantly checking block explorers or multiple social feeds, leading to information overload and missed opportunities.',
     solution: 'Enjoy an "Easy to Use (Plug-and-Play)" experience with a freemium model, making it accessible to track tokens you care about and receive alerts on significant movements without the hassle.',
-    icon: <SparklesIcon className="h-10 w-10 text-blue-600 mb-4" />,
+    icon: <SparklesIcon className="h-10 w-10 text-grey-600 mb-4" />,
   },
   {
     profile: 'For Project Teams & Founders',
     challenge: 'Launching and managing a token involves tracking ecosystem health, treasury movements for security and transparency, and understanding holder activity. Manually collating this data is resource-intensive.',
     solution: 'Automate the monitoring of your project\'s token with real-time alerts. Stay informed about market dynamics, large holder transactions, and exchange movements, allowing your team to focus on building and growth, backed by timely on-chain intelligence.',
-    icon: <RocketLaunchIcon className="h-10 w-10 text-blue-600 mb-4" />,
+    icon: <RocketLaunchIcon className="h-10 w-10 text-grey-600 mb-4" />,
   },
 ];
 
@@ -71,7 +71,7 @@ export default function UserBenefitsSection({ isDark }: UserBenefitsSectionProps
             <div
               key={benefit.profile}
               // Las cards internas usan su propio estilo dark/light que contrasta
-              className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg"
+              className="bg-white dark:bg-neutral-700 p-6 rounded-lg shadow-lg"
             >
               <div className="flex justify-center md:justify-start mb-4">
                  {benefit.icon}
@@ -87,7 +87,7 @@ export default function UserBenefitsSection({ isDark }: UserBenefitsSectionProps
                   </p>
                 </div>
                 <div>
-                  <h4 className="font-semibold text-sm text-green-600 dark:text-green-400 mb-1">TokenWatcher Solution:</h4>
+                  <h4 className="font-semibold text-sm text-gray-600 dark:text-gray-400 mb-1">TokenWatcher Solution:</h4>
                   <p className="text-sm text-gray-700 dark:text-gray-300">
                     {benefit.solution}
                   </p>

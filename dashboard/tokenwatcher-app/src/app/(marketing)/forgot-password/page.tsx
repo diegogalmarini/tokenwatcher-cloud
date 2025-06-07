@@ -1,13 +1,15 @@
+// File: dashboard/tokenwatcher-app/src/app/(marketing)/forgot-password/page.tsx
 "use client";
 
 import React, { useState } from "react";
 import { useTheme } from "next-themes";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function ForgotPasswordPage() {
   const { theme, systemTheme } = useTheme();
   const currentTheme = theme === "system" ? systemTheme : theme;
   const isDark = currentTheme === "dark";
+
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -18,13 +20,16 @@ export default function ForgotPasswordPage() {
     setErrorMsg(null);
 
     try {
-      const res = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() }),
-      });
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/auth/forgot-password`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim() }),
+        }
+      );
       if (!res.ok) {
-        // Puede devolver 400/500 si sucede algo extraño
+        // Puede devolver 400/500 si ocurre algún problema en el backend
         const data = await res.json().catch(() => null);
         throw new Error(data?.detail || "Error al enviar el correo");
       }
@@ -37,30 +42,23 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div
-      className={`flex flex-col min-h-screen ${
-        isDark ? "bg-[#121212]" : "bg-[#e8e8e8]"
-      }`}
-    >
+    <div className={`flex flex-col min-h-screen ${isDark ? "bg-[#121212]" : "bg-[#e8e8e8]"}`}>
       <main className="flex-grow flex items-center justify-center px-4">
         <div className="w-full max-w-md">
-          <h1
-            className={`text-2xl font-bold mb-6 ${
-              isDark ? "text-white" : "text-gray-900"
-            }`}
-          >
-            Recuperar contraseña
+          <h1 className={`text-2xl font-bold mb-6 ${isDark ? "text-white" : "text-gray-900"}`}>
+            Recover Password
           </h1>
 
           {status === "sent" ? (
             <div
               className={`mb-4 ${
-                isDark ? "text-gray-100 bg-gray-800 p-4 rounded" : "text-gray-900 bg-gray-100 p-4 rounded"
+                isDark
+                  ? "text-gray-100 bg-gray-800 p-4 rounded"
+                  : "text-gray-900 bg-gray-100 p-4 rounded"
               }`}
             >
               <p>
-                Si ese correo está registrado, acabas de recibir un email con
-                instrucciones para restablecer tu contraseña.
+                If that email is registered, you will shortly receive a recovery email.
               </p>
             </div>
           ) : (
@@ -86,9 +84,7 @@ export default function ForgotPasswordPage() {
                 />
               </label>
 
-              {errorMsg && (
-                <p className="mb-4 text-red-500 text-sm">{errorMsg}</p>
-              )}
+              {errorMsg && <p className="mb-4 text-red-500 text-sm">{errorMsg}</p>}
 
               <button
                 type="submit"
@@ -99,7 +95,7 @@ export default function ForgotPasswordPage() {
                     : "bg-primary text-white hover:bg-primary-light disabled:bg-gray-300"
                 }`}
               >
-                {status === "sending" ? "Enviando..." : "Enviar correo de recuperación"}
+                {status === "sending" ? "Sending..." : "Send recovery email"}
               </button>
             </form>
           )}
@@ -109,7 +105,7 @@ export default function ForgotPasswordPage() {
               href="/login"
               className={`${isDark ? "text-gray-300" : "text-gray-700"} text-sm hover:underline`}
             >
-              ← Volver a Iniciar Sesión
+              ← Back to Sign In
             </Link>
           </div>
         </div>
