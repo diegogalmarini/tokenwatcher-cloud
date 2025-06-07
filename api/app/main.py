@@ -28,6 +28,7 @@ app = FastAPI(
 
 origins = [
     "https://tokenwatcher-frontend.onrender.com",
+    "https://tokenwatcher.app",        # ← tu frontend en producción
     "http://localhost:3000",
     "http://localhost:3001",
 ]
