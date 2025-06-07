@@ -30,12 +30,10 @@ export default function HomePage() {
         <HeroSection isDark={isDark} toggleDark={toggleDark} />
         <UserBenefitsSection isDark={isDark} />
         <FeaturesSection />
-        
-        {/* === RE-ACTIVAMOS HowItWorksSection === */}
         <HowItWorksSection />
         
-        {/* El último sigue comentado para la prueba */}
-        {/* <FAQSection isDark={isDark} /> */}
+        {/* === RE-ACTIVAMOS EL ÚLTIMO COMPONENTE: FAQSection === */}
+        <FAQSection isDark={isDark} />
         
       </main>
     </div>
