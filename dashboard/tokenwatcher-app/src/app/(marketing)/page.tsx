@@ -4,7 +4,6 @@
 import React, { useEffect } from "react";
 import { useTheme } from "next-themes";
 
-// Componentes de sección importados
 import HeroSection from "@/components/home/HeroSection";
 import UserBenefitsSection from "@/components/home/UserBenefitsSection";
 import FeaturesSection from '@/components/home/FeaturesSection';
@@ -12,21 +11,8 @@ import HowItWorksSection from "@/components/home/HowItWorksSection";
 import FAQSection from "@/components/home/FAQSection";
 
 export default function HomePage() {
-  // Listener para abrir modal de registro (desde HeroSection)
-  useEffect(() => {
-    function openRegisterListener() {
-      const btn = document.querySelector<HTMLButtonElement>(
-        "button[aria-label='open-register']"
-      );
-      btn?.click();
-    }
-    window.addEventListener("open-register-modal", openRegisterListener);
-    return () => {
-      window.removeEventListener("open-register-modal", openRegisterListener);
-    };
-  }, []);
+  // ... (tu código de useEffect y useTheme se mantiene igual)
 
-  // Lógica para el tema oscuro/claro
   const { theme, setTheme, systemTheme } = useTheme();
   const isDark =
     theme === "dark" || (theme === "system" && systemTheme === "dark");
@@ -41,20 +27,14 @@ export default function HomePage() {
       }`}
     >
       <main className="flex-grow">
-        {/* ================================================================== */}
-        {/* PASO DE DEPURACIÓN: Dejamos solo HeroSection para aislar el error */}
-        {/* ================================================================== */}
-
         <HeroSection isDark={isDark} toggleDark={toggleDark} />
 
-        {/* Las siguientes secciones están comentadas temporalmente */}
+        {/* RE-ACTIVAMOS UserBenefitsSection */}
+        <UserBenefitsSection isDark={isDark} />
         
-        {/* <UserBenefitsSection isDark={isDark} /> */}
-        
+        {/* Los demás siguen comentados */}
         {/* <FeaturesSection /> */}
-
         {/* <HowItWorksSection /> */}
-
         {/* <FAQSection isDark={isDark} /> */}
         
       </main>
