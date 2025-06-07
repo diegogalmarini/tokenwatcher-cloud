@@ -37,7 +37,7 @@ export default function HomePage() {
   return (
     <div
       className={`flex flex-col min-h-screen ${
-        isDark ? "bg-[#121212]" : "bg-[#e8e8e8]" // Color de fondo base de la página
+        isDark ? "bg-[#121212]" : "bg-[#e8e8e8]"
       }`}
     >
       <main className="flex-grow">
