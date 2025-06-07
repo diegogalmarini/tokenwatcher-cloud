@@ -1,10 +1,11 @@
 // File: dashboard/tokenwatcher-app/src/app/(marketing)/reset-password/page.tsx
-export const dynamic = 'force-dynamic';
 "use client";
 
 import React, { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
+
+export const dynamic = 'force-dynamic';
 
 export default function ResetPasswordPage() {
   const { theme, systemTheme } = useTheme();
