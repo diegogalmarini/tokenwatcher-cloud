@@ -29,12 +29,12 @@ export default function HomePage() {
       <main className="flex-grow">
         <HeroSection isDark={isDark} toggleDark={toggleDark} />
         <UserBenefitsSection isDark={isDark} />
-        
-        {/* === RE-ACTIVAMOS FeaturesSection === */}
         <FeaturesSection />
         
-        {/* Los demás siguen comentados para la prueba */}
-        {/* <HowItWorksSection /> */}
+        {/* === RE-ACTIVAMOS HowItWorksSection === */}
+        <HowItWorksSection />
+        
+        {/* El último sigue comentado para la prueba */}
         {/* <FAQSection isDark={isDark} /> */}
         
       </main>
