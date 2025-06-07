@@ -41,36 +41,22 @@ export default function HomePage() {
       }`}
     >
       <main className="flex-grow">
-        {/* Orden de las secciones de la Home Page:
-          1. HeroSection: Introduce el producto.
-          2. UserBenefitsSection: Explica el "por qué", el problema que resuelve y para quién.
-          3. FeaturesSection: Detalla las características clave.
-          4. HowItWorksSection: Muestra cómo empezar a usarlo.
-          5. FAQSection: Responde preguntas comunes.
-        */}
+        {/* ================================================================== */}
+        {/* PASO DE DEPURACIÓN: Dejamos solo HeroSection para aislar el error */}
+        {/* ================================================================== */}
 
         <HeroSection isDark={isDark} toggleDark={toggleDark} />
 
-        {/* UserBenefitsSection ahora incluye la introducción del "Por qué TokenWatcher?" 
-          y los beneficios detallados por perfil de usuario.
-          Se le pasa 'isDark' para que su fondo de sección se ajuste al tema.
-        */}
-        <UserBenefitsSection isDark={isDark} />
+        {/* Las siguientes secciones están comentadas temporalmente */}
+        
+        {/* <UserBenefitsSection isDark={isDark} /> */}
+        
+        {/* <FeaturesSection /> */}
 
-        {/* FeaturesSection es el componente que define las 6 características clave.
-          Maneja su propio color de fondo de sección internamente con prefijos dark: de Tailwind.
-        */}
-        <FeaturesSection />
+        {/* <HowItWorksSection /> */}
 
-        {/* HowItWorksSection es el componente que explica los pasos.
-          Maneja su propio color de fondo de sección internamente y tiene un estilo distintivo.
-        */}
-        <HowItWorksSection />
-
-        {/* FAQSection para las preguntas frecuentes.
-          Se le pasa 'isDark' para que su fondo y texto se ajusten al tema.
-        */}
-        <FAQSection isDark={isDark} />
+        {/* <FAQSection isDark={isDark} /> */}
+        
       </main>
     </div>
   );
