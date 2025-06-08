@@ -1,12 +1,13 @@
+// File: dashboard/tokenwatcher-app/src/app/(marketing)/register/page.tsx
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useTheme } from "next-themes";
 
 export default function RegisterPage() {
-  const { theme, setTheme, systemTheme } = useTheme();
+  const { theme, systemTheme } = useTheme();
   const currentTheme = theme === "system" ? systemTheme : theme;
   const isDark = currentTheme === "dark";
 
@@ -14,48 +15,36 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [status, setStatus] = useState<"idle" | "submitting" | "sent" | "error">("idle");
   const router = useRouter();
-
-  useEffect(() => {
-    // Si el usuario ya está autenticado, podrías redirigirlo aquí
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError(null);
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
-      setIsLoading(false);
       return;
     }
 
+    setStatus("submitting");
     try {
-      // Lógica para registrar usuario (fetch a tu API)
-      // Ejemplo:
-      /*
-      const response = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      if (!response.ok) {
-        throw new Error("Hubo un problema registrando tu cuenta");
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/auth/register`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || "Failed to register");
       }
-      const data = await response.json();
-      // Guardar token en contexto o cookie...
-      router.replace("/dashboard");
-      */
-      // Por ahora, simulamos éxito:
-      setTimeout(() => {
-        setIsLoading(false);
-        router.replace("/dashboard");
-      }, 500);
+      setStatus("sent");
     } catch (err: any) {
-      setError(err.message || "Error inesperado");
-      setIsLoading(false);
+      setError(err.message || "Unexpected error");
+      setStatus("error");
     }
   };
 
@@ -75,85 +64,83 @@ export default function RegisterPage() {
             Sign up for TokenWatcher
           </h1>
 
-          {error && (
-            <div className="mb-4 text-red-500 text-sm">
-              {error}
+          {/* Mensaje al enviar */}
+          {status === "sent" && (
+            <div
+              className={`mb-4 p-4 rounded ${
+                isDark ? "bg-gray-800 text-gray-100" : "bg-gray-100 text-gray-900"
+              }`}
+            >
+              If that email is not already registered, you’ll receive a verification link shortly.
             </div>
           )}
 
-          <form
-            onSubmit={handleSubmit}
-            className={`bg-white dark:bg-[#1C1C1E] shadow-md rounded-lg px-6 py-8 ${
-              isDark ? "text-gray-100" : "text-gray-900"
-            }`}
-          >
-            <label className="block mb-2 font-medium">
-              Email address
-              <input
-                type="email"
-                placeholder=""
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={`mt-1 w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-[#2C2C2E] bg-[#e8e8e8] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary ${
-                  isDark
-                    ? "placeholder-gray-400 text-gray-100"
-                    : "placeholder-gray-500 text-gray-900"
-                }`}
-                required
-              />
-            </label>
+          {/* Error */}
+          {error && (
+            <div className="mb-4 text-red-500 text-sm">{error}</div>
+          )}
 
-            <label className="block mb-2 font-medium">
-              Password
-              <input
-                type="password"
-                placeholder=""
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={`mt-1 w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-[#2C2C2E] bg-[#e8e8e8] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary ${
-                  isDark
-                    ? "placeholder-gray-400 text-gray-100"
-                    : "placeholder-gray-500 text-gray-900"
-                }`}
-                required
-              />
-            </label>
-
-            <label className="block mb-4 font-medium">
-              Confirm Password
-              <input
-                type="password"
-                placeholder=""
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className={`mt-1 w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-[#2C2C2E] bg-[#e8e8e8] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary ${
-                  isDark
-                    ? "placeholder-gray-400 text-gray-100"
-                    : "placeholder-gray-500 text-gray-900"
-                }`}
-                required
-              />
-            </label>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className={`w-full py-2 rounded-lg font-semibold transition ${
-                isDark
-                  ? "bg-primary text-white hover:bg-primary-light disabled:bg-gray-700"
-                  : "bg-primary text-white hover:bg-primary-light disabled:bg-gray-300"
+          {/* Formulario solo si no hemos enviado aún */}
+          {status !== "sent" && (
+            <form
+              onSubmit={handleSubmit}
+              className={`bg-white dark:bg-[#1C1C1E] shadow-md rounded-lg px-6 py-8 ${
+                isDark ? "text-gray-100" : "text-gray-900"
               }`}
             >
-              {isLoading ? "Signing up..." : "Sign up"}
-            </button>
+              <label className="block mb-2 font-medium">
+                Email address
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-[#2C2C2E] bg-[#e8e8e8] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </label>
 
-            <p className={`mt-4 text-center text-sm ${isDark ? "text-gray-400" : "text-gray-700"}`}>
-              Already have an account?{" "}
-              <Link href="/login" className={`${isDark ? "text-primary" : "text-primary"} font-medium`}>
-                Sign in
-              </Link>
-            </p>
-          </form>
+              <label className="block mb-2 font-medium">
+                Password
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-[#2C2C2E] bg-[#e8e8e8] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </label>
+
+              <label className="block mb-4 font-medium">
+                Confirm Password
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  required
+                  className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-[#2C2C2E] bg-[#e8e8e8] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </label>
+
+              <button
+                type="submit"
+                disabled={status === "submitting"}
+                className={`w-full py-2 rounded-lg font-semibold transition ${
+                  isDark
+                    ? "bg-primary text-white hover:bg-primary-light disabled:bg-gray-700"
+                    : "bg-primary text-white hover:bg-primary-light disabled:bg-gray-300"
+                }`}
+              >
+                {status === "submitting" ? "Signing up…" : "Sign up"}
+              </button>
+            </form>
+          )}
+
+          <p className={`mt-4 text-center text-sm ${isDark ? "text-gray-400" : "text-gray-700"}`}>
+            Already have an account?{" "}
+            <Link href="/login" className="text-primary font-medium hover:underline">
+              Sign in
+            </Link>
+          </p>
         </div>
       </main>
     </div>
