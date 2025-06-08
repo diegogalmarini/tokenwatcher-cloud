@@ -9,7 +9,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
-from . import crud, schemas
+from . import crud, models, schemas # Añadido 'models' para el type hint
 from .database import get_db
 from .config import settings
 from .email_utils import send_reset_email, send_verification_email
@@ -90,10 +90,21 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     access_token = create_access_token({"sub": user.email}, expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
     return {"access_token": access_token, "token_type": "bearer"}
 
+# ====================================================================
+# === ENDPOINT AÑADIDO PARA OBTENER DATOS DEL USUARIO LOGUEADO  ======
+# ====================================================================
+@router.get("/users/me", response_model=schemas.UserRead, tags=["Authentication"])
+async def read_current_user(current_user: models.User = Depends(get_current_user)):
+    """
+    Get current logged-in user details.
+    """
+    return current_user
+
 @router.post("/forgot-password", response_model=schemas.ForgotPasswordResponse, status_code=status.HTTP_200_OK, tags=["Authentication"])
 async def forgot_password(payload: schemas.ForgotPasswordRequest = Body(...), db: Session = Depends(get_db)):
     user = crud.get_user_by_email(db, email=payload.email)
     if not user or not user.is_active:
+        # Aún así devolvemos un mensaje genérico por seguridad
         return {"msg": "If your email is registered, you will receive a password reset link."}
     reset_token = create_access_token({"sub": user.email, "type": "reset"}, expires_delta=timedelta(minutes=15))
     if not send_reset_email(user.email, reset_token):
