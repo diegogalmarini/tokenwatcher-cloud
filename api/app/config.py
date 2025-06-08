@@ -35,9 +35,8 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY: str
     MAIL_FROM: str
 
-    # --- URL base de tu Frontend (para construir el link de reset password) ---
-    # Podrías usar FRONTEND_BASE_URL en desarrollo o producción
-    FRONTEND_BASE_URL: str = "http://localhost:3000"
+    # --- URL base de tu Frontend (para construir links de reset/verificación) ---
+    FRONTEND_BASE_URL: str  # asegúrate en Render de fijar esta variable a https://www.tokenwatcher.app
 
     class Config:
         case_sensitive = True
