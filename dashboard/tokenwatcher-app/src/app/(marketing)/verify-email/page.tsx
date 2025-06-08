@@ -23,10 +23,8 @@ function VerifyEmailStatus() {
     }
 
     setStatus('verifying');
-    // Usamos el endpoint del backend para verificar el token
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/verify-email?token=${token}`, {
-        method: 'POST', // Usualmente la verificación es un POST o GET, asegúrate que coincida con tu API
-      })
+    // CORREGIDO: Se elimina la configuración { method: 'POST' } para que la petición sea un GET por defecto.
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/verify-email?token=${token}`)
       .then(async (res) => {
         const data = await res.json().catch(() => null); // Intenta parsear JSON incluso en errores
         if (!res.ok) {
@@ -83,7 +81,7 @@ export default function VerifyEmailPage() {
   return (
     <div className="flex flex-col min-h-screen bg-[#e8e8e8] dark:bg-[#121212]">
       <main className="flex-grow flex items-center justify-center px-4">
-        <Suspense fallback={<div className="text-center">Loading verification...</div>}>
+        <Suspense fallback={<div className="text-center text-gray-900 dark:text-gray-100">Loading verification...</div>}>
           <VerifyEmailStatus />
         </Suspense>
       </main>
