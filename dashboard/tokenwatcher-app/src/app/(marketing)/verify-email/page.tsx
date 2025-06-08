@@ -1,10 +1,10 @@
-// File: dashboard/tokenwatcher-app/src/app/(marketing)/verify-email/page.tsx
-"use client";
-export const dynamic = 'force-dynamic';
+"use client"
+export const dynamic = 'force-dynamic'
 
-import React, { useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { useTheme } from 'next-themes';
+import React, { useEffect, useState } from "react"
+import { useSearchParams, useRouter } from "next/navigation"
+import { useTheme } from "next-themes"
+import Link from "next/link"
 
 export default function VerifyEmailPage() {
   const { theme, systemTheme } = useTheme();
