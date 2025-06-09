@@ -1,7 +1,7 @@
-// File: api/app/auth.py
+# api/app/auth.py
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List # <--- AÑADIDO 'List' AL IMPORT
+from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -92,9 +92,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 async def read_current_user(current_user: models.User = Depends(get_current_user)):
     return current_user
 
-# ====================================================================
-# ===           NUEVAS FUNCIONES PARA ADMINISTRACIÓN             ======
-# ====================================================================
+# --- NUEVAS FUNCIONES PARA ADMINISTRACIÓN ---
 
 def get_current_admin_user(current_user: models.User = Depends(get_current_user)):
     """
@@ -121,9 +119,7 @@ def read_all_users(
     return users
 
 
-# ====================================================================
-# ===         RESTO DE ENDPOINTS DE AUTENTICACIÓN                ======
-# ====================================================================
+# --- RESTO DE ENDPOINTS DE AUTENTICACIÓN ---
 
 @router.post("/forgot-password", response_model=schemas.ForgotPasswordResponse, status_code=status.HTTP_200_OK, tags=["Authentication"])
 async def forgot_password(payload: schemas.ForgotPasswordRequest = Body(...), db: Session = Depends(get_db)):

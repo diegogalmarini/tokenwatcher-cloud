@@ -1,4 +1,4 @@
-# File: api/app/config.py
+# api/app/config.py
 
 import os
 from pydantic_settings import BaseSettings
@@ -43,6 +43,7 @@ class Settings(BaseSettings):
 
     class Config:
         case_sensitive = True
+        # Apunta a tu .env (que debe estar en la raíz del proyecto)
         env_file = ".env"
 
 # Instancia única de Settings
