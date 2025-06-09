@@ -1,4 +1,4 @@
-# api/app/config.py
+// File: api/app/config.py
 
 import os
 from pydantic_settings import BaseSettings
@@ -36,12 +36,15 @@ class Settings(BaseSettings):
     MAIL_FROM: str
 
     # --- URL base de tu Frontend (para construir links de reset/verificación) ---
-    FRONTEND_BASE_URL: str  # asegúrate en Render de fijar esta variable a https://www.tokenwatcher.app
+    FRONTEND_BASE_URL: str
+
+    # --- NUEVA VARIABLE PARA EL EMAIL DEL ADMINISTRADOR ---
+    ADMIN_EMAIL: str
 
     class Config:
         case_sensitive = True
-        # Apunta a tu .env (un nivel arriba de api/app)
-        env_file = "../.env"
+        # Apunta a tu .env (que debe estar en la raíz del proyecto)
+        env_file = ".env"
 
 # Instancia única de Settings
 settings = Settings()

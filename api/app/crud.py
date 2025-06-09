@@ -1,4 +1,4 @@
-# api/app/crud.py
+// File: api/app/crud.py
 
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import desc, asc, func as sql_func, distinct
@@ -61,6 +61,13 @@ def get_user(db: Session, user_id: int) -> models.User | None:
 def get_user_by_email(db: Session, email: str) -> models.User | None:
     return db.query(models.User).filter(models.User.email == email).first()
 
+# --- NUEVA FUNCIÓN PARA LISTAR TODOS LOS USUARIOS ---
+def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[models.User]:
+    """
+    Retrieve all users with pagination.
+    """
+    return db.query(models.User).order_by(models.User.id).offset(skip).limit(limit).all()
+
 def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) -> models.User:
     """
     Crea un usuario en la base de datos con is_active=False por defecto.
@@ -69,15 +76,13 @@ def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) 
     db_user = models.User(
         email=user.email,
         hashed_password=hashed_password,
-        is_active=is_active  # <— ahora es False por defecto
+        is_active=is_active
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
 
-
-# --- NUEVA FUNCIÓN PARA ACTUALIZAR LA CONTRASEÑA DEL USUARIO ---
 def set_user_password(db: Session, user: models.User, new_password: str) -> models.User:
     """
     Hashea la nueva contraseña y la guarda en el registro del usuario.
@@ -90,6 +95,7 @@ def set_user_password(db: Session, user: models.User, new_password: str) -> mode
 
 
 # --- Watcher CRUD ---
+# (El resto del archivo no cambia)
 def get_watcher_db(db: Session, watcher_id: int, owner_id: Optional[int] = None) -> models.Watcher:
     query = db.query(models.Watcher).options(selectinload(models.Watcher.transports))
     query = query.filter(models.Watcher.id == watcher_id)
@@ -162,6 +168,7 @@ def delete_watcher(db: Session, watcher_id: int, owner_id: int) -> None:
 
 
 # --- Event (TokenEvent) CRUD ---
+# (El resto del archivo no cambia)
 def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[models.TokenEvent]:
     existing_event = db.query(models.TokenEvent).filter(
         models.TokenEvent.transaction_hash == event_data.transaction_hash,
@@ -218,14 +225,12 @@ def get_all_events_for_owner(
 
     if active_watchers_only:
         base_query = base_query.filter(models.Watcher.is_active == True)
-
     if watcher_id is not None:
         base_query = base_query.filter(models.TokenEvent.watcher_id == watcher_id)
     if token_address:
         base_query = base_query.filter(models.TokenEvent.token_address_observed.ilike(f"%{token_address}%"))
     if token_symbol:
         base_query = base_query.filter(models.TokenEvent.token_symbol.ilike(f"%{token_symbol}%"))
-
     if start_date:
         start_date_utc = datetime(start_date.year, start_date.month, start_date.day, 0, 0, 0)
         base_query = base_query.filter(models.TokenEvent.created_at >= start_date_utc)
@@ -233,7 +238,6 @@ def get_all_events_for_owner(
         from datetime import timedelta
         end_date_utc_exclusive = datetime(end_date.year, end_date.month, end_date.day) + timedelta(days=1)
         base_query = base_query.filter(models.TokenEvent.created_at < end_date_utc_exclusive)
-
     if from_address:
         base_query = base_query.filter(models.TokenEvent.from_address.ilike(from_address))
     if to_address:
@@ -242,9 +246,7 @@ def get_all_events_for_owner(
         base_query = base_query.filter(models.TokenEvent.usd_value >= min_usd_value)
     if max_usd_value is not None:
         base_query = base_query.filter(models.TokenEvent.usd_value <= max_usd_value)
-
     total_events = base_query.with_entities(sql_func.count(models.TokenEvent.id)).scalar() or 0
-
     sort_map = {
         "created_at": models.TokenEvent.created_at,
         "amount": models.TokenEvent.amount,
@@ -252,12 +254,10 @@ def get_all_events_for_owner(
         "block_number": models.TokenEvent.block_number,
     }
     sort_column = sort_map.get(sort_by, models.TokenEvent.created_at)
-
     if sort_order.lower() == "asc":
         ordered_query = base_query.order_by(asc(sort_column))
     else:
         ordered_query = base_query.order_by(desc(sort_column))
-
     events = ordered_query.offset(skip).limit(limit).all()
     return {"total_events": total_events, "events": events}
 
@@ -281,6 +281,7 @@ def get_distinct_token_symbols_for_owner(db: Session, owner_id: int) -> List[str
     return symbols
 
 # --- Transport CRUD ---
+# (El resto del archivo no cambia)
 def get_transport_by_id(db: Session, transport_id: int, owner_id: int) -> models.Transport | None:
     transport = (
         db.query(models.Transport)

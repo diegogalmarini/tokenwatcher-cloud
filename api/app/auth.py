@@ -1,7 +1,7 @@
-# api/app/auth.py
+// File: api/app/auth.py
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, List # <--- AÑADIDO 'List' AL IMPORT
 
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -9,7 +9,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
-from . import crud, models, schemas # Añadido 'models' para el type hint
+from . import crud, models, schemas
 from .database import get_db
 from .config import settings
 from .email_utils import send_reset_email, send_verification_email
@@ -55,9 +55,7 @@ async def register_new_user(user_in: schemas.UserCreate, db: Session = Depends(g
     db_user = crud.get_user_by_email(db, email=user_in.email)
     if db_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
-    # Crear usuario inactivo
     new_user = crud.create_user(db=db, user=user_in, is_active=False)
-    # Generar y enviar token de verificación
     verify_token = create_access_token({"sub": new_user.email, "type": "verify"}, expires_delta=timedelta(hours=24))
     if not send_verification_email(new_user.email, verify_token):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Could not send verification email.")
@@ -90,21 +88,47 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     access_token = create_access_token({"sub": user.email}, expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
     return {"access_token": access_token, "token_type": "bearer"}
 
-# ====================================================================
-# === ENDPOINT AÑADIDO PARA OBTENER DATOS DEL USUARIO LOGUEADO  ======
-# ====================================================================
 @router.get("/users/me", response_model=schemas.UserRead, tags=["Authentication"])
 async def read_current_user(current_user: models.User = Depends(get_current_user)):
-    """
-    Get current logged-in user details.
-    """
     return current_user
+
+# ====================================================================
+# ===           NUEVAS FUNCIONES PARA ADMINISTRACIÓN             ======
+# ====================================================================
+
+def get_current_admin_user(current_user: models.User = Depends(get_current_user)):
+    """
+    Checks if the current user is the admin based on the email in settings.
+    """
+    if current_user.email != settings.ADMIN_EMAIL:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to perform this action."
+        )
+    return current_user
+
+@router.get("/admin/users", response_model=List[schemas.UserRead], tags=["Admin"])
+def read_all_users(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    admin_user: models.User = Depends(get_current_admin_user)
+):
+    """
+    Retrieve all users. Requires admin privileges.
+    """
+    users = crud.get_users(db, skip=skip, limit=limit)
+    return users
+
+
+# ====================================================================
+# ===         RESTO DE ENDPOINTS DE AUTENTICACIÓN                ======
+# ====================================================================
 
 @router.post("/forgot-password", response_model=schemas.ForgotPasswordResponse, status_code=status.HTTP_200_OK, tags=["Authentication"])
 async def forgot_password(payload: schemas.ForgotPasswordRequest = Body(...), db: Session = Depends(get_db)):
     user = crud.get_user_by_email(db, email=payload.email)
     if not user or not user.is_active:
-        # Aún así devolvemos un mensaje genérico por seguridad
         return {"msg": "If your email is registered, you will receive a password reset link."}
     reset_token = create_access_token({"sub": user.email, "type": "reset"}, expires_delta=timedelta(minutes=15))
     if not send_reset_email(user.email, reset_token):
