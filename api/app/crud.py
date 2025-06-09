@@ -92,6 +92,22 @@ def set_user_password(db: Session, user: models.User, new_password: str) -> mode
     db.refresh(user)
     return user
 
+# --- NUEVA FUNCIÓN PARA BORRAR UN USUARIO Y SUS DATOS ---
+def delete_user_by_id(db: Session, user_id: int) -> Optional[models.User]:
+    """
+    Deletes a user and their associated data (watchers, transports, events)
+    by their ID. The cascade is handled by the database relationship settings.
+    """
+    user_to_delete = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user_to_delete:
+        return None # El endpoint se encargará de lanzar el error 404
+    
+    # Si la relación en el modelo User tiene cascade="all, delete-orphan",
+    # SQLAlchemy se encargará de borrar los watchers, transports y events asociados.
+    db.delete(user_to_delete)
+    db.commit()
+    return user_to_delete
+
 
 # --- Watcher CRUD ---
 def get_watcher_db(db: Session, watcher_id: int, owner_id: Optional[int] = None) -> models.Watcher:
@@ -234,7 +250,6 @@ def get_all_events_for_owner(
         start_date_utc = datetime(start_date.year, start_date.month, start_date.day, 0, 0, 0)
         base_query = base_query.filter(models.TokenEvent.created_at >= start_date_utc)
     if end_date:
-        from datetime import timedelta
         end_date_utc_exclusive = datetime(end_date.year, end_date.month, end_date.day) + timedelta(days=1)
         base_query = base_query.filter(models.TokenEvent.created_at < end_date_utc_exclusive)
 

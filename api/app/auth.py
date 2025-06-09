@@ -118,6 +118,22 @@ def read_all_users(
     users = crud.get_users(db, skip=skip, limit=limit)
     return users
 
+# --- NUEVO ENDPOINT PARA BORRAR UN USUARIO (SOLO ADMINS) ---
+@router.delete("/admin/users/{user_id}", status_code=status.HTTP_200_OK, tags=["Admin"])
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin_user: models.User = Depends(get_current_admin_user)
+):
+    """
+    Delete a user and all their associated data. Requires admin privileges.
+    """
+    deleted_user = crud.delete_user_by_id(db=db, user_id=user_id)
+    if not deleted_user:
+        raise HTTPException(status_code=404, detail=f"User with id {user_id} not found")
+    
+    return {"detail": f"User {deleted_user.email} and all associated data deleted successfully."}
+
 
 # --- RESTO DE ENDPOINTS DE AUTENTICACIÓN ---
 
