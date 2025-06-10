@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, get_db
 from . import models, schemas, crud, auth
 from .config import settings
-from .clients import coingecko_client # Importamos nuestro nuevo cliente
+from .clients import coingecko_client
 
 # --- Inicializa tablas ---
 try:
@@ -24,7 +24,7 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.8.0", # Incrementamos versión por nueva funcionalidad
+    version="0.8.1",
     description="API para monitorizar transferencias de tokens ERC-20, con filtrado y ordenación de eventos."
 )
 
@@ -47,7 +47,8 @@ app.add_middleware(
 # --- INCLUIR ROUTER /auth ---
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
-# --- BLOQUE DE DEPURACIÓN PARA VER RUTAS REGISTRADAS ---
+
+# --- BLOQUE DE DEPURACIÓN (Podemos quitarlo después de que todo funcione) ---
 @app.on_event("startup")
 def on_startup():
     print("--- Rutas Registradas en la API ---")
@@ -55,7 +56,7 @@ def on_startup():
         if hasattr(route, "methods"):
             print(f"Path: {route.path}, Methods: {route.methods}, Name: {route.name}")
     print("------------------------------------")
-# --- FIN DEL BLOQUE DE DEPURACIÓN ---
+
 
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Session) -> schemas.WatcherRead:
     active_webhook_url: Optional[HttpUrl] = None
@@ -96,6 +97,31 @@ def api_root_demo():
     return {"message": "🎉 Welcome to TokenWatcher API! Visit /docs for API documentation."}
 
 
+# --- NUEVO ENDPOINT PARA OBTENER INFO DE TOKENS ---
+@app.get("/tokens/info/{contract_address}", response_model=schemas.TokenInfo, tags=["Tokens"])
+def get_token_info(contract_address: str):
+    """
+    Obtiene datos de mercado para un token y sugiere un umbral.
+    """
+    market_data = coingecko_client.get_token_market_data(contract_address)
+    
+    if not market_data:
+        raise HTTPException(status_code=404, detail="Could not fetch market data for this token address.")
+
+    suggested_threshold = market_data["total_volume_24h"] * settings.SUGGESTED_THRESHOLD_VOLUME_PERCENT
+    
+    min_relative = market_data["total_volume_24h"] * settings.MINIMUM_THRESHOLD_VOLUME_PERCENT
+    minimum_threshold = max(settings.MINIMUM_WATCHER_THRESHOLD_USD, min_relative)
+
+    return schemas.TokenInfo(
+        price=market_data["price"],
+        market_cap=market_data["market_cap"],
+        total_volume_24h=market_data["total_volume_24h"],
+        suggested_threshold=suggested_threshold,
+        minimum_threshold=minimum_threshold
+    )
+
+
 # --- Watchers CRUD ---
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
 def create_new_watcher_for_current_user(
@@ -103,7 +129,7 @@ def create_new_watcher_for_current_user(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    # --- VALIDACIÓN DE LÍMITE DE WATCHERS ---
+    # Lógica de validación de umbral y límite de watchers...
     if not current_user.is_admin:
         watcher_count = crud.count_watchers_for_owner(db, owner_id=current_user.id)
         if watcher_count >= current_user.watcher_limit:
@@ -111,9 +137,7 @@ def create_new_watcher_for_current_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Watcher limit reached. You can create a maximum of {current_user.watcher_limit} watchers."
             )
-
-    # --- NUEVA VALIDACIÓN DE UMBRAL INTELIGENTE ---
-    if not current_user.is_admin:
+            
         market_data = coingecko_client.get_token_market_data(watcher_data.token_address)
         if market_data and market_data.get("total_volume_24h", 0) > 0:
             min_relative_threshold = market_data["total_volume_24h"] * settings.MINIMUM_THRESHOLD_VOLUME_PERCENT
@@ -125,7 +149,6 @@ def create_new_watcher_for_current_user(
                     detail=f"Threshold is too low. For this token, the minimum allowed threshold is ${effective_min_threshold:,.2f} USD."
                 )
         else:
-            # Si CoinGecko falla o no hay volumen, aplicamos solo el mínimo absoluto como salvaguarda
             if watcher_data.threshold < settings.MINIMUM_WATCHER_THRESHOLD_USD:
                  raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -134,7 +157,7 @@ def create_new_watcher_for_current_user(
 
     db_watcher = crud.create_watcher(db=db, watcher_data=watcher_data, owner_id=current_user.id)
     db.refresh(db_watcher, attribute_names=['transports'])
-    return _populate_watcher_read_from_db_watcher(db_watcher, db)
+    return _populate_watcher_read_from_db_watcher(db_watcher, db)return _populate_watcher_read_from_db_watcher(db_watcher, db)
 
 
 @app.get("/watchers/", response_model=List[schemas.WatcherRead], tags=["Watchers"])
