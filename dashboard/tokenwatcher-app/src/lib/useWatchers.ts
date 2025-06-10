@@ -1,4 +1,6 @@
 // dashboard/tokenwatcher-app/src/lib/useWatchers.ts
+// NINGÚN CAMBIO ES NECESARIO EN ESTE ARCHIVO. YA ESTÁ CORRECTO.
+
 import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -54,20 +56,20 @@ export function useWatchers() {
       });
       if (!res.ok) {
         if (res.status === 401) {
-          setError("Your session may have expired. Please login again."); // English
+          setError("Your session may have expired. Please login again.");
           logout();
         } else {
           const errorData = await res.json().catch(() => ({ detail: `Failed to fetch watchers, status: ${res.status}` }));
-          setError(errorData.detail || `Failed to fetch watchers, status: ${res.status}`); // English
+          setError(errorData.detail || `Failed to fetch watchers, status: ${res.status}`);
         }
         setWatchers([]);
         return;
       }
       const data: Watcher[] = await res.json();
       setWatchers(data);
-    } catch (err: unknown) { // Changed to unknown
+    } catch (err: unknown) {
       console.error("fetchWatchers error:", err);
-      let errorMessage = "An unexpected error occurred while fetching watchers."; // English
+      let errorMessage = "An unexpected error occurred while fetching watchers.";
       if (err instanceof Error) errorMessage = err.message;
       else if (typeof err === 'string') errorMessage = err;
       setError(errorMessage);
@@ -79,8 +81,8 @@ export function useWatchers() {
 
   const createWatcher = useCallback(async (payload: WatcherCreatePayload) => {
     if (!token) {
-      setError("Not authenticated to create watcher."); // English
-      throw new Error("Not authenticated"); // English
+      setError("Not authenticated to create watcher.");
+      throw new Error("Not authenticated");
     }
     setIsLoading(true);
     setError(null);
@@ -95,24 +97,24 @@ export function useWatchers() {
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ detail: `Failed to create watcher, status: ${res.status}` }));
-        throw new Error(errorData.detail || `Server error: ${res.status}`); // English
+        throw new Error(errorData.detail || `Server error: ${res.status}`);
       }
       await fetchWatchers();
-    } catch (err: unknown) { // Changed to unknown
+    } catch (err: unknown) {
       console.error("createWatcher error:", err);
-      let errorMessage = "An unexpected error occurred while creating the watcher."; // English
+      let errorMessage = "An unexpected error occurred while creating the watcher.";
       if (err instanceof Error) errorMessage = err.message;
       else if (typeof err === 'string') errorMessage = err;
       setError(errorMessage);
       setIsLoading(false);
-      throw err; // Re-throw for form to handle
+      throw err;
     }
   }, [token, fetchWatchers]);
 
   const updateWatcher = useCallback(async (id: number, payload: WatcherUpdatePayload) => {
     if (!token) {
-      setError("Not authenticated to update watcher."); // English
-      throw new Error("Not authenticated"); // English
+      setError("Not authenticated to update watcher.");
+      throw new Error("Not authenticated");
     }
     setIsLoading(true);
     setError(null);
@@ -127,24 +129,24 @@ export function useWatchers() {
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ detail: `Failed to update watcher, status: ${res.status}` }));
-        throw new Error(errorData.detail || `Server error: ${res.status}`); // English
+        throw new Error(errorData.detail || `Server error: ${res.status}`);
       }
       await fetchWatchers();
-    } catch (err: unknown) { // Changed to unknown
+    } catch (err: unknown) {
       console.error("updateWatcher error:", err);
-      let errorMessage = "An unexpected error occurred while updating the watcher."; // English
+      let errorMessage = "An unexpected error occurred while updating the watcher.";
       if (err instanceof Error) errorMessage = err.message;
       else if (typeof err === 'string') errorMessage = err;
       setError(errorMessage);
       setIsLoading(false);
-      throw err; // Re-throw for form to handle
+      throw err;
     }
   }, [token, fetchWatchers]);
 
   const deleteWatcher = useCallback(async (id: number) => {
     if (!token) {
-      setError("Not authenticated to delete watcher."); // English
-      throw new Error("Not authenticated"); // English
+      setError("Not authenticated to delete watcher.");
+      throw new Error("Not authenticated");
     }
     setIsLoading(true);
     setError(null);
@@ -157,17 +159,17 @@ export function useWatchers() {
       });
       if (!res.ok && res.status !== 204) {
         const errorData = await res.json().catch(() => ({ detail: `Failed to delete watcher, status: ${res.status}` }));
-        throw new Error(errorData.detail || `Server error: ${res.status}`); // English
+        throw new Error(errorData.detail || `Server error: ${res.status}`);
       }
       await fetchWatchers();
-    } catch (err: unknown) { // Changed to unknown
+    } catch (err: unknown) {
       console.error("deleteWatcher error:", err);
-      let errorMessage = "An unexpected error occurred while deleting the watcher."; // English
+      let errorMessage = "An unexpected error occurred while deleting the watcher.";
       if (err instanceof Error) errorMessage = err.message;
       else if (typeof err === 'string') errorMessage = err;
       setError(errorMessage);
       setIsLoading(false);
-      throw err; // Re-throw for alert/UI to handle
+      throw err;
     }
   }, [token, fetchWatchers]);
 
@@ -178,7 +180,6 @@ export function useWatchers() {
       setWatchers([]);
     }
   }, [token, fetchWatchers]);
-
 
   return {
     watchers,
