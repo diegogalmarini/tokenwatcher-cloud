@@ -88,7 +88,12 @@ class UserRead(UserBase):
     id: int
     is_active: bool
     created_at: datetime
-    is_admin: bool = False  # <-- CAMBIO AÑADIDO AQUÍ
+    is_admin: bool = False
+    
+    # --- NUEVOS CAMPOS PARA EL PANEL DE ADMIN ---
+    plan: str
+    watcher_count: int
+    watcher_limit: int
 
     class Config:
         from_attributes = True

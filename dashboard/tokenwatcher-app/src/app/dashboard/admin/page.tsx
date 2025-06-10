@@ -4,15 +4,18 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import ConfirmationModal from '@/components/common/ConfirmationModal'; // <-- 1. IMPORTAMOS EL NUEVO MODAL
+import ConfirmationModal from '@/components/common/ConfirmationModal';
 
-// Definimos el tipo de usuario completo que esperamos de la API de admin
+// --- 1. ACTUALIZAMOS LA INTERFAZ para incluir los nuevos campos de la API ---
 interface AdminUserView {
   id: number;
   email: string;
   is_active: boolean;
   is_admin: boolean;
   created_at: string;
+  plan: string;
+  watcher_count: number;
+  watcher_limit: number;
 }
 
 export default function AdminPage() {
@@ -23,10 +26,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- 2. AÑADIMOS ESTADOS PARA CONTROLAR EL MODAL ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<AdminUserView | null>(null);
-
 
   // Proteger la ruta: si el usuario no es admin, redirigirlo
   useEffect(() => {
@@ -64,16 +65,13 @@ export default function AdminPage() {
     }
   }, [user, fetchUsers]);
 
-
-  // --- 3. MODIFICAMOS LA LÓGICA DE BORRADO ---
-
-  // Esta función AHORA solo abre el modal
+  // Función para abrir el modal de borrado
   const handleDeleteClick = (userForDeletion: AdminUserView) => {
     setUserToDelete(userForDeletion);
     setIsModalOpen(true);
   };
   
-  // Esta es la función que se ejecutará al confirmar en el modal
+  // Función que se ejecuta al confirmar en el modal
   const handleConfirmDelete = async () => {
     if (!userToDelete || !token) return;
     
@@ -89,15 +87,11 @@ export default function AdminPage() {
       }
       // Actualizar la UI eliminando al usuario de la lista local
       setUsers(currentUsers => currentUsers.filter(u => u.id !== userToDelete.id));
-      // No necesitamos un alert, el modal se cierra y la lista se actualiza.
     } catch (err: any) {
-      // Podríamos mostrar un error más sofisticado si quisiéramos
       alert(`Error: ${err.message}`);
     }
   };
 
-
-  // Si todavía está cargando la info de autenticación o el usuario no es admin, no mostrar nada
   if (isAuthLoading || !user?.is_admin) {
     return (
       <div className="text-center p-10">
@@ -120,6 +114,9 @@ export default function AdminPage() {
               <tr className="w-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 uppercase text-sm leading-normal">
                 <th className="py-3 px-6 text-left">ID</th>
                 <th className="py-3 px-6 text-left">Email</th>
+                {/* --- 2. AÑADIMOS LAS NUEVAS CABECERAS A LA TABLA --- */}
+                <th className="py-3 px-6 text-center">Plan</th>
+                <th className="py-3 px-6 text-center">Usage</th>
                 <th className="py-3 px-6 text-center">Active</th>
                 <th className="py-3 px-6 text-center">Admin</th>
                 <th className="py-3 px-6 text-left">Created At</th>
@@ -131,12 +128,14 @@ export default function AdminPage() {
                 <tr key={u.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
                   <td className="py-3 px-6 text-left whitespace-nowrap">{u.id}</td>
                   <td className="py-3 px-6 text-left">{u.email}</td>
+                  {/* --- 3. AÑADIMOS LAS NUEVAS CELDAS CON LOS DATOS --- */}
+                  <td className="py-3 px-6 text-center">{u.plan}</td>
+                  <td className="py-3 px-6 text-center">{`${u.watcher_count} / ${u.watcher_limit}`}</td>
                   <td className="py-3 px-6 text-center">{u.is_active ? '✅' : '❌'}</td>
                   <td className="py-3 px-6 text-center">{u.is_admin ? '👑' : ''}</td>
                   <td className="py-3 px-6 text-left">{new Date(u.created_at).toLocaleString()}</td>
                   <td className="py-3 px-6 text-center">
                     <button
-                      // --- 4. ACTUALIZAMOS EL ONCLICK DEL BOTÓN ---
                       onClick={() => handleDeleteClick(u)}
                       className="bg-red-500 text-white py-1 px-3 rounded hover:bg-red-600 disabled:bg-gray-400"
                       disabled={u.id === user.id}
@@ -151,7 +150,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* --- 5. AÑADIMOS EL COMPONENTE MODAL AL FINAL --- */}
       {userToDelete && (
         <ConfirmationModal
           isOpen={isModalOpen}
