@@ -5,7 +5,7 @@ from sqlalchemy import (
     Integer,
     String,
     Float,
-    Numeric,
+    Numeric, # Asegúrate de que Numeric está importado
     Boolean,
     ForeignKey,
     DateTime,
@@ -30,13 +30,8 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
-    # --- NUEVA COLUMNA PARA EL LÍMITE DE WATCHERS POR USUARIO ---
-    # Usamos server_default para que los usuarios existentes y nuevos tengan el límite por defecto.
     watcher_limit: Mapped[int] = mapped_column(Integer, nullable=False, server_default=str(settings.DEFAULT_WATCHER_LIMIT))
-    
-    # --- NUEVA COLUMNA PARA EL TIPO DE PLAN ---
     plan: Mapped[str] = mapped_column(String, nullable=False, server_default="Free")
-
 
     watchers: Mapped[List["Watcher"]] = relationship(
         "Watcher", back_populates="owner", cascade="all, delete-orphan"
@@ -93,7 +88,10 @@ class TokenEvent(Base):
     token_address_observed: Mapped[str] = mapped_column(String, index=True)
     from_address: Mapped[str] = mapped_column(String, index=True)
     to_address: Mapped[str] = mapped_column(String, index=True)
-    amount: Mapped[float] = mapped_column(Numeric(30, 18))
+    
+    # --- CAMBIO AQUÍ: Aumentamos la precisión para aceptar números más grandes ---
+    amount: Mapped[float] = mapped_column(Numeric(78, 18))
+    
     transaction_hash: Mapped[str] = mapped_column(String, index=True)
     block_number: Mapped[int] = mapped_column(Integer)
     usd_value: Mapped[Optional[float]] = mapped_column(
