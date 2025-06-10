@@ -24,6 +24,7 @@ export default function WatcherList() {
   const [editing, setEditing] = useState<Partial<Watcher> | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
+
   useEffect(() => {
     if (token) {
       fetchWatchers();
@@ -78,36 +79,32 @@ export default function WatcherList() {
       } else {
         setFormError("An unexpected error occurred while saving the watcher.");
       }
+      // --- CAMBIO AQUÍ: Volvemos a lanzar el error para que el modal lo reciba ---
+      throw err;
     }
   };
 
-  // --- CAMBIO AQUÍ: Eliminado el 'if (confirm(...))' ---
   const handleDeleteWatcher = async (watcherId: number) => {
     try {
       await deleteWatcher(watcherId);
-      // fetchWatchers() ya es llamado dentro de deleteWatcher en el hook
     } catch (err: unknown) {
       console.error("Failed to delete watcher:", err);
       let message = "Error deleting watcher.";
       if (err instanceof Error) message = `Error deleting watcher: ${err.message}`;
       else if (typeof err === 'string') message = `Error deleting watcher: ${err}`;
-      // Considerar mostrar este error en un toast/notificación en lugar de un alert
       alert(message);
     }
   };
 
-  // --- CAMBIO AQUÍ: Eliminado el 'if (confirm(...))' ---
   const handleToggleActive = async (watcher: Watcher) => {
     const newActiveState = !watcher.is_active;
     try {
       await updateWatcher(watcher.id, { is_active: newActiveState });
-      // fetchWatchers() ya es llamado dentro de updateWatcher en el hook
     } catch (err: unknown) {
       console.error("Failed to toggle watcher active state:", err);
       let message = "Error updating watcher state.";
       if (err instanceof Error) message = `Error updating watcher state: ${err.message}`;
       else if (typeof err === 'string') message = `Error updating watcher state: ${err}`;
-      // Considerar mostrar este error en un toast/notificación en lugar de un alert
       alert(message);
     }
   };
@@ -115,9 +112,7 @@ export default function WatcherList() {
   if (isLoading && watchers.length === 0) {
       return <p className="text-center text-gray-500 dark:text-gray-400 py-8">Loading watchers...</p>;
   }
-
-  // El error que "borra la pantalla" se muestra aquí. Con el cambio en useWatchers.ts,
-  // este error ya no debería dispararse al crear/editar/borrar, solo si falla la carga inicial.
+  
   if (error) {
       return <p className="text-center text-red-500 py-8">Error loading watchers: {error}</p>;
   }
