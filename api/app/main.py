@@ -15,9 +15,12 @@ from .config import settings
 
 # --- Inicializa tablas ---
 try:
-    print("ℹ️ [DB_INIT] Intentando crear/verificar todas las tablas definidas en Base...")
+    print("ℹ️ [DB_INIT] Forzando la re-creación de todas las tablas...")
+    # --- LÍNEA AÑADIDA TEMPORALMENTE ---
+    models.Base.metadata.drop_all(bind=engine) # Borra todas las tablas existentes
+    
     models.Base.metadata.create_all(bind=engine)
-    print("✅ [DB_INIT] Tablas verificadas/creadas con éxito.")
+    print("✅ [DB_INIT] Tablas re-creadas con éxito con el nuevo schema.")
 except Exception as e:
     print(f"❌ [DB_INIT_ERROR] No se pudieron crear/verificar las tablas: {e}")
 
