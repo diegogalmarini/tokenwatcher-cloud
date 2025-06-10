@@ -59,13 +59,13 @@ def get_user(db: Session, user_id: int) -> models.User | None:
     return db.query(models.User).filter(models.User.id == user_id).first()
 
 def get_user_by_email(db: Session, email: str) -> models.User | None:
-    return db.query(models.User).filter(models.User.email == email).first()
+    return db.query(models.User).options(selectinload(models.User.watchers)).filter(models.User.email == email).first()
 
 def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[models.User]:
     """
-    Retrieve all users with pagination.
+    Retrieve all users with pagination. The watcher_count is handled by the model property.
     """
-    return db.query(models.User).order_by(models.User.id).offset(skip).limit(limit).all()
+    return db.query(models.User).options(selectinload(models.User.watchers)).order_by(models.User.id).offset(skip).limit(limit).all()
 
 def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) -> models.User:
     """
@@ -106,6 +106,25 @@ def delete_user_by_id(db: Session, user_id: int) -> Optional[models.User]:
     db.delete(user_to_delete)
     db.commit()
     return user_to_delete
+
+# --- NUEVA FUNCIÓN PARA ACTUALIZAR USUARIOS COMO ADMIN ---
+def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserUpdateAdmin) -> Optional[models.User]:
+    """
+    Updates a user's data from the admin panel (e.g. watcher_limit, is_active).
+    """
+    db_user = get_user(db, user_id=user_id)
+    if not db_user:
+        return None
+
+    update_data = user_update_data.model_dump(exclude_unset=True)
+
+    for field, value in update_data.items():
+        if hasattr(db_user, field):
+            setattr(db_user, field, value)
+    
+    db.commit()
+    db.refresh(db_user)
+    return db_user
 
 
 # --- Watcher CRUD ---

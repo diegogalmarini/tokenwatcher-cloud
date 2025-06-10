@@ -27,7 +27,6 @@ class TokenEventRead(TokenEventBase):
     class Config:
         from_attributes = True
 
-# --- SCHEMA PARA RESPUESTA PAGINADA DE EVENTOS ---
 class PaginatedTokenEventResponse(BaseModel):
     total_events: int
     events: List[TokenEventRead]
@@ -89,14 +88,19 @@ class UserRead(UserBase):
     is_active: bool
     created_at: datetime
     is_admin: bool = False
-    
-    # --- NUEVOS CAMPOS PARA EL PANEL DE ADMIN ---
     plan: str
     watcher_count: int
     watcher_limit: int
 
     class Config:
         from_attributes = True
+
+# --- NUEVO SCHEMA PARA ACTUALIZACIONES DE ADMIN ---
+class UserUpdateAdmin(BaseModel):
+    # Hacemos los campos opcionales para que el admin pueda actualizar solo lo que necesite
+    watcher_limit: Optional[int] = None
+    is_active: Optional[bool] = None
+    plan: Optional[str] = None
 
 
 class Token(BaseModel):

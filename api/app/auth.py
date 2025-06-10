@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from . import crud, models, schemas
 from .database import get_db
 from .config import settings
-from .email_utils import send_reset_email, send_verification_email
+from .email_utils import send_reset_email, send_verification_email, send_watcher_limit_update_email
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
@@ -92,13 +92,13 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 async def read_current_user(current_user: models.User = Depends(get_current_user)):
     return current_user
 
-# --- NUEVAS FUNCIONES PARA ADMINISTRACIÓN ---
+# --- FUNCIONES PARA ADMINISTRACIÓN ---
 
 def get_current_admin_user(current_user: models.User = Depends(get_current_user)):
     """
     Checks if the current user is the admin based on the email in settings.
     """
-    if current_user.email != settings.ADMIN_EMAIL:
+    if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to perform this action."
@@ -118,7 +118,6 @@ def read_all_users(
     users = crud.get_users(db, skip=skip, limit=limit)
     return users
 
-# --- NUEVO ENDPOINT PARA BORRAR UN USUARIO (SOLO ADMINS) ---
 @router.delete("/admin/users/{user_id}", status_code=status.HTTP_200_OK, tags=["Admin"])
 def delete_user(
     user_id: int,
@@ -133,6 +132,27 @@ def delete_user(
         raise HTTPException(status_code=404, detail=f"User with id {user_id} not found")
     
     return {"detail": f"User {deleted_user.email} and all associated data deleted successfully."}
+
+# --- NUEVO ENDPOINT PARA MODIFICAR USUARIOS (SOLO ADMINS) ---
+@router.patch("/admin/users/{user_id}", response_model=schemas.UserRead, tags=["Admin"])
+def update_user_as_admin(
+    user_id: int,
+    user_update: schemas.UserUpdateAdmin,
+    db: Session = Depends(get_db),
+    admin_user: models.User = Depends(get_current_admin_user)
+):
+    """
+    Update a user's details (e.g., watcher_limit, is_active). Requires admin privileges.
+    """
+    updated_user = crud.update_user_admin(db, user_id=user_id, user_update_data=user_update)
+    if not updated_user:
+        raise HTTPException(status_code=404, detail=f"User with id {user_id} not found")
+    
+    # Si se actualizó el límite de watchers, enviar email de notificación
+    if user_update.watcher_limit is not None:
+        send_watcher_limit_update_email(updated_user.email, updated_user.watcher_limit)
+        
+    return updated_user
 
 
 # --- RESTO DE ENDPOINTS DE AUTENTICACIÓN ---

@@ -29,6 +29,14 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    
+    # --- NUEVA COLUMNA PARA EL LÍMITE DE WATCHERS POR USUARIO ---
+    # Usamos server_default para que los usuarios existentes y nuevos tengan el límite por defecto.
+    watcher_limit: Mapped[int] = mapped_column(Integer, nullable=False, server_default=str(settings.DEFAULT_WATCHER_LIMIT))
+    
+    # --- NUEVA COLUMNA PARA EL TIPO DE PLAN ---
+    plan: Mapped[str] = mapped_column(String, nullable=False, server_default="Free")
+
 
     watchers: Mapped[List["Watcher"]] = relationship(
         "Watcher", back_populates="owner", cascade="all, delete-orphan"
@@ -37,22 +45,9 @@ class User(Base):
     @property
     def is_admin(self) -> bool:
         return self.email == settings.ADMIN_EMAIL
-
-    @property
-    def plan(self) -> str:
-        return "Free"
-
-    @property
-    def watcher_limit(self) -> int:
-        if self.is_admin:
-            return 9999
-        return settings.DEFAULT_WATCHER_LIMIT
         
-    # --- NUEVA PROPIEDAD PARA CALCULAR EL CONTEO DE WATCHERS ---
     @property
     def watcher_count(self) -> int:
-        # SQLAlchemy cargará la relación 'watchers' y podremos contar su longitud.
-        # Esto es eficiente para un solo usuario, y Pydantic lo usará automáticamente.
         return len(self.watchers)
 
 
