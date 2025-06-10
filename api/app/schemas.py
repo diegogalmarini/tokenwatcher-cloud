@@ -115,6 +115,7 @@ class TokenRead(BaseModel):
     class Config:
         from_attributes = True
 
+
 # --- NUEVO SCHEMA PARA LA INFORMACIÓN DE UN TOKEN ---
 class TokenInfo(BaseModel):
     price: float

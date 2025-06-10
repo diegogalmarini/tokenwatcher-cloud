@@ -3,6 +3,7 @@ import requests
 import time
 import logging
 from typing import Optional, Dict, Any
+from ..config import settings # Importamos la configuración para acceder a la API Key
 
 # Configuración del logger para este módulo
 logger = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ def get_historical_price_usd(token_address: str, timestamp: int, platform: str =
         "vs_currency": "usd",
         "from": str(from_timestamp),
         "to": str(to_timestamp),
+        "x_cg_demo_api_key": settings.COINGECKO_API_KEY # <-- AÑADIDO: Usamos la API Key
     }
 
     logger.info(f"  📞 [COINGECKO_CLIENT] Consultando precio para {contract_address_lower} cerca de {timestamp}...")
@@ -42,12 +44,9 @@ def get_historical_price_usd(token_address: str, timestamp: int, platform: str =
             logger.info(f"  ✅ [COINGECKO_CLIENT] Precio encontrado: {price:.4f} USD")
             return float(price)
         else:
-            logger.info(f"  ℹ️ [COINGECKO_CLIENT_INFO] No se encontró precio histórico para {contract_address_lower} en el rango {from_timestamp}-{to_timestamp}.")
+            logger.info(f"  ℹ️ [COINGECKO_CLIENT_INFO] No se encontró precio histórico para {contract_address_lower}.")
             return None
 
-    except requests.exceptions.Timeout:
-        logger.error(f"  ❌ [COINGECKO_CLIENT_ERROR] Timeout al consultar precio para {contract_address_lower}.")
-        return None
     except requests.exceptions.RequestException as e:
         logger.error(f"  ❌ [COINGECKO_CLIENT_ERROR] Error de red al consultar precio para {contract_address_lower}: {e}")
         return None
@@ -63,15 +62,20 @@ def get_token_market_data(contract_address: str, platform: str = "ethereum") -> 
     contract_address_lower = contract_address.lower()
     url = f"{COINGECKO_API_URL}/coins/{platform}/contract/{contract_address_lower}"
     
+    # Añadimos la API Key a los parámetros de la petición
+    params = {
+        "x_cg_demo_api_key": settings.COINGECKO_API_KEY
+    }
+    
     logger.info(f"  📞 [COINGECKO_CLIENT] Consultando datos de mercado para {contract_address_lower}...")
 
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, params=params, timeout=10)
         
         if response.status_code == 429:
             logger.warning("  ⚠️ [COINGECKO_CLIENT_WARN] Rate limited por CoinGecko. Esperando 10 segundos...")
             time.sleep(10)
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, params=params, timeout=10)
 
         response.raise_for_status()
         data = response.json()
