@@ -47,6 +47,15 @@ app.add_middleware(
 # --- INCLUIR ROUTER /auth ---
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
+# --- BLOQUE DE DEPURACIÓN PARA VER RUTAS REGISTRADAS ---
+@app.on_event("startup")
+def on_startup():
+    print("--- Rutas Registradas en la API ---")
+    for route in app.routes:
+        if hasattr(route, "methods"):
+            print(f"Path: {route.path}, Methods: {route.methods}, Name: {route.name}")
+    print("------------------------------------")
+# --- FIN DEL BLOQUE DE DEPURACIÓN ---
 
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Session) -> schemas.WatcherRead:
     active_webhook_url: Optional[HttpUrl] = None
