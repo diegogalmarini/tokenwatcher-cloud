@@ -11,10 +11,12 @@ import React, {
 } from "react";
 import { useRouter } from "next/navigation";
 
+// --- CAMBIO AQUÍ: AÑADIMOS is_admin ---
 interface User {
   id: number;
   email: string;
   is_active: boolean;
+  is_admin: boolean; // <-- AÑADIDO
 }
 
 interface AuthContextType {

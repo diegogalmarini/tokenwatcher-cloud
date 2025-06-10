@@ -31,7 +31,6 @@ class TokenEventRead(TokenEventBase):
 class PaginatedTokenEventResponse(BaseModel):
     total_events: int
     events: List[TokenEventRead]
-# --- FIN SCHEMA ---
 
 
 # --- SCHEMAS DE TRANSPORT ---
@@ -89,6 +88,7 @@ class UserRead(UserBase):
     id: int
     is_active: bool
     created_at: datetime
+    is_admin: bool = False  # <-- CAMBIO AÑADIDO AQUÍ
 
     class Config:
         from_attributes = True
@@ -101,7 +101,7 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     email: Optional[str] = None
 
-class TokenRead(BaseModel):  # Para /tokens/{contract_address}/volume
+class TokenRead(BaseModel):
     contract: str
     volume: float
 
@@ -109,7 +109,7 @@ class TokenRead(BaseModel):  # Para /tokens/{contract_address}/volume
         from_attributes = True
 
 
-# --- NUEVOS SCHEMAS PARA “FORGOT / RESET PASSWORD” ---
+# --- SCHEMAS PARA “FORGOT / RESET PASSWORD” ---
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 

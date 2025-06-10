@@ -26,7 +26,6 @@ export default function DashboardHeader() {
           : "bg-white text-gray-900 shadow-md"
       }`}
     >
-      {/* Ahora este div abarca todo el ancho: w-full, con padding de 1.5rem */}
       <div className="w-full h-full flex items-center justify-between px-6">
         {/* IZQUIERDA: Logo */}
         <Link href="/dashboard" className="flex items-center h-full">
@@ -47,11 +46,20 @@ export default function DashboardHeader() {
           </div>
         </Link>
 
-        {/* DERECHA: Salludo/Logout o Login/Sign up + toggle Dark/Light */}
-        <div className="flex items-center space-x-6">
+        {/* DERECHA: Menú de usuario y acciones */}
+        <div className="flex items-center space-x-4 md:space-x-6">
           {isAuthenticated && user ? (
             <>
-              <span className="text-sm">Hello, {user.email}</span>
+              {/* --- NUEVO: Enlace condicional al Panel de Admin --- */}
+              {user.is_admin && (
+                <Link
+                  href="/dashboard/admin"
+                  className="text-sm font-semibold text-blue-500 hover:underline"
+                >
+                  Admin Panel
+                </Link>
+              )}
+              <span className="hidden sm:inline text-sm">Hello, {user.email}</span>
               <LogoutButton />
             </>
           ) : (
@@ -83,35 +91,13 @@ export default function DashboardHeader() {
           >
             {isDark ? (
               /* Ícono SOL */
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6 text-yellow-400"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 2v2m0 16v2m8-10h2M2 12H4m15.364-6.364l1.414 1.414M4.222 19.778l1.414-1.414M19.778 19.778l-1.414-1.414M4.222 4.222l1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z"
-                />
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m8-10h2M2 12H4m15.364-6.364l1.414 1.414M4.222 19.778l1.414-1.414M19.778 19.778l-1.414-1.414M4.222 4.222l1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z" />
               </svg>
             ) : (
               /* Ícono LUNA */
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6 text-gray-600"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"
-                />
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" />
               </svg>
             )}
           </button>

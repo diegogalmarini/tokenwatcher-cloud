@@ -16,9 +16,10 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 from datetime import datetime
-from typing import List, Dict, Any, Optional  # <-- AÑADIDO Optional
+from typing import List, Dict, Any, Optional
 
 from .database import Base
+from .config import settings  # <-- AÑADIDO: Importamos la configuración
 
 class User(Base):
     __tablename__ = "users"
@@ -26,13 +27,18 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String, nullable=False)
-    # Cambiamos default=True a default=False para que inicialmente esté inactivo
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     watchers: Mapped[List["Watcher"]] = relationship(
         "Watcher", back_populates="owner", cascade="all, delete-orphan"
     )
+
+    # --- NUEVA PROPIEDAD PARA VERIFICAR SI ES ADMIN ---
+    @property
+    def is_admin(self) -> bool:
+        return self.email == settings.ADMIN_EMAIL
+
 
 class Watcher(Base):
     __tablename__ = "watchers"
@@ -81,12 +87,10 @@ class TokenEvent(Base):
     block_number: Mapped[int] = mapped_column(Integer)
     usd_value: Mapped[Optional[float]] = mapped_column(
         Numeric(20, 4), nullable=True
-    )  # Usamos Optional[float]
+    )
 
-    # --- NUEVOS CAMPOS para nombre y símbolo del token ---
-    token_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)   # <-- AÑADIDO
-    token_symbol: Mapped[Optional[str]] = mapped_column(String, nullable=True) # <-- AÑADIDO
-    # --- FIN NUEVOS CAMPOS ---
+    token_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    token_symbol: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), primary_key=True
