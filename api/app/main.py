@@ -24,7 +24,7 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.8.1",
+    version="0.8.0", # Incrementamos versión por nueva funcionalidad
     description="API para monitorizar transferencias de tokens ERC-20, con filtrado y ordenación de eventos."
 )
 
@@ -46,16 +46,6 @@ app.add_middleware(
 
 # --- INCLUIR ROUTER /auth ---
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-
-
-# --- BLOQUE DE DEPURACIÓN (Podemos quitarlo después de que todo funcione) ---
-@app.on_event("startup")
-def on_startup():
-    print("--- Rutas Registradas en la API ---")
-    for route in app.routes:
-        if hasattr(route, "methods"):
-            print(f"Path: {route.path}, Methods: {route.methods}, Name: {route.name}")
-    print("------------------------------------")
 
 
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Session) -> schemas.WatcherRead:
@@ -108,8 +98,10 @@ def get_token_info(contract_address: str):
     if not market_data:
         raise HTTPException(status_code=404, detail="Could not fetch market data for this token address.")
 
+    # Calcula el umbral sugerido basado en el % del volumen de 24h
     suggested_threshold = market_data["total_volume_24h"] * settings.SUGGESTED_THRESHOLD_VOLUME_PERCENT
     
+    # Calcula el mínimo permitido con la regla híbrida
     min_relative = market_data["total_volume_24h"] * settings.MINIMUM_THRESHOLD_VOLUME_PERCENT
     minimum_threshold = max(settings.MINIMUM_WATCHER_THRESHOLD_USD, min_relative)
 
@@ -129,7 +121,7 @@ def create_new_watcher_for_current_user(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    # Lógica de validación de umbral y límite de watchers...
+    # --- VALIDACIÓN DE LÍMITE DE WATCHERS (se mantiene) ---
     if not current_user.is_admin:
         watcher_count = crud.count_watchers_for_owner(db, owner_id=current_user.id)
         if watcher_count >= current_user.watcher_limit:
@@ -138,7 +130,10 @@ def create_new_watcher_for_current_user(
                 detail=f"Watcher limit reached. You can create a maximum of {current_user.watcher_limit} watchers."
             )
             
+    # --- NUEVA VALIDACIÓN DE UMBRAL INTELIGENTE ---
+    if not current_user.is_admin:
         market_data = coingecko_client.get_token_market_data(watcher_data.token_address)
+        # Si tenemos datos de mercado, aplicamos la regla híbrida
         if market_data and market_data.get("total_volume_24h", 0) > 0:
             min_relative_threshold = market_data["total_volume_24h"] * settings.MINIMUM_THRESHOLD_VOLUME_PERCENT
             effective_min_threshold = max(settings.MINIMUM_WATCHER_THRESHOLD_USD, min_relative_threshold)
@@ -149,6 +144,7 @@ def create_new_watcher_for_current_user(
                     detail=f"Threshold is too low. For this token, the minimum allowed threshold is ${effective_min_threshold:,.2f} USD."
                 )
         else:
+            # Si CoinGecko falla o no hay volumen, aplicamos solo el mínimo absoluto como salvaguarda
             if watcher_data.threshold < settings.MINIMUM_WATCHER_THRESHOLD_USD:
                  raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -157,7 +153,7 @@ def create_new_watcher_for_current_user(
 
     db_watcher = crud.create_watcher(db=db, watcher_data=watcher_data, owner_id=current_user.id)
     db.refresh(db_watcher, attribute_names=['transports'])
-    return _populate_watcher_read_from_db_watcher(db_watcher, db)return _populate_watcher_read_from_db_watcher(db_watcher, db)
+    return _populate_watcher_read_from_db_watcher(db_watcher, db)
 
 
 @app.get("/watchers/", response_model=List[schemas.WatcherRead], tags=["Watchers"])
