@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import engine, get_db
 from . import models, schemas, crud, auth
-from .config import settings  # <-- AÑADIDO: Importamos la configuración
+from .config import settings
 
 # --- Inicializa tablas ---
 try:
