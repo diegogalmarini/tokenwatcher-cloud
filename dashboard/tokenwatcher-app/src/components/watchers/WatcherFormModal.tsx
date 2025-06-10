@@ -1,7 +1,7 @@
 // File: dashboard/tokenwatcher-app/src/components/watchers/WatcherFormModal.tsx
 "use client";
 
-import React, { useState, useEffect, FormEvent } from "react";
+import React, { useState, useEffect, FormEvent, ReactNode } from "react"; // <-- 1. IMPORTAMOS ReactNode
 import Button from "@/components/ui/button";
 import { Watcher } from "@/lib/useWatchers";
 
@@ -33,7 +33,8 @@ export default function WatcherFormModal({
   const [tokenAddress, setTokenAddress] = useState("");
   const [threshold, setThreshold] = useState<number | string>("");
   const [webhookUrl, setWebhookUrl] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
+  // --- 2. CAMBIO: El estado de error ahora puede ser ReactNode para aceptar enlaces ---
+  const [error, setError] = useState<ReactNode | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -84,16 +85,23 @@ export default function WatcherFormModal({
       onClose();
     } catch (err: unknown) {
       console.error("Error in WatcherFormModal handleSubmit:", err);
-      // --- CAMBIO AQUÍ: MANEJO DE ERROR PERSONALIZADO PARA EL LÍMITE DE WATCHERS ---
+      // --- 3. CAMBIO: Lógica mejorada para mostrar el enlace al formulario ---
       if (err instanceof Error) {
-        // Comprobamos si el mensaje de error es el que envía nuestra API
         if (err.message.includes("Watcher limit reached")) {
-            setError(err.message); // Mostramos el mensaje exacto de la API
+          const feedbackFormUrl = 'https://forms.gle/GyuMXTX88PN1gppS8';
+          
+          const errorMessage = (
+            <span>
+              You have reached the Beta limit of 5 watchers. To request more, please{' '}
+              <a href={feedbackFormUrl} target="_blank" rel="noopener noreferrer" className="font-bold underline hover:text-blue-400">
+                fill out our feedback form
+              </a>.
+            </span>
+          );
+          setError(errorMessage);
         } else {
-            setError(err.message); // Para cualquier otro error, mostramos su mensaje
+          setError(err.message);
         }
-      } else if (typeof err === "string") {
-        setError(err);
       } else {
         setError("An unexpected error occurred.");
       }
@@ -147,13 +155,12 @@ export default function WatcherFormModal({
         </h2>
 
         {error && (
-          <p className="mb-4 text-sm text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900 p-3 rounded-md">
+          <div className="mb-4 text-sm text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900 p-3 rounded-md">
             {error}
-          </p>
+          </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Watcher Name */}
           <div>
             <label
               htmlFor="watcher-name"
@@ -172,7 +179,6 @@ export default function WatcherFormModal({
             />
           </div>
 
-          {/* Token Address */}
           <div>
             <label
               htmlFor="token-address"
@@ -191,7 +197,6 @@ export default function WatcherFormModal({
             />
           </div>
 
-          {/* Threshold */}
           <div>
             <label
               htmlFor="threshold"
@@ -211,7 +216,6 @@ export default function WatcherFormModal({
             />
           </div>
 
-          {/* Webhook URL */}
           <div>
             <label
               htmlFor="webhook-url"
@@ -230,7 +234,6 @@ export default function WatcherFormModal({
             />
           </div>
 
-          {/* Botones Cancel y Create/Save */}
           <div className="flex justify-end space-x-3 pt-4">
             <Button
               type="button"
