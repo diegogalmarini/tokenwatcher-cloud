@@ -1,7 +1,7 @@
 // dashboard/tokenwatcher-app/src/components/watchers/WatcherList.tsx
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import Button from "@/components/ui/button";
 import WatcherFormModal from "./WatcherFormModal";
 import WatcherTable from "./WatcherTable";
@@ -23,7 +23,6 @@ export default function WatcherList() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Watcher> | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-
 
   useEffect(() => {
     if (token) {
@@ -82,34 +81,34 @@ export default function WatcherList() {
     }
   };
 
+  // --- CAMBIO AQUÍ: Eliminado el 'if (confirm(...))' ---
   const handleDeleteWatcher = async (watcherId: number) => {
-    if (confirm(`Are you sure you want to delete watcher #${watcherId}?`)) {
-      try {
-        await deleteWatcher(watcherId);
-        fetchWatchers();
-      } catch (err: unknown) {
-        console.error("Failed to delete watcher:", err);
-        let message = "Error deleting watcher.";
-        if (err instanceof Error) message = `Error deleting watcher: ${err.message}`;
-        else if (typeof err === 'string') message = `Error deleting watcher: ${err}`;
-        alert(message);
-      }
+    try {
+      await deleteWatcher(watcherId);
+      // fetchWatchers() ya es llamado dentro de deleteWatcher en el hook
+    } catch (err: unknown) {
+      console.error("Failed to delete watcher:", err);
+      let message = "Error deleting watcher.";
+      if (err instanceof Error) message = `Error deleting watcher: ${err.message}`;
+      else if (typeof err === 'string') message = `Error deleting watcher: ${err}`;
+      // Considerar mostrar este error en un toast/notificación en lugar de un alert
+      alert(message);
     }
   };
 
+  // --- CAMBIO AQUÍ: Eliminado el 'if (confirm(...))' ---
   const handleToggleActive = async (watcher: Watcher) => {
     const newActiveState = !watcher.is_active;
-    if (confirm(`Are you sure you want to ${newActiveState ? "activate" : "pause"} watcher "${watcher.name}"?`)) {
-      try {
-        await updateWatcher(watcher.id, { is_active: newActiveState });
-        fetchWatchers();
-      } catch (err: unknown) {
-        console.error("Failed to toggle watcher active state:", err);
-        let message = "Error updating watcher state.";
-        if (err instanceof Error) message = `Error updating watcher state: ${err.message}`;
-        else if (typeof err === 'string') message = `Error updating watcher state: ${err}`;
-        alert(message);
-      }
+    try {
+      await updateWatcher(watcher.id, { is_active: newActiveState });
+      // fetchWatchers() ya es llamado dentro de updateWatcher en el hook
+    } catch (err: unknown) {
+      console.error("Failed to toggle watcher active state:", err);
+      let message = "Error updating watcher state.";
+      if (err instanceof Error) message = `Error updating watcher state: ${err.message}`;
+      else if (typeof err === 'string') message = `Error updating watcher state: ${err}`;
+      // Considerar mostrar este error en un toast/notificación en lugar de un alert
+      alert(message);
     }
   };
 
@@ -117,6 +116,8 @@ export default function WatcherList() {
       return <p className="text-center text-gray-500 dark:text-gray-400 py-8">Loading watchers...</p>;
   }
 
+  // El error que "borra la pantalla" se muestra aquí. Con el cambio en useWatchers.ts,
+  // este error ya no debería dispararse al crear/editar/borrar, solo si falla la carga inicial.
   if (error) {
       return <p className="text-center text-red-500 py-8">Error loading watchers: {error}</p>;
   }
@@ -130,8 +131,8 @@ export default function WatcherList() {
             + New Watcher
           </Button>
           <Button
-            intent="secondary" // <--- CAMBIADO A "secondary"
-            size="md" // Puedes ajustar el tamaño si es necesario
+            intent="secondary"
+            size="md"
             onClick={() => { fetchWatchers(); setFormError(null); }}
             disabled={isLoading}
           >
