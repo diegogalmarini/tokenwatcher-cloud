@@ -84,8 +84,14 @@ export default function WatcherFormModal({
       onClose();
     } catch (err: unknown) {
       console.error("Error in WatcherFormModal handleSubmit:", err);
+      // --- CAMBIO AQUÍ: MANEJO DE ERROR PERSONALIZADO PARA EL LÍMITE DE WATCHERS ---
       if (err instanceof Error) {
-        setError(err.message);
+        // Comprobamos si el mensaje de error es el que envía nuestra API
+        if (err.message.includes("Watcher limit reached")) {
+            setError(err.message); // Mostramos el mensaje exacto de la API
+        } else {
+            setError(err.message); // Para cualquier otro error, mostramos su mensaje
+        }
       } else if (typeof err === "string") {
         setError(err);
       } else {
@@ -106,28 +112,20 @@ export default function WatcherFormModal({
   if (!isOpen) return null;
 
   return (
-    // 1) Overlay que cubre toda la pantalla. Si se hace clic aquí, cierra el modal.
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-[#0000009c] px-4 py-8 overflow-y-auto"
-      onClick={onClose}                                   // clic fuera = cierra
+      onClick={onClose}
     >
-      {/*
-        2) Dentro, el cuadro blanco/oscuro del formulario. 
-        Con onClick={e => e.stopPropagation()} evitamos que un clic dentro 
-        cierre el modal (solo cerrar al hacer clic fuera).
-      */}
       <div
         className="relative bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md shadow-xl m-4"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 3) Botón “X” en la esquina para cerrar */}
         <button
           type="button"
           onClick={onClose}
           className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100"
           aria-label="Close modal"
         >
-          {/* Ícono X (Heroicons mini) */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
             className="h-6 w-6"
@@ -238,7 +236,7 @@ export default function WatcherFormModal({
               type="button"
               intent="default"
               className="bg-gray-200 hover:bg-gray-300 text-gray-700 
-                         dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-gray-200"
+                          dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-gray-200"
               onClick={onClose}
               size="md"
             >
