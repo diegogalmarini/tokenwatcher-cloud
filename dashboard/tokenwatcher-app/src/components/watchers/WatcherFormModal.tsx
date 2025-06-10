@@ -1,7 +1,7 @@
 // File: dashboard/tokenwatcher-app/src/components/watchers/WatcherFormModal.tsx
 "use client";
 
-import React, { useState, useEffect, FormEvent, ReactNode } from "react"; // <-- 1. IMPORTAMOS ReactNode
+import React, { useState, useEffect, FormEvent, ReactNode } from "react";
 import Button from "@/components/ui/button";
 import { Watcher } from "@/lib/useWatchers";
 
@@ -33,7 +33,6 @@ export default function WatcherFormModal({
   const [tokenAddress, setTokenAddress] = useState("");
   const [threshold, setThreshold] = useState<number | string>("");
   const [webhookUrl, setWebhookUrl] = useState<string>("");
-  // --- 2. CAMBIO: El estado de error ahora puede ser ReactNode para aceptar enlaces ---
   const [error, setError] = useState<ReactNode | null>(null);
 
   useEffect(() => {
@@ -85,14 +84,14 @@ export default function WatcherFormModal({
       onClose();
     } catch (err: unknown) {
       console.error("Error in WatcherFormModal handleSubmit:", err);
-      // --- 3. CAMBIO: Lógica mejorada para mostrar el enlace al formulario ---
       if (err instanceof Error) {
+        // --- CAMBIO AQUÍ: Lógica mejorada para mostrar el mensaje dinámico ---
         if (err.message.includes("Watcher limit reached")) {
           const feedbackFormUrl = 'https://forms.gle/GyuMXTX88PN1gppS8';
           
           const errorMessage = (
             <span>
-              You have reached the Beta limit of 5 watchers. To request more, please{' '}
+              {err.message} To request more, please{' '}
               <a href={feedbackFormUrl} target="_blank" rel="noopener noreferrer" className="font-bold underline hover:text-blue-400">
                 fill out our feedback form
               </a>.
