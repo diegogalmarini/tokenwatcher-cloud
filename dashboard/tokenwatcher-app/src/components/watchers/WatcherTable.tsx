@@ -1,10 +1,10 @@
 // src/components/watchers/WatcherTable.tsx
 "use client";
 
-import React, { useState } from "react"; // <-- 1. Importamos useState
+import React, { useState } from "react";
 import { Watcher } from "@/lib/useWatchers";
 import Image from "next/image";
-import ConfirmationModal from "@/components/common/ConfirmationModal"; // <-- 2. Importamos nuestro nuevo modal
+import ConfirmationModal from "@/components/common/ConfirmationModal";
 
 interface Props {
   watchers: Watcher[];
@@ -16,10 +16,8 @@ interface Props {
 const ETHERSCAN_BASE_URL = process.env.NEXT_PUBLIC_ETHERSCAN_URL || "https://etherscan.io";
 
 export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActive }: Props) {
-  
-  // --- 3. AÑADIMOS ESTADOS PARA GESTIONAR EL MODAL ---
+  // Estados para gestionar el modal de confirmación
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // Guardaremos la acción a ejecutar y el contenido del modal en el estado
   const [modalContent, setModalContent] = useState({
     title: "",
     message: "",
@@ -42,9 +40,6 @@ export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActiv
   const closeModal = () => {
     setIsModalOpen(false);
   };
-  
-  // --- FIN DE LOS ESTADOS DEL MODAL ---
-
 
   if (!watchers || watchers.length === 0) {
     return (
@@ -56,11 +51,11 @@ export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActiv
 
   const shortenAddress = (address: string) => {
     if (!address) return "N/A";
-    return `<span class="math-inline">\{address\.slice\(0, 6\)\}…</span>{address.slice(-4)}`;
+    return `${address.slice(0, 6)}…${address.slice(-4)}`;
   };
 
   return (
-    <> {/* Envolvemos todo en un Fragment para poder añadir el Modal al final */}
+    <>
       <div className="overflow-x-auto rounded-lg shadow border border-gray-200 dark:border-gray-700">
         <table className="w-full table-auto bg-white dark:bg-gray-800">
           <thead className="bg-gray-50 dark:bg-gray-700">
@@ -79,7 +74,6 @@ export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActiv
 
               return (
                 <tr key={watcher.id} className="hover:bg-gray-50 dark:hover:bg-gray-750">
-                  {/* ... (el resto de las celdas <td> se mantienen igual) ... */}
                   <td className="px-4 py-3 whitespace-nowrap w-1/5">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-8 w-8 mr-3 relative">
@@ -106,7 +100,7 @@ export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActiv
                     </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap w-1/5">
-                    <a href={`<span class="math-inline">\{ETHERSCAN\_BASE\_URL\}/address/</span>{watcher.token_address}`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate block max-w-[150px]" title={watcher.token_address}>
+                    <a href={`${ETHERSCAN_BASE_URL}/address/${watcher.token_address}`} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 dark:text-blue-400 hover:underline truncate block max-w-[150px]" title={watcher.token_address}>
                       {shortenAddress(watcher.token_address)}
                     </a>
                   </td>
@@ -114,4 +108,59 @@ export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActiv
                     <div className="text-sm text-gray-700 dark:text-gray-300">{watcher.threshold}</div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap w-1/4 max-w-xs">
-                    <a href={watcher.webhook_url || "#"} className={`text-sm truncate block ${watcher.webhook_url ? "text-blue-600 dark:text-blue-400 hover:underline" : "text-gray-400 dark:text-gray-500"}`} title={watcher.webhook_url || "No webhook configured"} target="_blank"
+                    <a href={watcher.webhook_url || "#"} className={`text-sm truncate block ${watcher.webhook_url ? "text-blue-600 dark:text-blue-400 hover:underline" : "text-gray-400 dark:text-gray-500"}`} title={watcher.webhook_url || "No webhook configured"} target="_blank" rel="noopener noreferrer">
+                      {watcher.webhook_url ? `${watcher.webhook_url.slice(0, 35)}...` : "N/A"}
+                    </a>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap w-1/6">
+                    <span className={`px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${watcher.is_active ? "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200" : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300"}`}>
+                      {watcher.is_active ? "Active" : "Paused"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-medium space-x-2 w-40">
+                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-md text-xs" onClick={() => onEdit(watcher)}>Edit</button>
+                    <button
+                      className={`px-3 py-1 rounded-md text-white text-xs ${watcher.is_active ? "bg-orange-500 hover:bg-orange-600" : "bg-green-500 hover:bg-green-600"}`}
+                      onClick={() => openModal(
+                        watcher.is_active ? 'Pause Watcher' : 'Activate Watcher',
+                        `Are you sure you want to ${watcher.is_active ? 'pause' : 'activate'} watcher "${watcher.name}"?`,
+                        () => onToggleActive(watcher),
+                        watcher.is_active ? 'Yes, Pause' : 'Yes, Activate',
+                        'primary'
+                      )}
+                    >
+                      {watcher.is_active ? "Pause" : "Activate"}
+                    </button>
+                    <button
+                      className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-md text-xs"
+                      onClick={() => openModal(
+                        'Delete Watcher',
+                        `Are you sure you want to delete watcher "${watcher.name}"? This action cannot be undone.`,
+                        () => onDelete(watcher.id),
+                        'Yes, Delete',
+                        'danger'
+                      )}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <ConfirmationModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        onConfirm={modalContent.confirmAction}
+        title={modalContent.title}
+        confirmButtonText={modalContent.confirmText}
+        confirmButtonVariant={modalContent.variant}
+      >
+        <p>{modalContent.message}</p>
+      </ConfirmationModal>
+    </>
+  );
+}
