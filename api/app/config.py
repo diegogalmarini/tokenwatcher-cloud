@@ -40,6 +40,9 @@ class Settings(BaseSettings):
 
     # --- VARIABLE PARA EL EMAIL DEL ADMINISTRADOR ---
     ADMIN_EMAIL: str
+    
+    # --- NUEVA VARIABLE PARA EL LÍMITE DE WATCHERS ---
+    DEFAULT_WATCHER_LIMIT: int = 5
 
     class Config:
         case_sensitive = True

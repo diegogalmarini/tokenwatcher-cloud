@@ -11,8 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import engine, get_db
 from . import models, schemas, crud, auth
+from .config import settings  # <-- AÑADIDO: Importamos la configuración
 
-# ─── Inicializa tablas ─────────────────────────────
+# --- Inicializa tablas ---
 try:
     print("ℹ️ [DB_INIT] Intentando crear/verificar todas las tablas definidas en Base...")
     models.Base.metadata.create_all(bind=engine)
@@ -22,12 +23,12 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.7.7",  # Versión incrementada por endpoints de reset‐password
+    version="0.7.7",
     description="API para monitorizar transferencias de tokens ERC-20, con filtrado y ordenación de eventos."
 )
 
 origins = [
-    "https://tokenwatcher.app",        # ← tu frontend en producción
+    "https://tokenwatcher.app",
     "https://www.tokenwatcher.app",
     "https://tokenwatcher-frontend.onrender.com",
     "http://localhost:3000",
@@ -42,17 +43,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ───────────────────────────────────────────
-#   INCLUIR ROUTER /auth (Forgot/Reset) 
-# ───────────────────────────────────────────
+# --- INCLUIR ROUTER /auth ---
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
 
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Session) -> schemas.WatcherRead:
-    """
-    Rellena el esquema WatcherRead desde models.Watcher + transport[]. 
-    (tu lógica ya existente)
-    """
     active_webhook_url: Optional[HttpUrl] = None
     if db_watcher.transports:
         first_transport = db_watcher.transports[0]
@@ -62,7 +57,6 @@ def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Sessi
                 config_data = json.loads(config_data)
             except json.JSONDecodeError:
                 config_data = {}
-
         if isinstance(config_data, dict) and "url" in config_data:
             try:
                 active_webhook_url = HttpUrl(config_data["url"])
@@ -89,16 +83,27 @@ def health_check():
 
 @app.get("/", tags=["System"], include_in_schema=False)
 def api_root_demo():
-    return {"message": "🎉 Welcome to TokenWatcher API v0.7.7! Visit /docs for API documentation."}
+    return {"message": "🎉 Welcome to TokenWatcher API! Visit /docs for API documentation."}
 
 
-# --- Watchers CRUD (sin cambios) ---
+# --- Watchers CRUD ---
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
 def create_new_watcher_for_current_user(
     watcher_data: schemas.WatcherCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
+    # --- NUEVO BLOQUE: VALIDACIÓN DE LÍMITE DE WATCHERS ---
+    # El admin no tiene límites, los usuarios normales sí.
+    if not current_user.is_admin:
+        watcher_count = crud.count_watchers_for_owner(db, owner_id=current_user.id)
+        if watcher_count >= settings.DEFAULT_WATCHER_LIMIT:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Watcher limit reached. You can create a maximum of {settings.DEFAULT_WATCHER_LIMIT} watchers on the free plan."
+            )
+    # --- FIN DE LA VALIDACIÓN ---
+
     db_watcher = crud.create_watcher(db=db, watcher_data=watcher_data, owner_id=current_user.id)
     db.refresh(db_watcher, attribute_names=['transports'])
     return _populate_watcher_read_from_db_watcher(db_watcher, db)
@@ -148,7 +153,7 @@ def delete_existing_watcher_for_current_user(
     return
 
 
-# --- Events CRUD (sin cambios) ---
+# --- Events CRUD ---
 @app.post("/events/", response_model=schemas.TokenEventRead, status_code=status.HTTP_201_CREATED, tags=["Events"], include_in_schema=False)
 def create_new_event_for_authed_user_testing(
     event_data: schemas.TokenEventCreate, 
@@ -206,7 +211,6 @@ def list_all_events_for_current_user(
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
 
 
-# --- NUEVO ENDPOINT PARA OBTENER SÍMBOLOS DE TOKEN DISTINTOS ---
 @app.get("/events/distinct-token-symbols/", response_model=List[str], tags=["Events"])
 def list_distinct_token_symbols_for_current_user(
     db: Session = Depends(get_db),
@@ -214,7 +218,6 @@ def list_distinct_token_symbols_for_current_user(
 ):
     symbols = crud.get_distinct_token_symbols_for_owner(db=db, owner_id=current_user.id)
     return symbols
-# --- FIN NUEVO ENDPOINT ---
 
 
 @app.get("/events/watcher/{watcher_id}", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
@@ -275,7 +278,7 @@ def delete_specific_transport_by_id(
     return
 
 
-# --- Token Volume Endpoint (sin cambios) ---
+# --- Token Volume Endpoint ---
 @app.get("/tokens/{contract_address}/volume", response_model=schemas.TokenRead, tags=["Tokens"])
 def read_token_total_volume(contract_address: str, db: Session = Depends(get_db)):
     if not contract_address.startswith("0x") or len(contract_address) != 42:
