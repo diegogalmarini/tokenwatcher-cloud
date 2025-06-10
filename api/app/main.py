@@ -93,14 +93,14 @@ def create_new_watcher_for_current_user(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    # --- NUEVO BLOQUE: VALIDACIÓN DE LÍMITE DE WATCHERS ---
-    # El admin no tiene límites, los usuarios normales sí.
+    # --- VALIDACIÓN DE LÍMITE DE WATCHERS ---
     if not current_user.is_admin:
         watcher_count = crud.count_watchers_for_owner(db, owner_id=current_user.id)
-        if watcher_count >= settings.DEFAULT_WATCHER_LIMIT:
+        # --- CAMBIO AQUÍ: Usamos el límite del usuario, no el por defecto ---
+        if watcher_count >= current_user.watcher_limit:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Watcher limit reached. You can create a maximum of {settings.DEFAULT_WATCHER_LIMIT} watchers on the free plan."
+                detail=f"Watcher limit reached. You can create a maximum of {current_user.watcher_limit} watchers."
             )
     # --- FIN DE LA VALIDACIÓN ---
 
