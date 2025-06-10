@@ -43,8 +43,8 @@ export default function ConfirmationModal({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          {/* --- CAMBIO AQUÍ para un fondo más oscuro y translúcido --- */}
-          <div className="fixed inset-0 bg-black bg-opacity-60 transition-opacity" />
+          {/* --- CAMBIO AQUÍ para usar el color hexadecimal exacto --- */}
+          <div className="fixed inset-0 bg-[#0000009c] transition-opacity" />
         </Transition.Child>
 
         <div className="fixed inset-0 z-10 w-screen overflow-y-auto">

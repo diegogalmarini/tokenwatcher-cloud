@@ -7,11 +7,6 @@
 /* --------------------------------------------------
    Variables y definiciones base de tus temas
    -------------------------------------------------- */
-/* 
-   @custom-variant solo es necesario si en tailwind.config.js
-   has configurado customVariant “dark” con la directiva &(:is(.dark *))
-   para que Tailwind genere variantes “dark:...” personalizadas.
-*/
 @custom-variant dark (&:is(.dark *));
 
 /* --------------------------------------------------
@@ -47,31 +42,34 @@
   --radius: 0.5rem;
 
   /* Fondo general y texto principal (light mode) */
-  --background: #E8E8E8;                  /* Gris muy claro para todo el body */
-  --foreground: #111827;                  /* Texto primario en modo claro */
+  --background: #E8E8E8;
+  --foreground: #111827;
 
   /* Tarjetas, secciones, formularios, etc. */
-  --card: #FFFFFF;                        /* Blanco puro */
-  --card-foreground: #1F2937;             /* Texto dentro de tarjetas: un gris oscuro */
+  --card: #FFFFFF;
+  --card-foreground: #1F2937;
 
   /* Bordes */
-  --border: #D1D5DB;                      /* Border gris claro */
+  --border: #D1D5DB;
 
   /* Inputs */
-  --input: #F3F4F6;                       /* Fondo inputs en light */
-  --input-foreground: #1F2937;            /* Texto dentro de inputs */
+  --input: #F3F4F6;
+  --input-foreground: #1F2937;
 
   /* Anillos (focus) */
-  --ring: #3B82F6;                        /* Color azul primario para outline focus */
+  --ring: #3B82F6;
 
   /* Primary / Secondary / Accent */
-  --primary: #2563EB;                     /* Azul primario (btn, links, etc.) */
-  --primary-hover: #1D4ED8;               /* Azul para hover */
-  --secondary: #6B7280;                   /* Gris medio para textos secundarios */
-  --accent: #E11D48;                      /* Rojo para botones destructivos */
-  --accent-inverted: #FFFFFF;             /* Texto claro sobre fondo de accent */
-  --muted: #9CA3AF;                       /* Gris atenuado para elementos secundarios */
-  --muted-foreground: #6B7280;            /* Gris medio para texto atenuado */
+  --primary: #2563EB;
+  --primary-hover: #1D4ED8;
+  --secondary: #6B7280;
+  --accent: #E11D48;
+  --accent-inverted: #FFFFFF;
+  --muted: #9CA3AF;
+  --muted-foreground: #6B7280;
+  
+  /* --- NUEVA VARIABLE PARA EL FONDO DEL MODAL --- */
+  --modal-overlay-bg: rgba(0, 0, 0, 0.65);
 }
 
 /* --------------------------------------------------
@@ -79,31 +77,34 @@
    -------------------------------------------------- */
 .dark {
   /* Fondo general y texto principal (dark mode) */
-  --background: #121212;                  /* Negro muy oscuro */
-  --foreground: #E0E0E0;                  /* Texto primario en modo oscuro */
+  --background: #121212;
+  --foreground: #E0E0E0;
 
   /* Tarjetas, secciones, formularios, etc. */
-  --card: #1E1E1E;                        /* Gris muy oscuro para “card background” */
-  --card-foreground: #E0E0E0;             /* Texto dentro de tarjetas: claro */
+  --card: #1E1E1E;
+  --card-foreground: #E0E0E0;
 
   /* Bordes */
-  --border: #2A2A2A;                      /* Border gris oscuro */
+  --border: #2A2A2A;
 
   /* Inputs */
-  --input: #2C2C2E;                       /* Fondo inputs en dark */
-  --input-foreground: #E0E0E0;            /* Texto dentro de inputs */
+  --input: #2C2C2E;
+  --input-foreground: #E0E0E0;
 
   /* Anillos (focus) */
-  --ring: #2563EB;                        /* Mantenemos azul primario para outline focus */
+  --ring: #2563EB;
 
   /* Primary / Secondary / Accent */
-  --primary: #3B82F6;                     /* Azul un poco más brillante en dark */
-  --primary-hover: #60A5FA;               /* Azul más suave al hacer hover */
-  --secondary: #9CA3AF;                   /* Gris atenuado, aunque en dark atenúa menos */
-  --accent: #DC2626;                      /* Rojo destructivo para dark */
-  --accent-inverted: #FFFFFF;             /* Texto claro sobre fondo accent */
-  --muted: #6B7280;                       /* Gris medio */
-  --muted-foreground: #9CA3AF;            /* Gris claro para textos secundarios */
+  --primary: #3B82F6;
+  --primary-hover: #60A5FA;
+  --secondary: #9CA3AF;
+  --accent: #DC2626;
+  --accent-inverted: #FFFFFF;
+  --muted: #6B7280;
+  --muted-foreground: #9CA3AF;
+
+  /* --- NUEVA VARIABLE PARA EL FONDO DEL MODAL --- */
+  --modal-overlay-bg: rgba(0, 0, 0, 0.65);
 }
 
 /* --------------------------------------------------
@@ -134,11 +135,4 @@ body {
     outline: none;
     ring: var(--color-ring);
   }
-
-  /* Si quieres unos “normalize” extra, puedes agregarlos aquí */
 }
-
-/* --------------------------------------------------
-   Tailwind components y utilities ya usa @tailwind directives
-   -------------------------------------------------- */
-/* Tailwind generará sus propios estilos a partir de acá */
