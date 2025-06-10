@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, get_db
 from . import models, schemas, crud, auth
 from .config import settings
-from .clients import coingecko_client # Importamos el nuevo cliente
+from .clients import coingecko_client # Importamos nuestro nuevo cliente
 
 # --- Inicializa tablas ---
 try:
@@ -94,19 +94,18 @@ def create_new_watcher_for_current_user(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    # --- VALIDACIÓN DE LÍMITE DE WATCHERS (se mantiene) ---
+    # --- VALIDACIÓN DE LÍMITE DE WATCHERS ---
     if not current_user.is_admin:
         watcher_count = crud.count_watchers_for_owner(db, owner_id=current_user.id)
-        if watcher_count >= settings.DEFAULT_WATCHER_LIMIT:
+        if watcher_count >= current_user.watcher_limit:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Watcher limit reached. You can create a maximum of {current_user.watcher_limit} watchers."
             )
-            
+
     # --- NUEVA VALIDACIÓN DE UMBRAL INTELIGENTE ---
     if not current_user.is_admin:
         market_data = coingecko_client.get_token_market_data(watcher_data.token_address)
-        # Si tenemos datos de mercado, aplicamos la regla híbrida
         if market_data and market_data.get("total_volume_24h", 0) > 0:
             min_relative_threshold = market_data["total_volume_24h"] * settings.MINIMUM_THRESHOLD_VOLUME_PERCENT
             effective_min_threshold = max(settings.MINIMUM_WATCHER_THRESHOLD_USD, min_relative_threshold)
