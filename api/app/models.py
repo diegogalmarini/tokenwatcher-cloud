@@ -38,19 +38,22 @@ class User(Base):
     def is_admin(self) -> bool:
         return self.email == settings.ADMIN_EMAIL
 
-    # --- NUEVAS PROPIEDADES PARA EL PANEL DE ADMIN ---
     @property
     def plan(self) -> str:
-        # Por ahora, todos los usuarios tienen el plan "Free".
-        # En el futuro, aquí podrías añadir lógica para devolver otros planes.
         return "Free"
 
     @property
     def watcher_limit(self) -> int:
-        # El admin tiene un límite "infinito", los demás el límite por defecto.
         if self.is_admin:
             return 9999
         return settings.DEFAULT_WATCHER_LIMIT
+        
+    # --- NUEVA PROPIEDAD PARA CALCULAR EL CONTEO DE WATCHERS ---
+    @property
+    def watcher_count(self) -> int:
+        # SQLAlchemy cargará la relación 'watchers' y podremos contar su longitud.
+        # Esto es eficiente para un solo usuario, y Pydantic lo usará automáticamente.
+        return len(self.watchers)
 
 
 class Watcher(Base):

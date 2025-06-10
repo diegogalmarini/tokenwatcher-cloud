@@ -62,15 +62,9 @@ def get_user_by_email(db: Session, email: str) -> models.User | None:
     return db.query(models.User).filter(models.User.email == email).first()
 
 def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[models.User]:
-    """
-    Retrieve all users with pagination.
-    """
     return db.query(models.User).order_by(models.User.id).offset(skip).limit(limit).all()
 
 def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) -> models.User:
-    """
-    Crea un usuario en la base de datos con is_active=False por defecto.
-    """
     hashed_password = auth.get_password_hash(user.password)
     db_user = models.User(
         email=user.email,
@@ -83,9 +77,6 @@ def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) 
     return db_user
 
 def set_user_password(db: Session, user: models.User, new_password: str) -> models.User:
-    """
-    Hashea la nueva contraseña y la guarda en el registro del usuario.
-    """
     hashed = auth.get_password_hash(new_password)
     user.hashed_password = hashed
     db.commit()
@@ -93,16 +84,9 @@ def set_user_password(db: Session, user: models.User, new_password: str) -> mode
     return user
 
 def delete_user_by_id(db: Session, user_id: int) -> Optional[models.User]:
-    """
-    Deletes a user and their associated data (watchers, transports, events)
-    by their ID. The cascade is handled by the database relationship settings.
-    """
     user_to_delete = db.query(models.User).filter(models.User.id == user_id).first()
     if not user_to_delete:
-        return None # El endpoint se encargará de lanzar el error 404
-    
-    # Si la relación en el modelo User tiene cascade="all, delete-orphan",
-    # SQLAlchemy se encargará de borrar los watchers, transports y events asociados.
+        return None
     db.delete(user_to_delete)
     db.commit()
     return user_to_delete
