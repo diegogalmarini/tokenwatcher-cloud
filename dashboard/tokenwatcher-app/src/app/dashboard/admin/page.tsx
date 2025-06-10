@@ -4,6 +4,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import ConfirmationModal from '@/components/common/ConfirmationModal'; // <-- 1. IMPORTAMOS EL NUEVO MODAL
 
 // Definimos el tipo de usuario completo que esperamos de la API de admin
 interface AdminUserView {
@@ -11,7 +12,7 @@ interface AdminUserView {
   email: string;
   is_active: boolean;
   is_admin: boolean;
-  created_at: string; // La fecha vendrá como string en el JSON
+  created_at: string;
 }
 
 export default function AdminPage() {
@@ -21,6 +22,11 @@ export default function AdminPage() {
   const [users, setUsers] = useState<AdminUserView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // --- 2. AÑADIMOS ESTADOS PARA CONTROLAR EL MODAL ---
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<AdminUserView | null>(null);
+
 
   // Proteger la ruta: si el usuario no es admin, redirigirlo
   useEffect(() => {
@@ -58,35 +64,38 @@ export default function AdminPage() {
     }
   }, [user, fetchUsers]);
 
-  // Función para manejar el borrado de un usuario
-  const handleDeleteUser = async (userId: number) => {
-    if (!token) return;
-    
-    const loggedInUserId = user?.id;
-    if (userId === loggedInUserId) {
-      alert("For safety, you cannot delete your own account from the admin panel.");
-      return;
-    }
 
-    if (window.confirm(`Are you sure you want to delete user with ID ${userId}? This action is irreversible.`)) {
-      try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/admin/users/${userId}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        if (!response.ok) {
-          throw new Error('Failed to delete user.');
+  // --- 3. MODIFICAMOS LA LÓGICA DE BORRADO ---
+
+  // Esta función AHORA solo abre el modal
+  const handleDeleteClick = (userForDeletion: AdminUserView) => {
+    setUserToDelete(userForDeletion);
+    setIsModalOpen(true);
+  };
+  
+  // Esta es la función que se ejecutará al confirmar en el modal
+  const handleConfirmDelete = async () => {
+    if (!userToDelete || !token) return;
+    
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/admin/users/${userToDelete.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
         }
-        // Actualizar la UI eliminando al usuario de la lista local
-        setUsers(currentUsers => currentUsers.filter(u => u.id !== userId));
-        alert('User deleted successfully.');
-      } catch (err: any) {
-        alert(`Error: ${err.message}`);
+      });
+      if (!response.ok) {
+        throw new Error('Failed to delete user.');
       }
+      // Actualizar la UI eliminando al usuario de la lista local
+      setUsers(currentUsers => currentUsers.filter(u => u.id !== userToDelete.id));
+      // No necesitamos un alert, el modal se cierra y la lista se actualiza.
+    } catch (err: any) {
+      // Podríamos mostrar un error más sofisticado si quisiéramos
+      alert(`Error: ${err.message}`);
     }
   };
+
 
   // Si todavía está cargando la info de autenticación o el usuario no es admin, no mostrar nada
   if (isAuthLoading || !user?.is_admin) {
@@ -127,9 +136,10 @@ export default function AdminPage() {
                   <td className="py-3 px-6 text-left">{new Date(u.created_at).toLocaleString()}</td>
                   <td className="py-3 px-6 text-center">
                     <button
-                      onClick={() => handleDeleteUser(u.id)}
+                      // --- 4. ACTUALIZAMOS EL ONCLICK DEL BOTÓN ---
+                      onClick={() => handleDeleteClick(u)}
                       className="bg-red-500 text-white py-1 px-3 rounded hover:bg-red-600 disabled:bg-gray-400"
-                      disabled={u.id === user.id} // Deshabilitar el botón para el propio admin
+                      disabled={u.id === user.id}
                     >
                       Delete
                     </button>
@@ -139,6 +149,21 @@ export default function AdminPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* --- 5. AÑADIMOS EL COMPONENTE MODAL AL FINAL --- */}
+      {userToDelete && (
+        <ConfirmationModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onConfirm={handleConfirmDelete}
+          title="Delete User"
+          confirmButtonText="Yes, Delete"
+          confirmButtonVariant="danger"
+        >
+          <p>Are you sure you want to delete the user <span className="font-bold">{userToDelete.email}</span>?</p>
+          <p className="mt-2">This action is irreversible and will delete all their associated watchers and events.</p>
+        </ConfirmationModal>
       )}
     </div>
   );
