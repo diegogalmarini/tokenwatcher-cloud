@@ -6,6 +6,8 @@ from fastapi import HTTPException
 from pydantic import HttpUrl
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
+from web3 import Web3
+from web3.exceptions import InvalidAddress
 
 from . import models, schemas, auth
 
@@ -56,15 +58,18 @@ def _create_or_update_primary_transport_for_watcher(
 
 # --- User CRUD ---
 def get_user(db: Session, user_id: int) -> models.User | None:
-    return db.query(models.User).filter(models.User.id == user_id).first()
+    # MODIFICADO: Añadido selectinload para cargar watchers eficientemente
+    return db.query(models.User).options(selectinload(models.User.watchers)).filter(models.User.id == user_id).first()
 
 def get_user_by_email(db: Session, email: str) -> models.User | None:
+    # MODIFICADO: Añadido selectinload para cargar watchers eficientemente
     return db.query(models.User).options(selectinload(models.User.watchers)).filter(models.User.email == email).first()
 
 def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[models.User]:
     """
-    Retrieve all users with pagination. The watcher_count is handled by the model property.
+    Retrieve all users with pagination.
     """
+    # MODIFICADO: Añadido selectinload para cargar watchers eficientemente
     return db.query(models.User).options(selectinload(models.User.watchers)).order_by(models.User.id).offset(skip).limit(limit).all()
 
 def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) -> models.User:
@@ -94,23 +99,19 @@ def set_user_password(db: Session, user: models.User, new_password: str) -> mode
 
 def delete_user_by_id(db: Session, user_id: int) -> Optional[models.User]:
     """
-    Deletes a user and their associated data (watchers, transports, events)
-    by their ID. The cascade is handled by the database relationship settings.
+    Deletes a user and their associated data.
     """
-    user_to_delete = db.query(models.User).filter(models.User.id == user_id).first()
+    user_to_delete = get_user(db, user_id=user_id)
     if not user_to_delete:
-        return None # El endpoint se encargará de lanzar el error 404
+        return None 
     
-    # Si la relación en el modelo User tiene cascade="all, delete-orphan",
-    # SQLAlchemy se encargará de borrar los watchers, transports y events asociados.
     db.delete(user_to_delete)
     db.commit()
     return user_to_delete
 
-# --- NUEVA FUNCIÓN PARA ACTUALIZAR USUARIOS COMO ADMIN ---
 def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserUpdateAdmin) -> Optional[models.User]:
     """
-    Updates a user's data from the admin panel (e.g. watcher_limit, is_active).
+    Updates a user's data from the admin panel.
     """
     db_user = get_user(db, user_id=user_id)
     if not db_user:
@@ -166,9 +167,14 @@ def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int
     )
 
 def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: int) -> models.Watcher:
+    try:
+        checksum_address = Web3.to_checksum_address(watcher_data.token_address)
+    except InvalidAddress:
+        raise HTTPException(status_code=400, detail="Invalid Ethereum address format.")
+    
     db_watcher = models.Watcher(
         name=watcher_data.name,
-        token_address=watcher_data.token_address,
+        token_address=checksum_address,
         threshold=watcher_data.threshold,
         is_active=watcher_data.is_active,
         owner_id=owner_id
@@ -188,6 +194,13 @@ def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.Wa
 
     for field, value in update_data.items():
         if field == "webhook_url":
+            continue
+        if field == "token_address":
+            try:
+                checksum_address = Web3.to_checksum_address(value)
+                setattr(db_watcher, field, checksum_address)
+            except InvalidAddress:
+                raise HTTPException(status_code=400, detail="Invalid Ethereum address format.")
             continue
         if hasattr(db_watcher, field):
             setattr(db_watcher, field, value)
