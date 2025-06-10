@@ -95,9 +95,7 @@ class UserRead(UserBase):
     class Config:
         from_attributes = True
 
-# --- NUEVO SCHEMA PARA ACTUALIZACIONES DE ADMIN ---
 class UserUpdateAdmin(BaseModel):
-    # Hacemos los campos opcionales para que el admin pueda actualizar solo lo que necesite
     watcher_limit: Optional[int] = None
     is_active: Optional[bool] = None
     plan: Optional[str] = None
@@ -116,6 +114,14 @@ class TokenRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+# --- NUEVO SCHEMA PARA LA INFORMACIÓN DE UN TOKEN ---
+class TokenInfo(BaseModel):
+    price: float
+    market_cap: float
+    total_volume_24h: float
+    suggested_threshold: float
+    minimum_threshold: float
 
 
 # --- SCHEMAS PARA “FORGOT / RESET PASSWORD” ---

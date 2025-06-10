@@ -41,8 +41,13 @@ class Settings(BaseSettings):
     # --- VARIABLE PARA EL EMAIL DEL ADMINISTRADOR ---
     ADMIN_EMAIL: str
     
-    # --- NUEVA VARIABLE PARA EL LÍMITE DE WATCHERS ---
+    # --- LÍMITE DE WATCHERS POR DEFECTO ---
     DEFAULT_WATCHER_LIMIT: int = 5
+
+    # --- NUEVAS VARIABLES PARA EL UMBRAL INTELIGENTE ---
+    MINIMUM_WATCHER_THRESHOLD_USD: int = 100
+    SUGGESTED_THRESHOLD_VOLUME_PERCENT: float = 0.005   # 0.5%
+    MINIMUM_THRESHOLD_VOLUME_PERCENT: float = 0.001     # 0.1%
 
     class Config:
         case_sensitive = True
