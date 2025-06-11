@@ -1,4 +1,4 @@
-// src/lib/useWatchers.ts (Completo y Corregido)
+// src/lib/useWatchers.ts
 import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -79,7 +79,6 @@ export function useWatchers() {
 
   const createWatcher = useCallback(async (payload: WatcherCreatePayload) => {
     if (!token) throw new Error("Not authenticated");
-    
     setIsLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/watchers/`, {
@@ -94,7 +93,7 @@ export function useWatchers() {
       await fetchWatchers();
     } catch (err) {
       console.error("createWatcher error:", err);
-      throw err; // Solo relanzamos el error para que el formulario lo maneje
+      throw err; // Solo relanzamos el error
     } finally {
       setIsLoading(false);
     }
@@ -116,7 +115,7 @@ export function useWatchers() {
       await fetchWatchers();
     } catch (err) {
       console.error("updateWatcher error:", err);
-      throw err;
+      throw err; // Solo relanzamos el error
     } finally {
       setIsLoading(false);
     }
@@ -137,7 +136,7 @@ export function useWatchers() {
       await fetchWatchers();
     } catch (err) {
       console.error("deleteWatcher error:", err);
-      throw err;
+      throw err; // Solo relanzamos el error
     } finally {
       setIsLoading(false);
     }

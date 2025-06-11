@@ -22,7 +22,6 @@ export default function WatcherList() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Watcher> | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
 
   useEffect(() => {
     if (token) {
@@ -32,13 +31,11 @@ export default function WatcherList() {
 
   const openNewModal = () => {
     setEditing(null);
-    setFormError(null);
     setModalOpen(true);
   };
 
   const openEditModal = (watcher: Watcher) => {
     setEditing(watcher);
-    setFormError(null);
     setModalOpen(true);
   };
 
@@ -48,8 +45,6 @@ export default function WatcherList() {
     threshold: number;
     webhook_url: string | null;
   }) => {
-    // El setFormError ahora se gestiona dentro del modal, pero lo mantenemos por si acaso
-    setFormError(null); 
     try {
       if (editing && editing.id) {
         const payload: WatcherUpdatePayload = { ...data };
@@ -68,24 +63,22 @@ export default function WatcherList() {
         await createWatcher(payload);
       }
       setModalOpen(false); // Cierra el modal solo en caso de éxito
-    } catch (err: unknown) {
+    } catch (err) {
       console.error("Failed to save watcher:", err);
       // El error se relanza para que el modal lo capture y muestre
       throw err;
     }
   };
 
-  // --- CORREGIDO: Eliminado 'if (confirm(...))' ---
   const handleDeleteWatcher = async (watcherId: number) => {
     try {
       await deleteWatcher(watcherId);
     } catch (err: unknown) {
       console.error("Failed to delete watcher:", err);
-      alert("An error occurred while deleting the watcher."); // Un simple alert como fallback
+      alert("An error occurred while deleting the watcher.");
     }
   };
 
-  // --- CORREGIDO: Eliminado 'if (confirm(...))' ---
   const handleToggleActive = async (watcher: Watcher) => {
     const newActiveState = !watcher.is_active;
     try {
