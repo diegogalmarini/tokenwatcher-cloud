@@ -24,7 +24,7 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.8.2", # Incrementamos versión por la corrección
+    version="0.9.0", # Incrementamos versión por nueva funcionalidad
     description="API para monitorizar transferencias de tokens ERC-20, con filtrado y ordenación de eventos."
 )
 
@@ -87,14 +87,22 @@ def api_root_demo():
     return {"message": "🎉 Welcome to TokenWatcher API! Visit /docs for API documentation."}
 
 
+# --- NUEVO ENDPOINT PARA OBTENER INFO DE TOKENS ---
 @app.get("/tokens/info/{contract_address}", response_model=schemas.TokenInfo, tags=["Tokens"])
 def get_token_info(contract_address: str):
+    """
+    Obtiene datos de mercado para un token y sugiere un umbral.
+    """
     market_data = coingecko_client.get_token_market_data(contract_address)
+    
     if not market_data:
         raise HTTPException(status_code=404, detail="Could not fetch market data for this token address.")
+
     suggested_threshold = market_data["total_volume_24h"] * settings.SUGGESTED_THRESHOLD_VOLUME_PERCENT
+    
     min_relative = market_data["total_volume_24h"] * settings.MINIMUM_THRESHOLD_VOLUME_PERCENT
     minimum_threshold = max(settings.MINIMUM_WATCHER_THRESHOLD_USD, min_relative)
+
     return schemas.TokenInfo(
         price=market_data["price"],
         market_cap=market_data["market_cap"],
@@ -119,18 +127,20 @@ def create_new_watcher_for_current_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Watcher limit reached. You can create a maximum of {current_user.watcher_limit} watchers."
             )
-        
+            
         # Validación de Umbral Inteligente
         market_data = coingecko_client.get_token_market_data(watcher_data.token_address)
         if market_data and market_data.get("total_volume_24h", 0) > 0:
             min_relative_threshold = market_data["total_volume_24h"] * settings.MINIMUM_THRESHOLD_VOLUME_PERCENT
             effective_min_threshold = max(settings.MINIMUM_WATCHER_THRESHOLD_USD, min_relative_threshold)
+            
             if watcher_data.threshold < effective_min_threshold:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Threshold is too low. For this token, the minimum allowed threshold is ${effective_min_threshold:,.2f} USD."
                 )
         else:
+            # Si CoinGecko falla o no hay volumen, aplicamos solo el mínimo absoluto como salvaguarda
             if watcher_data.threshold < settings.MINIMUM_WATCHER_THRESHOLD_USD:
                  raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -169,29 +179,6 @@ def update_existing_watcher_for_current_user(
     db: Session = Depends(get_db), 
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    # --- VALIDACIÓN DE UMBRAL INTELIGENTE AL ACTUALIZAR ---
-    if not current_user.is_admin and watcher_update_data.threshold is not None:
-        # Necesitamos la dirección del token para la validación, así que primero obtenemos el watcher
-        existing_watcher = crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id)
-        token_address_for_validation = watcher_update_data.token_address or existing_watcher.token_address
-        
-        market_data = coingecko_client.get_token_market_data(token_address_for_validation)
-        if market_data and market_data.get("total_volume_24h", 0) > 0:
-            min_relative_threshold = market_data["total_volume_24h"] * settings.MINIMUM_THRESHOLD_VOLUME_PERCENT
-            effective_min_threshold = max(settings.MINIMUM_WATCHER_THRESHOLD_USD, min_relative_threshold)
-            
-            if watcher_update_data.threshold < effective_min_threshold:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Threshold is too low. For this token, the minimum allowed threshold is ${effective_min_threshold:,.2f} USD."
-                )
-        else:
-            if watcher_update_data.threshold < settings.MINIMUM_WATCHER_THRESHOLD_USD:
-                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Threshold must be at least ${settings.MINIMUM_WATCHER_THRESHOLD_USD:,.2f} USD."
-                )
-
     db_watcher = crud.update_watcher(
         db=db, watcher_id=watcher_id, watcher_update_data=watcher_update_data, owner_id=current_user.id
     )
