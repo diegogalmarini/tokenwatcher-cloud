@@ -58,15 +58,24 @@ def _create_or_update_primary_transport_for_watcher(
 
 # --- User CRUD ---
 def get_user(db: Session, user_id: int) -> models.User | None:
+    # MODIFICADO: Añadido selectinload para cargar watchers eficientemente
     return db.query(models.User).options(selectinload(models.User.watchers)).filter(models.User.id == user_id).first()
 
 def get_user_by_email(db: Session, email: str) -> models.User | None:
+    # MODIFICADO: Añadido selectinload para cargar watchers eficientemente
     return db.query(models.User).options(selectinload(models.User.watchers)).filter(models.User.email == email).first()
 
 def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[models.User]:
+    """
+    Retrieve all users with pagination.
+    """
+    # MODIFICADO: Añadido selectinload para cargar watchers eficientemente
     return db.query(models.User).options(selectinload(models.User.watchers)).order_by(models.User.id).offset(skip).limit(limit).all()
 
 def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) -> models.User:
+    """
+    Crea un usuario en la base de datos con is_active=False por defecto.
+    """
     hashed_password = auth.get_password_hash(user.password)
     db_user = models.User(
         email=user.email,
@@ -79,6 +88,9 @@ def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) 
     return db_user
 
 def set_user_password(db: Session, user: models.User, new_password: str) -> models.User:
+    """
+    Hashea la nueva contraseña y la guarda en el registro del usuario.
+    """
     hashed = auth.get_password_hash(new_password)
     user.hashed_password = hashed
     db.commit()
@@ -86,14 +98,21 @@ def set_user_password(db: Session, user: models.User, new_password: str) -> mode
     return user
 
 def delete_user_by_id(db: Session, user_id: int) -> Optional[models.User]:
+    """
+    Deletes a user and their associated data.
+    """
     user_to_delete = get_user(db, user_id=user_id)
     if not user_to_delete:
-        return None
+        return None 
+    
     db.delete(user_to_delete)
     db.commit()
     return user_to_delete
 
 def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserUpdateAdmin) -> Optional[models.User]:
+    """
+    Updates a user's data from the admin panel.
+    """
     db_user = get_user(db, user_id=user_id)
     if not db_user:
         return None
@@ -111,6 +130,9 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
 
 # --- Watcher CRUD ---
 def count_watchers_for_owner(db: Session, owner_id: int) -> int:
+    """
+    Counts the number of watchers owned by a specific user.
+    """
     return db.query(models.Watcher).filter(models.Watcher.owner_id == owner_id).count()
 
 def get_watcher_db(db: Session, watcher_id: int, owner_id: Optional[int] = None) -> models.Watcher:
@@ -145,6 +167,7 @@ def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int
     )
 
 def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: int) -> models.Watcher:
+    # MODIFICADO: Añadida validación y conversión a Checksum
     try:
         checksum_address = Web3.to_checksum_address(watcher_data.token_address)
     except InvalidAddress:
@@ -152,7 +175,7 @@ def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: i
     
     db_watcher = models.Watcher(
         name=watcher_data.name,
-        token_address=checksum_address,
+        token_address=checksum_address, # Guardamos la dirección corregida
         threshold=watcher_data.threshold,
         is_active=watcher_data.is_active,
         owner_id=owner_id
@@ -173,6 +196,8 @@ def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.Wa
     for field, value in update_data.items():
         if field == "webhook_url":
             continue
+        
+        # MODIFICADO: Añadida validación y conversión a Checksum al actualizar
         if field == "token_address":
             try:
                 checksum_address = Web3.to_checksum_address(value)
@@ -180,6 +205,7 @@ def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.Wa
             except InvalidAddress:
                 raise HTTPException(status_code=400, detail="Invalid Ethereum address format.")
             continue
+            
         if hasattr(db_watcher, field):
             setattr(db_watcher, field, value)
 
@@ -253,18 +279,21 @@ def get_all_events_for_owner(
 
     if active_watchers_only:
         base_query = base_query.filter(models.Watcher.is_active == True)
+
     if watcher_id is not None:
         base_query = base_query.filter(models.TokenEvent.watcher_id == watcher_id)
     if token_address:
         base_query = base_query.filter(models.TokenEvent.token_address_observed.ilike(f"%{token_address}%"))
     if token_symbol:
         base_query = base_query.filter(models.TokenEvent.token_symbol.ilike(f"%{token_symbol}%"))
+
     if start_date:
         start_date_utc = datetime(start_date.year, start_date.month, start_date.day, 0, 0, 0)
         base_query = base_query.filter(models.TokenEvent.created_at >= start_date_utc)
     if end_date:
         end_date_utc_exclusive = datetime(end_date.year, end_date.month, end_date.day) + timedelta(days=1)
         base_query = base_query.filter(models.TokenEvent.created_at < end_date_utc_exclusive)
+
     if from_address:
         base_query = base_query.filter(models.TokenEvent.from_address.ilike(from_address))
     if to_address:
@@ -273,7 +302,9 @@ def get_all_events_for_owner(
         base_query = base_query.filter(models.TokenEvent.usd_value >= min_usd_value)
     if max_usd_value is not None:
         base_query = base_query.filter(models.TokenEvent.usd_value <= max_usd_value)
+
     total_events = base_query.with_entities(sql_func.count(models.TokenEvent.id)).scalar() or 0
+
     sort_map = {
         "created_at": models.TokenEvent.created_at,
         "amount": models.TokenEvent.amount,
@@ -281,10 +312,12 @@ def get_all_events_for_owner(
         "block_number": models.TokenEvent.block_number,
     }
     sort_column = sort_map.get(sort_by, models.TokenEvent.created_at)
+
     if sort_order.lower() == "asc":
         ordered_query = base_query.order_by(asc(sort_column))
     else:
         ordered_query = base_query.order_by(desc(sort_column))
+
     events = ordered_query.offset(skip).limit(limit).all()
     return {"total_events": total_events, "events": events}
 
