@@ -5,7 +5,7 @@ from sqlalchemy import (
     Integer,
     String,
     Float,
-    Numeric, # Asegúrate de que Numeric está importado
+    Numeric,
     Boolean,
     ForeignKey,
     DateTime,
@@ -89,7 +89,7 @@ class TokenEvent(Base):
     from_address: Mapped[str] = mapped_column(String, index=True)
     to_address: Mapped[str] = mapped_column(String, index=True)
     
-    # --- CAMBIO AQUÍ: Aumentamos la precisión para aceptar números más grandes ---
+    # --- CAMBIO AQUÍ: Aumentamos la precisión para aceptar números gigantes ---
     amount: Mapped[float] = mapped_column(Numeric(78, 18))
     
     transaction_hash: Mapped[str] = mapped_column(String, index=True)
