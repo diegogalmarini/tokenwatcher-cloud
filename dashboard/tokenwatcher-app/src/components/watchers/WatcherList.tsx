@@ -1,7 +1,7 @@
 // dashboard/tokenwatcher-app/src/components/watchers/WatcherList.tsx
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import Button from "@/components/ui/button";
 import WatcherFormModal from "./WatcherFormModal";
 import WatcherTable from "./WatcherTable";
@@ -23,7 +23,6 @@ export default function WatcherList() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Partial<Watcher> | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-
 
   useEffect(() => {
     if (token) {
@@ -49,7 +48,8 @@ export default function WatcherList() {
     threshold: number;
     webhook_url: string | null;
   }) => {
-    setFormError(null);
+    // El setFormError ahora se gestiona dentro del modal, pero lo mantenemos por si acaso
+    setFormError(null); 
     try {
       if (editing && editing.id) {
         const payload: WatcherUpdatePayload = { ...data };
@@ -57,8 +57,7 @@ export default function WatcherList() {
         await updateWatcher(editing.id, payload);
       } else {
         if (!data.webhook_url) {
-          setFormError("Webhook URL is required for new watchers.");
-          throw new Error("Webhook URL is required.");
+          throw new Error("Webhook URL is required for new watchers.");
         }
         const payload: WatcherCreatePayload = {
             name: data.name,
@@ -68,44 +67,32 @@ export default function WatcherList() {
         };
         await createWatcher(payload);
       }
-      fetchWatchers();
-      setModalOpen(false);
+      setModalOpen(false); // Cierra el modal solo en caso de éxito
     } catch (err: unknown) {
       console.error("Failed to save watcher:", err);
-      if (err instanceof Error) {
-        setFormError(err.message);
-      } else if (typeof err === 'string') {
-        setFormError(err);
-      } else {
-        setFormError("An unexpected error occurred while saving the watcher.");
-      }
-      // --- CAMBIO AQUÍ: Volvemos a lanzar el error para que el modal lo reciba ---
+      // El error se relanza para que el modal lo capture y muestre
       throw err;
     }
   };
 
+  // --- CORREGIDO: Eliminado 'if (confirm(...))' ---
   const handleDeleteWatcher = async (watcherId: number) => {
     try {
       await deleteWatcher(watcherId);
     } catch (err: unknown) {
       console.error("Failed to delete watcher:", err);
-      let message = "Error deleting watcher.";
-      if (err instanceof Error) message = `Error deleting watcher: ${err.message}`;
-      else if (typeof err === 'string') message = `Error deleting watcher: ${err}`;
-      alert(message);
+      alert("An error occurred while deleting the watcher."); // Un simple alert como fallback
     }
   };
 
+  // --- CORREGIDO: Eliminado 'if (confirm(...))' ---
   const handleToggleActive = async (watcher: Watcher) => {
     const newActiveState = !watcher.is_active;
     try {
       await updateWatcher(watcher.id, { is_active: newActiveState });
     } catch (err: unknown) {
       console.error("Failed to toggle watcher active state:", err);
-      let message = "Error updating watcher state.";
-      if (err instanceof Error) message = `Error updating watcher state: ${err.message}`;
-      else if (typeof err === 'string') message = `Error updating watcher state: ${err}`;
-      alert(message);
+      alert("An error occurred while updating the watcher state.");
     }
   };
 
@@ -128,15 +115,13 @@ export default function WatcherList() {
           <Button
             intent="secondary"
             size="md"
-            onClick={() => { fetchWatchers(); setFormError(null); }}
+            onClick={fetchWatchers}
             disabled={isLoading}
           >
             {isLoading ? "Refreshing..." : "Refresh list"}
           </Button>
         </div>
       </div>
-
-      {formError && <p className="text-red-500 text-sm text-center">{formError}</p>}
 
       <WatcherTable
         watchers={watchers}
@@ -148,7 +133,7 @@ export default function WatcherList() {
       <WatcherFormModal
         isOpen={modalOpen}
         initialData={editing}
-        onClose={() => { setModalOpen(false); setFormError(null); }}
+        onClose={() => setModalOpen(false)}
         onSave={handleSaveWatcher}
       />
     </div>
