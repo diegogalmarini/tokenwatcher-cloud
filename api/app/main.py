@@ -4,6 +4,8 @@ from fastapi import FastAPI, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import HttpUrl
+from decimal import Decimal  # CAMBIO
+from typing import Dict, Any  # CAMBIO
 import json
 from datetime import datetime
 
@@ -45,11 +47,56 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+# ----------------------------------------------------------
+# 🔑  AUTENTICACIÓN Y DEPENDENCIAS
+# ----------------------------------------------------------
+
+# ... resto del archivo (sin cambios en esta sección) ...
+
+# ----------------------------------------------------------
+# 🚀  UTILIDADES INTERNAS
+# ----------------------------------------------------------
+
+@app.get("/auth", tags=["Authentication"])
+async def auth_root():
+    return {"message": "Auth endpoint placeholder"}
+
 
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Session) -> schemas.WatcherRead:
-    # ... (código sin cambios)
-    pass
+    """Convierte la instancia ORM de Watcher en el esquema WatcherRead,
+    añadiendo `webhook_url` a partir del primer transport asociado (si existe)."""
+    # CAMBIO: obtenemos la URL del primer transport si está disponible
+    webhook_url = None
+    if db_watcher and getattr(db_watcher, "transports", None):
+        primary_transport = db_watcher.transports[0]
+        if primary_transport and isinstance(primary_transport.config, dict):
+            webhook_url = primary_transport.config.get("url")
+
+    # CAMBIO: garantizamos conversión de Decimal y str a float para threshold
+    threshold_value = db_watcher.threshold
+    if isinstance(threshold_value, Decimal):
+        threshold_value = float(threshold_value)
+    elif isinstance(threshold_value, str):
+        try:
+            threshold_value = float(threshold_value)
+        except ValueError:
+            threshold_value = None
+
+    return schemas.WatcherRead(
+        id=db_watcher.id,
+        owner_id=db_watcher.owner_id,
+        name=db_watcher.name,
+        token_address=db_watcher.token_address,
+        threshold=threshold_value,
+        is_active=db_watcher.is_active,
+        created_at=db_watcher.created_at,
+        updated_at=db_watcher.updated_at,
+        webhook_url=webhook_url,
+    )
+
+# ----------------------------------------------------------
+# 🩺  ENDPOINTS DE SALUD Y DEMO
+# ----------------------------------------------------------
 
 @app.get("/health", tags=["System"])
 def health_check():
@@ -59,12 +106,16 @@ def health_check():
 def api_root_demo():
     return {"message": "🎉 Welcome to TokenWatcher API! Visit /docs for API documentation."}
 
+# ----------------------------------------------------------
+# 🪙  ENDPOINTS DE TOKENS (extracto)
+# ----------------------------------------------------------
+
 @app.get("/tokens/info/{contract_address}", response_model=schemas.TokenInfo, tags=["Tokens"])
 def get_token_info(contract_address: str):
     market_data = coingecko_client.get_token_market_data(contract_address)
     if not market_data:
         raise HTTPException(status_code=404, detail="Could not fetch market data for this token address.")
-    
+
     suggested_threshold = market_data["total_volume_24h"] * settings.SUGGESTED_THRESHOLD_VOLUME_PERCENT
     min_relative = market_data["total_volume_24h"] * settings.MINIMUM_THRESHOLD_VOLUME_PERCENT
     minimum_threshold = max(settings.MINIMUM_WATCHER_THRESHOLD_USD, min_relative)
