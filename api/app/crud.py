@@ -58,24 +58,18 @@ def _create_or_update_primary_transport_for_watcher(
 
 # --- User CRUD ---
 def get_user(db: Session, user_id: int) -> models.User | None:
-    # MODIFICADO: Añadido selectinload para cargar watchers eficientemente
+    # MODIFICADO: Añadido selectinload para cargar watchers y solucionar el error 500
     return db.query(models.User).options(selectinload(models.User.watchers)).filter(models.User.id == user_id).first()
 
 def get_user_by_email(db: Session, email: str) -> models.User | None:
-    # MODIFICADO: Añadido selectinload para cargar watchers eficientemente
+    # MODIFICADO: Añadido selectinload para cargar watchers y solucionar el error 500
     return db.query(models.User).options(selectinload(models.User.watchers)).filter(models.User.email == email).first()
 
 def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[models.User]:
-    """
-    Retrieve all users with pagination.
-    """
-    # MODIFICADO: Añadido selectinload para cargar watchers eficientemente
+    # MODIFICADO: Añadido selectinload para cargar watchers y solucionar el error 500
     return db.query(models.User).options(selectinload(models.User.watchers)).order_by(models.User.id).offset(skip).limit(limit).all()
 
 def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) -> models.User:
-    """
-    Crea un usuario en la base de datos con is_active=False por defecto.
-    """
     hashed_password = auth.get_password_hash(user.password)
     db_user = models.User(
         email=user.email,
@@ -88,9 +82,6 @@ def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) 
     return db_user
 
 def set_user_password(db: Session, user: models.User, new_password: str) -> models.User:
-    """
-    Hashea la nueva contraseña y la guarda en el registro del usuario.
-    """
     hashed = auth.get_password_hash(new_password)
     user.hashed_password = hashed
     db.commit()
@@ -98,31 +89,21 @@ def set_user_password(db: Session, user: models.User, new_password: str) -> mode
     return user
 
 def delete_user_by_id(db: Session, user_id: int) -> Optional[models.User]:
-    """
-    Deletes a user and their associated data.
-    """
     user_to_delete = get_user(db, user_id=user_id)
     if not user_to_delete:
-        return None 
-    
+        return None
     db.delete(user_to_delete)
     db.commit()
     return user_to_delete
 
 def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserUpdateAdmin) -> Optional[models.User]:
-    """
-    Updates a user's data from the admin panel.
-    """
     db_user = get_user(db, user_id=user_id)
     if not db_user:
         return None
-
     update_data = user_update_data.model_dump(exclude_unset=True)
-
     for field, value in update_data.items():
         if hasattr(db_user, field):
             setattr(db_user, field, value)
-    
     db.commit()
     db.refresh(db_user)
     return db_user
@@ -130,9 +111,6 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
 
 # --- Watcher CRUD ---
 def count_watchers_for_owner(db: Session, owner_id: int) -> int:
-    """
-    Counts the number of watchers owned by a specific user.
-    """
     return db.query(models.Watcher).filter(models.Watcher.owner_id == owner_id).count()
 
 def get_watcher_db(db: Session, watcher_id: int, owner_id: Optional[int] = None) -> models.Watcher:
@@ -175,7 +153,7 @@ def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: i
     
     db_watcher = models.Watcher(
         name=watcher_data.name,
-        token_address=checksum_address, # Guardamos la dirección corregida
+        token_address=checksum_address,
         threshold=watcher_data.threshold,
         is_active=watcher_data.is_active,
         owner_id=owner_id
