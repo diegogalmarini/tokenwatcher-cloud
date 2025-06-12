@@ -4,6 +4,7 @@
 import React, { useState, useEffect, FormEvent, ReactNode } from "react";
 import Button from "@/components/ui/button";
 import { Watcher } from "@/lib/useWatchers";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Interfaz para la info del token que recibimos de la API
 interface TokenInfo {
@@ -36,6 +37,7 @@ export default function WatcherFormModal({
   onClose,
   onSave,
 }: Props) {
+  const { token } = useAuth(); // Obtenemos el token para la llamada a la API
   const [name, setName] = useState("");
   const [tokenAddress, setTokenAddress] = useState("");
   const [threshold, setThreshold] = useState<number | string>("");
@@ -47,7 +49,6 @@ export default function WatcherFormModal({
 
   useEffect(() => {
     if (isOpen) {
-      // Reseteamos todos los estados al abrir el modal
       setError(null);
       setTokenInfo(null);
       setIsSaving(false);
@@ -68,7 +69,7 @@ export default function WatcherFormModal({
   }, [initialData, isOpen]);
 
   const handleTokenAddressBlur = async () => {
-    if (!/^0x[a-fA-F0-9]{40}$/.test(tokenAddress)) {
+    if (!/^0x[a-fA-F0-9]{40}$/.test(tokenAddress) || !token) {
       setTokenInfo(null);
       return;
     }
@@ -78,7 +79,9 @@ export default function WatcherFormModal({
     setError(null);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/tokens/info/${tokenAddress}`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/tokens/info/${tokenAddress}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
         throw new Error(errorData?.detail || "Could not fetch token info. Please check the address.");
@@ -118,7 +121,7 @@ export default function WatcherFormModal({
         threshold: currentThreshold,
         webhook_url: webhookUrl.trim(),
       });
-      onClose(); // Cierra el modal solo en caso de éxito
+      onClose();
     } catch (err: unknown) {
       console.error("Error in WatcherFormModal handleSubmit:", err);
       if (err instanceof Error) {
@@ -163,28 +166,21 @@ export default function WatcherFormModal({
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>
-
-        <h2 className="text-xl font-semibold mb-6 text-gray-900 dark:text-gray-100">
-          {initialData?.id ? "Edit Watcher" : "Create New Watcher"}
-        </h2>
-
+        <h2 className="text-xl font-semibold mb-6 text-gray-900 dark:text-gray-100">{initialData?.id ? "Edit Watcher" : "Create New Watcher"}</h2>
         {error && (
           <div className="mb-4 text-sm text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900 p-3 rounded-md">
             {error}
           </div>
         )}
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="watcher-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Watcher Name</label>
             <input id="watcher-name" type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" placeholder="E.g., My DAI Watcher" required />
           </div>
-
           <div>
             <label htmlFor="token-address" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Token Address</label>
-            <input id="token-address" type="text" value={tokenAddress} onChange={(e) => setTokenAddress(e.target.value)} onBlur={handleTokenAddressBlur} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" placeholder="0x..." required disabled={!!initialData?.id}/>
+            <input id="token-address" type="text" value={tokenAddress} onChange={(e) => setTokenAddress(e.target.value)} onBlur={handleTokenAddressBlur} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" placeholder="0x..." required disabled={!!initialData?.id || isFetchingInfo} />
           </div>
-
           {isFetchingInfo && <p className="text-sm text-gray-500 dark:text-gray-400 animate-pulse">Fetching token info...</p>}
           {tokenInfo && (
             <div className="text-xs p-3 bg-blue-50 dark:bg-blue-900/30 rounded-md border border-blue-200 dark:border-blue-800">
@@ -193,17 +189,14 @@ export default function WatcherFormModal({
               <p className="text-gray-500 dark:text-gray-400 mt-1">Minimum allowed: ${tokenInfo.minimum_threshold.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
             </div>
           )}
-
           <div>
             <label htmlFor="threshold" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Threshold in USD</label>
             <input id="threshold" type="number" value={threshold} onChange={(e) => setThreshold(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" min={0} step="any" required />
           </div>
-
           <div>
             <label htmlFor="webhook-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Webhook URL (Discord or Slack)</label>
             <input id="webhook-url" type="url" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" placeholder="https://hooks.slack.com/... or https://discord.com/api/webhooks/..." required={!initialData?.id} />
           </div>
-
           <div className="flex justify-end space-x-3 pt-4">
             <Button type="button" intent="default" className="bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-gray-200" onClick={onClose} size="md" disabled={isSaving}>Cancel</Button>
             <Button type="submit" intent="default" size="md" className="bg-blue-600 hover:bg-blue-700 text-white" disabled={isSaving}>
