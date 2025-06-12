@@ -17,7 +17,6 @@ from .clients import coingecko_client
 # --- Inicializa tablas ---
 try:
     print("ℹ️ [DB_INIT] Intentando crear/verificar todas las tablas definidas en Base...")
-    models.Base.metadata.drop_all(bind=engine) # AÑADE ESTA LÍNEA
     models.Base.metadata.create_all(bind=engine)
     print("✅ [DB_INIT] Tablas verificadas/creadas con éxito.")
 except Exception as e:
