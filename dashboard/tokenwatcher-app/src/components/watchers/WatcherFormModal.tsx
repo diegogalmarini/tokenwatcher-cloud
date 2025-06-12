@@ -37,7 +37,7 @@ export default function WatcherFormModal({
   onClose,
   onSave,
 }: Props) {
-  const { token } = useAuth(); // Obtenemos el token para la llamada a la API
+  const { token } = useAuth();
   const [name, setName] = useState("");
   const [tokenAddress, setTokenAddress] = useState("");
   const [threshold, setThreshold] = useState<number | string>("");
@@ -88,7 +88,9 @@ export default function WatcherFormModal({
       }
       const data: TokenInfo = await response.json();
       setTokenInfo(data);
-      setThreshold(data.suggested_threshold.toFixed(2));
+      if (!initialData?.id) { // Solo auto-rellenar en la creación
+        setThreshold(data.suggested_threshold.toFixed(2));
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -179,7 +181,7 @@ export default function WatcherFormModal({
           </div>
           <div>
             <label htmlFor="token-address" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Token Address</label>
-            <input id="token-address" type="text" value={tokenAddress} onChange={(e) => setTokenAddress(e.target.value)} onBlur={handleTokenAddressBlur} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" placeholder="0x..." required disabled={!!initialData?.id || isFetchingInfo} />
+            <input id="token-address" type="text" value={tokenAddress} onChange={(e) => setTokenAddress(e.target.value)} onBlur={handleTokenAddressBlur} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" placeholder="0x..." required disabled={!!initialData?.id || isFetchingInfo}/>
           </div>
           {isFetchingInfo && <p className="text-sm text-gray-500 dark:text-gray-400 animate-pulse">Fetching token info...</p>}
           {tokenInfo && (
