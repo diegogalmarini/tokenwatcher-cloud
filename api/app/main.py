@@ -4,8 +4,6 @@ from fastapi import FastAPI, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import HttpUrl
-from decimal import Decimal  # CAMBIO
-from typing import Dict, Any  # CAMBIO
 import json
 from datetime import datetime
 
@@ -14,12 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import engine, get_db
 from . import models, schemas, crud, auth
 from .config import settings
-from .clients import coingecko_client
+from .clients import coingecko_client # Importamos nuestro nuevo cliente
 
 # --- Inicializa tablas ---
 try:
     print("ℹ️ [DB_INIT] Intentando crear/verificar todas las tablas definidas en Base...")
-    # --- models.Base.metadata.drop_all(bind=engine) # AÑADE ESTA LÍNEA
     models.Base.metadata.create_all(bind=engine)
     print("✅ [DB_INIT] Tablas verificadas/creadas con éxito.")
 except Exception as e:
@@ -27,7 +24,7 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="1.0.0", # Versión final de esta fase
+    version="0.9.0", # Incrementamos versión por nueva funcionalidad
     description="API para monitorizar transferencias de tokens ERC-20, con filtrado y ordenación de eventos."
 )
 
@@ -47,76 +44,63 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ----------------------------------------------------------
-# 🔑  AUTENTICACIÓN Y DEPENDENCIAS
-# ----------------------------------------------------------
-
-# ... resto del archivo (sin cambios en esta sección) ...
-
-# ----------------------------------------------------------
-# 🚀  UTILIDADES INTERNAS
-# ----------------------------------------------------------
-
-@app.get("/auth", tags=["Authentication"])
-async def auth_root():
-    return {"message": "Auth endpoint placeholder"}
+# --- INCLUIR ROUTER /auth ---
+app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
 
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Session) -> schemas.WatcherRead:
-    """Convierte la instancia ORM de Watcher en el esquema WatcherRead,
-    añadiendo `webhook_url` a partir del primer transport asociado (si existe)."""
-    # CAMBIO: obtenemos la URL del primer transport si está disponible
-    webhook_url = None
-    if db_watcher and getattr(db_watcher, "transports", None):
-        primary_transport = db_watcher.transports[0]
-        if primary_transport and isinstance(primary_transport.config, dict):
-            webhook_url = primary_transport.config.get("url")
-
-    # CAMBIO: garantizamos conversión de Decimal y str a float para threshold
-    threshold_value = db_watcher.threshold
-    if isinstance(threshold_value, Decimal):
-        threshold_value = float(threshold_value)
-    elif isinstance(threshold_value, str):
-        try:
-            threshold_value = float(threshold_value)
-        except ValueError:
-            threshold_value = None
+    active_webhook_url: Optional[HttpUrl] = None
+    if db_watcher.transports:
+        first_transport = db_watcher.transports[0]
+        config_data = first_transport.config
+        if isinstance(config_data, str):
+            try:
+                config_data = json.loads(config_data)
+            except json.JSONDecodeError:
+                config_data = {}
+        if isinstance(config_data, dict) and "url" in config_data:
+            try:
+                active_webhook_url = HttpUrl(config_data["url"])
+            except Exception:
+                active_webhook_url = None
 
     return schemas.WatcherRead(
         id=db_watcher.id,
         owner_id=db_watcher.owner_id,
         name=db_watcher.name,
         token_address=db_watcher.token_address,
-        threshold=threshold_value,
+        threshold=db_watcher.threshold,
         is_active=db_watcher.is_active,
+        webhook_url=active_webhook_url,
         created_at=db_watcher.created_at,
-        updated_at=db_watcher.updated_at,
-        webhook_url=webhook_url,
+        updated_at=db_watcher.updated_at
     )
 
-# ----------------------------------------------------------
-# 🩺  ENDPOINTS DE SALUD Y DEMO
-# ----------------------------------------------------------
 
 @app.get("/health", tags=["System"])
 def health_check():
     return {"status": "ok", "message": "TokenWatcher API is healthy"}
 
+
 @app.get("/", tags=["System"], include_in_schema=False)
 def api_root_demo():
     return {"message": "🎉 Welcome to TokenWatcher API! Visit /docs for API documentation."}
 
-# ----------------------------------------------------------
-# 🪙  ENDPOINTS DE TOKENS (extracto)
-# ----------------------------------------------------------
 
+# --- NUEVO ENDPOINT PARA OBTENER INFO DE TOKENS ---
 @app.get("/tokens/info/{contract_address}", response_model=schemas.TokenInfo, tags=["Tokens"])
-def get_token_info(contract_address: str):
+def get_token_info(contract_address: str, current_user: models.User = Depends(auth.get_current_user)):
+    """
+    Obtiene datos de mercado para un token y sugiere un umbral.
+    Requiere autenticación para proteger el uso de la API de CoinGecko.
+    """
     market_data = coingecko_client.get_token_market_data(contract_address)
+    
     if not market_data:
         raise HTTPException(status_code=404, detail="Could not fetch market data for this token address.")
 
     suggested_threshold = market_data["total_volume_24h"] * settings.SUGGESTED_THRESHOLD_VOLUME_PERCENT
+    
     min_relative = market_data["total_volume_24h"] * settings.MINIMUM_THRESHOLD_VOLUME_PERCENT
     minimum_threshold = max(settings.MINIMUM_WATCHER_THRESHOLD_USD, min_relative)
 
@@ -128,6 +112,8 @@ def get_token_info(contract_address: str):
         minimum_threshold=minimum_threshold
     )
 
+
+# --- Watchers CRUD ---
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
 def create_new_watcher_for_current_user(
     watcher_data: schemas.WatcherCreate,
@@ -135,16 +121,20 @@ def create_new_watcher_for_current_user(
     current_user: models.User = Depends(auth.get_current_user)
 ):
     if not current_user.is_admin:
+        # Validación de Límite de Watchers
         watcher_count = crud.count_watchers_for_owner(db, owner_id=current_user.id)
         if watcher_count >= current_user.watcher_limit:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Watcher limit reached. You can create a maximum of {current_user.watcher_limit} watchers."
             )
+            
+        # Validación de Umbral Inteligente
         market_data = coingecko_client.get_token_market_data(watcher_data.token_address)
         if market_data and market_data.get("total_volume_24h", 0) > 0:
             min_relative_threshold = market_data["total_volume_24h"] * settings.MINIMUM_THRESHOLD_VOLUME_PERCENT
             effective_min_threshold = max(settings.MINIMUM_WATCHER_THRESHOLD_USD, min_relative_threshold)
+            
             if watcher_data.threshold < effective_min_threshold:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -152,10 +142,11 @@ def create_new_watcher_for_current_user(
                 )
         else:
             if watcher_data.threshold < settings.MINIMUM_WATCHER_THRESHOLD_USD:
-                raise HTTPException(
+                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Threshold must be at least ${settings.MINIMUM_WATCHER_THRESHOLD_USD:,.2f} USD."
                 )
+
     db_watcher = crud.create_watcher(db=db, watcher_data=watcher_data, owner_id=current_user.id)
     db.refresh(db_watcher, attribute_names=['transports'])
     return _populate_watcher_read_from_db_watcher(db_watcher, db)
@@ -228,62 +219,43 @@ def delete_existing_watcher_for_current_user(
 
 
 # --- Events CRUD ---
-@app.post("/events/", response_model=schemas.TokenEventRead, status_code=status.HTTP_201_CREATED, tags=["Events"], include_in_schema=False)
-def create_new_event_for_authed_user_testing(
-    event_data: schemas.TokenEventCreate, 
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user)
-):
-    crud.get_watcher_db(db, watcher_id=event_data.watcher_id, owner_id=current_user.id)
-    created_event = crud.create_event(db=db, event_data=event_data)
-    return created_event
-
-
 @app.get("/events/", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
 def list_all_events_for_current_user(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
-    skip: int = Query(0, ge=0, description="Número de eventos a saltar"),
-    limit: int = Query(100, ge=1, le=500, description="Número máximo de eventos a devolver"),
-    watcher_id: Optional[int] = Query(None, description="Filter events by a specific watcher ID"),
-    token_address: Optional[str] = Query(None, description="Filter by token contract address (partial match)"),
-    token_symbol: Optional[str] = Query(None, description="Filter by token symbol (partial match, case-insensitive)"),
-    start_date: Optional[datetime] = Query(None, description="Fecha de inicio (ISO format)"),
-    end_date: Optional[datetime] = Query(None, description="Fecha de fin (ISO format)"),
-    from_address: Optional[str] = Query(None, description="Filtrar por dirección de origen (exacta, case-insensitive)"),
-    to_address: Optional[str] = Query(None, description="Filtrar por dirección de destino (exacta, case-insensitive)"),
-    min_usd_value: Optional[float] = Query(None, ge=0, description="Filtrar por valor USD mínimo"),
-    max_usd_value: Optional[float] = Query(None, ge=0, description="Filter by maximum USD value"),
-    sort_by: Optional[str] = Query("created_at", description="Ordenar por: created_at, amount, usd_value, block_number"),
-    sort_order: Optional[str] = Query("desc", description="Orden: asc o desc"),
-    active_watchers_only: Optional[bool] = Query(False, description="Filter events by currently active watchers only")
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    watcher_id: Optional[int] = Query(None),
+    token_address: Optional[str] = Query(None),
+    token_symbol: Optional[str] = Query(None),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    from_address: Optional[str] = Query(None),
+    to_address: Optional[str] = Query(None),
+    min_usd_value: Optional[float] = Query(None, ge=0),
+    max_usd_value: Optional[float] = Query(None, ge=0),
+    sort_by: Optional[str] = Query("created_at"),
+    sort_order: Optional[str] = Query("desc"),
+    active_watchers_only: Optional[bool] = Query(False)
 ):
     allowed_sort_by = ["created_at", "amount", "usd_value", "block_number"]
-    if sort_by is not None and sort_by not in allowed_sort_by:
+    if sort_by not in allowed_sort_by:
         raise HTTPException(status_code=400, detail=f"Invalid 'sort_by' value. Use one of: {', '.join(allowed_sort_by)}")
-    if sort_order is not None and sort_order.lower() not in ["asc", "desc"]:
+    if sort_order.lower() not in ["asc", "desc"]:
         raise HTTPException(status_code=400, detail="Invalid 'sort_order' value. Use 'asc' o 'desc'.")
 
     data = crud.get_all_events_for_owner(
         db=db,
         owner_id=current_user.id,
-        skip=skip,
-        limit=limit,
-        watcher_id=watcher_id,
-        token_address=token_address,
-        token_symbol=token_symbol,
-        start_date=start_date,
-        end_date=end_date,
-        from_address=from_address,
-        to_address=to_address,
-        min_usd_value=min_usd_value,
-        max_usd_value=max_usd_value,
-        sort_by=sort_by,
-        sort_order=sort_order,
+        skip=skip, limit=limit, watcher_id=watcher_id,
+        token_address=token_address, token_symbol=token_symbol,
+        start_date=start_date, end_date=end_date,
+        from_address=from_address, to_address=to_address,
+        min_usd_value=min_usd_value, max_usd_value=max_usd_value,
+        sort_by=sort_by, sort_order=sort_order,
         active_watchers_only=active_watchers_only
     )
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
-
 
 @app.get("/events/distinct-token-symbols/", response_model=List[str], tags=["Events"])
 def list_distinct_token_symbols_for_current_user(

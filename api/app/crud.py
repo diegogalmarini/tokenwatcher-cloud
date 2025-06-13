@@ -66,9 +66,6 @@ def get_user_by_email(db: Session, email: str) -> models.User | None:
     return db.query(models.User).options(selectinload(models.User.watchers)).filter(models.User.email == email).first()
 
 def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[models.User]:
-    """
-    Retrieve all users with pagination.
-    """
     # --- MODIFICADO: Añadido selectinload para cargar watchers y solucionar el error 500 ---
     return db.query(models.User).options(selectinload(models.User.watchers)).order_by(models.User.id).offset(skip).limit(limit).all()
 
@@ -82,8 +79,7 @@ def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) 
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
-    # MODIFICADO: Cargamos la relación watchers para que el objeto devuelto esté completo
-    db.refresh(db_user, attribute_names=['watchers'])
+    db.refresh(db_user, attribute_names=['watchers']) # Asegura que la relación esté cargada para la respuesta
     return db_user
 
 def set_user_password(db: Session, user: models.User, new_password: str) -> models.User:
@@ -154,6 +150,7 @@ def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int
     )
 
 def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: int) -> models.Watcher:
+    # --- MODIFICADO: Añadida validación y conversión a Checksum ---
     try:
         checksum_address = Web3.to_checksum_address(watcher_data.token_address)
     except InvalidAddress:
@@ -182,6 +179,8 @@ def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.Wa
     for field, value in update_data.items():
         if field == "webhook_url":
             continue
+        
+        # --- MODIFICADO: Añadida validación y conversión a Checksum al actualizar ---
         if field == "token_address":
             try:
                 checksum_address = Web3.to_checksum_address(value)
@@ -189,6 +188,7 @@ def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.Wa
             except InvalidAddress:
                 raise HTTPException(status_code=400, detail="Invalid Ethereum address format.")
             continue
+            
         if hasattr(db_watcher, field):
             setattr(db_watcher, field, value)
 
