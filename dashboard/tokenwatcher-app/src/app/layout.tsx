@@ -1,21 +1,25 @@
 // src/app/layout.tsx
 import "./globals.css";
 import type { Metadata } from "next";
-import Script from 'next/script'; // 1. Importamos el componente Script
+import Script from 'next/script';
 
+// --- METADATA MODIFICADA ---
 export const metadata: Metadata = {
-  title: "TokenWatcher",
+  title: "TokenWatcher - Real-Time ERC-20 Event Monitoring",
   description:
-    "TokenWatcher – Monitoriza transferencias ERC-20 en tiempo real. Páginas públicas y Dashboard de usuario.",
+    "TokenWatcher – Monitor, track, and get real-time alerts for significant ERC-20 token transfers.",
+  // Propiedad 'icons' añadida para definir el favicon explícitamente
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const GTM_ID = 'GTM-N4JTJV7V'; // Tu ID de GTM
+  const GTM_ID = 'GTM-N4JTJV7V';
 
   return (
     <html lang="en">
       <head>
-        {/* 2. Añadimos el script de GTM para el <head> */}
         <Script
           id="gtm-script-head"
           strategy="afterInteractive"
@@ -31,7 +35,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        {/* 3. Añadimos el snippet <noscript> de GTM justo después de la apertura de <body> */}
         <noscript>
           <iframe
             src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
