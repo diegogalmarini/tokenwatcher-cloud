@@ -1,29 +1,21 @@
 // src/app/layout.tsx
 import "./globals.css";
 import type { Metadata } from "next";
-import Script from 'next/script';
-import ClientProviders from "./ClientProviders";
-import Navbar from "@/components/layout/Navbar"; // 1. Importamos Navbar
-import Footer from "@/components/layout/Footer"; // 2. Importamos Footer
+import Script from 'next/script'; // 1. Importamos el componente Script
 
 export const metadata: Metadata = {
-  title: {
-    default: 'TokenWatcher - Real-Time ERC-20 Event Monitoring',
-    template: '%s | TokenWatcher',
-  },
+  title: "TokenWatcher",
   description:
-    "TokenWatcher – Monitor, track, and get real-time alerts for significant ERC-20 token transfers.",
-  icons: {
-    icon: '/favicon.ico',
-  },
+    "TokenWatcher – Monitoriza transferencias ERC-20 en tiempo real. Páginas públicas y Dashboard de usuario.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const GTM_ID = 'GTM-N4JTJV7V';
+  const GTM_ID = 'GTM-N4JTJV7V'; // Tu ID de GTM
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <head>
+        {/* 2. Añadimos el script de GTM para el <head> */}
         <Script
           id="gtm-script-head"
           strategy="afterInteractive"
@@ -39,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
+        {/* 3. Añadimos el snippet <noscript> de GTM justo después de la apertura de <body> */}
         <noscript>
           <iframe
             src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
@@ -48,18 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           ></iframe>
         </noscript>
         
-        <ClientProviders>
-          <div className="flex flex-col min-h-screen">
-            {/* 3. Renderizamos el Navbar aquí */}
-            <Navbar />
-            {/* 4. El contenido de cada página se insertará aquí */}
-            <main className="flex-grow">
-              {children}
-            </main>
-            {/* 5. Renderizamos el Footer aquí */}
-            <Footer />
-          </div>
-        </ClientProviders>
+        {children}
       </body>
     </html>
   );
