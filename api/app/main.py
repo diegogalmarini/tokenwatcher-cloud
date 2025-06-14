@@ -1,6 +1,7 @@
 # api/app/main.py
 
-from fastapi import FastAPI, Depends, HTTPException, status, Query
+# --- LÍNEA CORREGIDA: Se ha añadido APIRouter a la importación ---
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import HttpUrl
@@ -9,9 +10,8 @@ from datetime import datetime
 
 from fastapi.middleware.cors import CORSMiddleware
 
-# He añadido email_utils a esta línea de importación
 from .database import engine, get_db
-from . import models, schemas, crud, auth, email_utils 
+from . import models, schemas, crud, auth, email_utils
 from .config import settings
 from .clients import coingecko_client
 
@@ -25,7 +25,7 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.9.1", # Incrementamos versión por nueva funcionalidad
+    version="0.9.1",
     description="API para monitorizar transferencias de tokens ERC-20, con gestión de contacto."
 )
 
@@ -48,7 +48,6 @@ app.add_middleware(
 # --- INCLUIR ROUTERS ---
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
-# === AÑADIMOS EL NUEVO ROUTER DE CONTACTO AQUÍ ===
 contact_router = APIRouter()
 
 @contact_router.post("/contact", status_code=status.HTTP_200_OK)
@@ -72,6 +71,7 @@ app.include_router(contact_router, prefix="/api", tags=["Contact"])
 
 
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Session) -> schemas.WatcherRead:
+    # ... (El resto de esta función no cambia)
     active_webhook_url: Optional[HttpUrl] = None
     if db_watcher.transports:
         first_transport = db_watcher.transports[0]
