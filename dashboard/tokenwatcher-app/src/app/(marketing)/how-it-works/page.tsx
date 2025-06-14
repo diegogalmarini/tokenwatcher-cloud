@@ -33,7 +33,7 @@ export default function HowItWorksPage() {
     theme === "dark" || (theme === "system" && systemTheme === "dark");
 
   return (
-    <div className={`flex flex-col min-h-screen ${isDark ? "bg-[#121212]" : "bg-[#e8e8e8]"}`}>
+    <div className={`flex flex-col min-h-screen ${isDark ? "bg-[#262626]" : "bg-[#e8e8e8]"}`}>
       <main className="flex-grow">
         <section className={`py-20 text-center ${isDark ? "bg-[#262626] text-white" : "bg-[#e8e8e8] text-gray-900"}`}>
           <div className="max-w-4xl mx-auto px-6">
@@ -48,7 +48,7 @@ export default function HowItWorksPage() {
 
         <HowItWorksSection />
 
-        <section className={`py-20 ${isDark ? "bg-[#121212]" : "bg-[#e8e8e8]"}`}>
+        <section className={`py-20 ${isDark ? "bg-[#262626]" : "bg-[#e8e8e8]"}`}>
           <div className="max-w-4xl mx-auto px-6">
             <h2 className={`text-3xl font-bold text-center mb-12 ${isDark ? "text-white" : "text-gray-900"}`}>
               A Closer Look
@@ -64,7 +64,7 @@ export default function HowItWorksPage() {
           </div>
         </section>
 
-        <section className={`pt-10 pb-20 ${isDark ? "bg-[#121212]" : "bg-[#e8e8e8]"}`}>
+        <section className={`pt-10 pb-20 ${isDark ? "bg-[#262626]" : "bg-[#e8e8e8]"}`}>
           <div className="max-w-4xl mx-auto px-6 text-center">
             <h2 className={`text-3xl font-bold mb-6 ${isDark ? "text-white" : "text-gray-900"}`}>
               Your Opportunity is Now

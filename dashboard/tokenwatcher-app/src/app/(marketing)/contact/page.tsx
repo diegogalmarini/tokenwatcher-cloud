@@ -11,7 +11,7 @@ export default function ContactPage() {
     theme === "dark" || (theme === "system" && systemTheme === "dark");
 
   return (
-    <div className={`flex flex-col min-h-screen ${isDark ? "bg-[#121212]" : "bg-[#e8e8e8]"}`}>
+    <div className={`flex flex-col min-h-screen ${isDark ? "bg-[#262626]" : "bg-[#e8e8e8]"}`}>
       <main className="flex-grow">
         <section className={`py-20 text-center ${isDark ? "bg-[#262626] text-white" : "bg-[#e8e8e8] text-gray-900"}`}>
           <div className="max-w-4xl mx-auto px-6">
@@ -25,7 +25,7 @@ export default function ContactPage() {
         </section>
 
         {/* Aquí renderizaremos nuestro componente de formulario */}
-        <section className={`py-16 ${isDark ? "bg-[#121212]" : "bg-[#e8e8e8]"}`}>
+        <section className={`py-16 ${isDark ? "bg-[#262626]" : "bg-[#e8e8e8]"}`}>
             <ContactForm />
         </section>
       </main>
