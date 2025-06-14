@@ -1,21 +1,30 @@
 // src/app/layout.tsx
 import "./globals.css";
 import type { Metadata } from "next";
-import Script from 'next/script'; // 1. Importamos el componente Script
+import Script from 'next/script';
+import ClientProviders from "./ClientProviders"; // Importamos el ClientProviders
 
+// --- METADATA MODIFICADA ---
 export const metadata: Metadata = {
-  title: "TokenWatcher",
+  // Título base y plantilla para el resto de páginas
+  title: {
+    default: 'TokenWatcher - Real-Time ERC-20 Event Monitoring',
+    template: '%s | TokenWatcher',
+  },
   description:
-    "TokenWatcher – Monitoriza transferencias ERC-20 en tiempo real. Páginas públicas y Dashboard de usuario.",
+    "TokenWatcher – Monitor, track, and get real-time alerts for significant ERC-20 token transfers. Public pages and user Dashboard.",
+  // Propiedad 'icons' añadida para definir el favicon explícitamente
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const GTM_ID = 'GTM-N4JTJV7V'; // Tu ID de GTM
+  const GTM_ID = 'GTM-N4JTJV7V';
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning> {/* suppressHydrationWarning es útil con next-themes */}
       <head>
-        {/* 2. Añadimos el script de GTM para el <head> */}
         <Script
           id="gtm-script-head"
           strategy="afterInteractive"
@@ -31,7 +40,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        {/* 3. Añadimos el snippet <noscript> de GTM justo después de la apertura de <body> */}
         <noscript>
           <iframe
             src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
@@ -41,7 +49,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           ></iframe>
         </noscript>
         
-        {children}
+        {/* Envolvemos children con ClientProviders para que el tema funcione en toda la app */}
+        <ClientProviders>
+          {children}
+        </ClientProviders>
       </body>
     </html>
   );
