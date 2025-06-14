@@ -2,18 +2,17 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import Script from 'next/script';
-import ClientProviders from "./ClientProviders"; // Importamos el ClientProviders
+import ClientProviders from "./ClientProviders";
+import Navbar from "@/components/layout/Navbar"; // 1. Importamos Navbar
+import Footer from "@/components/layout/Footer"; // 2. Importamos Footer
 
-// --- METADATA MODIFICADA ---
 export const metadata: Metadata = {
-  // Título base y plantilla para el resto de páginas
   title: {
     default: 'TokenWatcher - Real-Time ERC-20 Event Monitoring',
     template: '%s | TokenWatcher',
   },
   description:
-    "TokenWatcher – Monitor, track, and get real-time alerts for significant ERC-20 token transfers. Public pages and user Dashboard.",
-  // Propiedad 'icons' añadida para definir el favicon explícitamente
+    "TokenWatcher – Monitor, track, and get real-time alerts for significant ERC-20 token transfers.",
   icons: {
     icon: '/favicon.ico',
   },
@@ -23,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const GTM_ID = 'GTM-N4JTJV7V';
 
   return (
-    <html lang="en" suppressHydrationWarning> {/* suppressHydrationWarning es útil con next-themes */}
+    <html lang="en" suppressHydrationWarning>
       <head>
         <Script
           id="gtm-script-head"
@@ -49,9 +48,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           ></iframe>
         </noscript>
         
-        {/* Envolvemos children con ClientProviders para que el tema funcione en toda la app */}
         <ClientProviders>
-          {children}
+          <div className="flex flex-col min-h-screen">
+            {/* 3. Renderizamos el Navbar aquí */}
+            <Navbar />
+            {/* 4. El contenido de cada página se insertará aquí */}
+            <main className="flex-grow">
+              {children}
+            </main>
+            {/* 5. Renderizamos el Footer aquí */}
+            <Footer />
+          </div>
         </ClientProviders>
       </body>
     </html>
