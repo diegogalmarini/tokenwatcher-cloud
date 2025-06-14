@@ -6,9 +6,11 @@ import Button from '@/components/ui/button';
 
 export default function WhitepaperPage() {
   return (
-    <div className="flex flex-col min-h-screen bg-[#e8e8e8] dark:bg-gray-900">
+    // CORREGIDO: dark:bg-[#262626]
+    <div className="flex flex-col min-h-screen bg-[#e8e8e8] dark:bg-[#262626]">
       <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-20 md:mt-24">
-        <div className="bg-white dark:bg-gray-800 shadow-xl rounded-lg p-6 md:p-10">
+        {/* CORREGIDO: dark:bg-[#404040] */}
+        <div className="bg-white dark:bg-[#404040] shadow-xl rounded-lg p-6 md:p-10">
           
           <section className="mb-8 border-b pb-6 border-gray-200 dark:border-gray-700">
             <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-3">
@@ -21,7 +23,7 @@ export default function WhitepaperPage() {
             </div>
           </section>
 
-          <div className="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 space-y-6">
+          <div className="max-w-none text-gray-700 dark:text-gray-300 space-y-6">
             <section>
               <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-200 mb-4">
                 1. Executive Summary

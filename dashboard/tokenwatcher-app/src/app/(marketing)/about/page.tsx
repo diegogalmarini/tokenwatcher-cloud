@@ -12,7 +12,8 @@ export default function AboutPage() {
     theme === "dark" || (theme === "system" && systemTheme === "dark");
 
   return (
-    <div className={`flex flex-col min-h-screen ${isDark ? "bg-[#121212]" : "bg-[#e8e8e8]"}`}>
+    // CORREGIDO: dark:bg-[#262626]
+    <div className={`flex flex-col min-h-screen ${isDark ? "bg-[#262626]" : "bg-[#e8e8e8]"}`}>
       <main className="flex-grow">
         
         <section className={`py-20 text-center ${isDark ? "bg-[#262626] text-white" : "bg-[#e8e8e8] text-gray-900"}`}>
@@ -26,7 +27,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <section className={`py-20 ${isDark ? "bg-[#121212]" : "bg-[#e8e8e8]"}`}>
+        <section className={`py-20 ${isDark ? "bg-[#262626]" : "bg-[#e8e8e8]"}`}>
           <div className="max-w-3xl mx-auto px-6 space-y-6">
             <h2 className={`text-3xl font-bold text-center mb-8 ${isDark ? "text-white" : "text-gray-900"}`}>
               The Vision Behind TokenWatcher
@@ -49,15 +50,16 @@ export default function AboutPage() {
               The blockchain ecosystem is characterized by an immense daily volume of transactions, making manual detection of relevant events nearly impossible. This leads to critical issues for active participants:
             </p>
             <ul className={`space-y-4 text-lg ${isDark ? "text-gray-300" : "text-gray-700"}`}>
-              <li className="flex items-start p-4 rounded-lg bg-white dark:bg-neutral-700">
+              {/* CORREGIDO: dark:bg-[#404040] */}
+              <li className="flex items-start p-4 rounded-lg bg-white dark:bg-[#404040]">
                 <span className="text-blue-500 font-bold mr-3 mt-1">✓</span>
                 <div><strong>Information Overload:</strong> Difficulty in filtering out the noise to find the signal.</div>
               </li>
-              <li className="flex items-start p-4 rounded-lg bg-white dark:bg-neutral-700">
+              <li className="flex items-start p-4 rounded-lg bg-white dark:bg-[#404040]">
                 <span className="text-blue-500 font-bold mr-3 mt-1">✓</span>
                 <div><strong>Need for Immediacy:</strong> In a volatile market, delayed information means missed opportunities.</div>
               </li>
-              <li className="flex items-start p-4 rounded-lg bg-white dark:bg-neutral-700">
+              <li className="flex items-start p-4 rounded-lg bg-white dark:bg-[#404040]">
                 <span className="text-blue-500 font-bold mr-3 mt-1">✓</span>
                 <div><strong>Technical & Cost Barriers:</strong> Building and maintaining bespoke monitoring solutions is complex and expensive.</div>
               </li>
@@ -65,7 +67,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <section className={`py-20 ${isDark ? "bg-[#121212]" : "bg-[#e8e8e8]"}`}>
+        <section className={`py-20 ${isDark ? "bg-[#262626]" : "bg-[#e8e8e8]"}`}>
           <div className="max-w-4xl mx-auto px-6 text-center">
             <h2 className={`text-3xl font-bold mb-6 ${isDark ? "text-white" : "text-gray-900"}`}>
               Ready to Gain On-Chain Clarity?
