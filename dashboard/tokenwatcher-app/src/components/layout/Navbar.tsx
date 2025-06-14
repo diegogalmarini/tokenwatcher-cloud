@@ -1,84 +1,106 @@
 // File: src/components/layout/Navbar.tsx
 "use client";
 
-import React, { useState } from "react"; // Importamos useState
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useTheme } from "next-themes";
+import Button from "../ui/button"; // Reutilizamos el componente Button
 
 export default function Navbar() {
   const { theme, setTheme, systemTheme } = useTheme();
-  const currentTheme = theme === "system" ? systemTheme : theme;
-  const isDark = currentTheme === "dark";
+  const [mounted, setMounted] = useState(false);
   
-  // 1. Estado para controlar si el menú móvil está abierto o cerrado
+  // Estado para controlar el menú móvil
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  const toggleDark = () => {
+  // useEffect para evitar errores de hidratación con el tema
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null; // O un skeleton/loader
+  }
+
+  const isDark = theme === "dark" || (theme === "system" && systemTheme === "dark");
+
+  const toggleTheme = () => {
     setTheme(isDark ? "light" : "dark");
   };
 
+  const closeMenu = () => {
+    setIsMenuOpen(false);
+  };
+
   return (
-    <header
-      className={`sticky top-0 left-0 w-full z-50 transition-colors ${
-        isDark ? "bg-neutral-900" : "bg-white"
-      } shadow-md`}
-    >
-      <div className="flex items-center justify-between px-4 py-3 max-w-screen-xl mx-auto">
+    <header className={`sticky top-0 left-0 w-full z-50 transition-colors ${isDark ? "bg-[#262626]" : "bg-white"} shadow-md`}>
+      <div className="max-w-screen-xl mx-auto flex items-center justify-between px-4 sm:px-6 py-3">
         {/* Logo a la izquierda */}
-        <Link href="/" aria-label="Go to home page" onClick={() => setIsMenuOpen(false)}>
+        <Link href="/" onClick={closeMenu} aria-label="Go to home page">
           {isDark ? (
-            <Image src="/TokenWatcherW.svg" alt="TokenWatcher Logo (White)" width={140} height={36} />
+            <Image src="/TokenWatcherW.svg" alt="TokenWatcher Logo (White)" width={140} height={36} priority />
           ) : (
-            <Image src="/TokenWatcherB.svg" alt="TokenWatcher Logo (Black)" width={140} height={36} />
+            <Image src="/TokenWatcherB.svg" alt="TokenWatcher Logo (Black)" width={140} height={36} priority />
           )}
         </Link>
 
-        {/* Menú principal para desktop (oculto en pantallas pequeñas) */}
-        <nav className="hidden lg:flex items-center space-x-5">
-          <Link href="/login" className={`text-sm font-medium transition-colors ${isDark ? "text-neutral-200 hover:text-white" : "text-neutral-800 hover:text-black"}`}>
+        {/* Menú principal para DESKTOP (oculto en pantallas pequeñas) */}
+        <nav className="hidden lg:flex items-center space-x-4">
+          <Link href="/login" className="text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white transition-colors">
             Login
           </Link>
-          <Link href="/register" className="inline-block text-white font-semibold px-4 py-2 rounded-lg transition text-sm bg-blue-600 hover:bg-blue-700">
-            Sign Up
+          <Link href="/register" legacyBehavior>
+            <Button intent="default" size="md">Sign Up</Button>
           </Link>
-          <button onClick={toggleDark} title="Toggle theme" className="p-2 rounded-full bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition">
-            {/* SVGs del botón de tema */}
-            {isDark ? ( <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg> ) : ( <svg className="h-5 w-5 text-neutral-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg> )}
+          <button
+            onClick={toggleTheme}
+            title="Toggle theme"
+            className="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-neutral-800 transition-colors"
+          >
+            {isDark ? (
+              <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+            ) : (
+              <svg className="h-5 w-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4.243 1.243a1 1 0 011.414 0l.707.707a1 1 0 01-1.414 1.414l-.707-.707a1 1 0 010-1.414zM19 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM14.95 14.95a1 1 0 01-1.414 0l-.707-.707a1 1 0 111.414-1.414l.707.707a1 1 0 010 1.414zM10 18a1 1 0 01-1-1v-1a1 1 0 112 0v1a1 1 0 01-1 1zM5.05 14.95a1 1 0 010-1.414l.707-.707a1 1 0 011.414 1.414l-.707.707a1 1 0 01-1.414 0zM1 10a1 1 0 011-1h1a1 1 0 110 2H2a1 1 0 01-1-1zM5.757 5.757a1 1 0 010-1.414l.707-.707a1 1 0 011.414 1.414l-.707.707a1 1 0 01-1.414 0zM10 6a4 4 0 100 8 4 4 0 000-8z"></path></svg>
+            )}
           </button>
         </nav>
 
-        {/* 2. Botón de menú hamburguesa (visible solo en pantallas pequeñas) */}
-        <div className="lg:hidden flex items-center">
-          <button onClick={toggleDark} title="Toggle theme" className="p-2 rounded-full bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 transition">
-             {isDark ? ( <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg> ) : ( <svg className="h-5 w-5 text-neutral-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg> )}
-          </button>
+        {/* Botón de hamburguesa para MÓVIL (visible solo en pantallas pequeñas) */}
+        <div className="lg:hidden">
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="ml-2 p-2 rounded-md text-gray-700 dark:text-gray-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+            className="p-2 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
             aria-label="Toggle menu"
           >
             {isMenuOpen ? (
-              // Icono 'X' para cerrar
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             ) : (
-              // Icono hamburguesa para abrir
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+              <svg className="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-4 6h4" /></svg>
             )}
           </button>
         </div>
       </div>
 
-      {/* 3. Panel del menú móvil (se muestra u oculta según el estado) */}
+      {/* Panel del menú móvil (se muestra u oculta según el estado) */}
       {isMenuOpen && (
-        <div className="lg:hidden bg-white dark:bg-neutral-900 border-t border-gray-200 dark:border-neutral-800">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            <Link href="/login" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800">
+        <div className="lg:hidden border-t border-gray-200 dark:border-neutral-800">
+          <div className="px-2 pt-2 pb-4 space-y-1">
+            <Link href="/login" onClick={closeMenu} className="block px-3 py-2 rounded-md text-base font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-800">
               Login
             </Link>
-            <Link href="/register" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-800">
+            <Link href="/register" onClick={closeMenu} className="block px-3 py-2 rounded-md text-base font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-800">
               Sign Up
             </Link>
+             <div className="px-3 py-2">
+                <button
+                    onClick={toggleTheme}
+                    className="w-full flex justify-between items-center text-left text-base font-medium text-gray-800 dark:text-gray-200"
+                >
+                    Toggle Theme
+                    {isDark ? <svg className="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg> : <svg className="h-5 w-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4.243 1.243a1 1 0 011.414 0l.707.707a1 1 0 01-1.414 1.414l-.707-.707a1 1 0 010-1.414zM19 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM14.95 14.95a1 1 0 01-1.414 0l-.707-.707a1 1 0 011.414 1.414l.707.707a1 1 0 010 1.414zM10 18a1 1 0 01-1-1v-1a1 1 0 112 0v1a1 1 0 01-1 1zM5.05 14.95a1 1 0 010-1.414l.707-.707a1 1 0 011.414 1.414l-.707.707a1 1 0 01-1.414 0zM1 10a1 1 0 011-1h1a1 1 0 110 2H2a1 1 0 01-1-1zM5.757 5.757a1 1 0 010-1.414l.707-.707a1 1 0 011.414 1.414l-.707.707a1 1 0 01-1.414 0zM10 6a4 4 0 100 8 4 4 0 000-8z"></path></svg>}
+                </button>
+            </div>
           </div>
         </div>
       )}
