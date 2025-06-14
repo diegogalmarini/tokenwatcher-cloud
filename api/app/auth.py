@@ -1,6 +1,6 @@
 # api/app/auth.py
 
-import re
+import re # Importación para validación de contraseña
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
@@ -15,16 +15,18 @@ from . import crud, models, schemas
 from .database import get_db
 from .config import settings
 from .email_utils import send_reset_email, send_verification_email, send_watcher_limit_update_email
-from .main import limiter # Importamos el limiter desde main.py
+# Importamos el limiter desde main.py para usarlo aquí
+from .main import limiter 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 router = APIRouter()
 
-# === FUNCIÓN DE VALIDACIÓN DE CONTRASEÑA ===
+# === FUNCIÓN DE VALIDACIÓN DE CONTRASEÑA AÑADIDA ===
 def validate_password_strength(password: str) -> Optional[str]:
     """
     Valida la fortaleza de una contraseña.
+    Devuelve un mensaje de error si no es válida, o None si es válida.
     """
     if len(password) < 8:
         return "Password must be at least 8 characters long."
@@ -36,7 +38,7 @@ def validate_password_strength(password: str) -> Optional[str]:
         return "Password must contain at least one number."
     if not re.search(r"[!@#$%^&*(),.?:{}|<>]", password):
         return "Password must contain at least one special character (e.g., !@#$%)."
-    return None
+    return None # La contraseña es válida
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
@@ -127,7 +129,7 @@ async def read_current_user(current_user: models.User = Depends(get_current_user
 # --- FUNCIONES PARA ADMINISTRACIÓN ---
 def get_current_admin_user(current_user: models.User = Depends(get_current_user)):
     """
-    Checks if the current user is the admin.
+    Checks if the current user is the admin based on the email in settings.
     """
     if not current_user.is_admin:
         raise HTTPException(
@@ -137,7 +139,12 @@ def get_current_admin_user(current_user: models.User = Depends(get_current_user)
     return current_user
 
 @router.get("/admin/users", response_model=List[schemas.UserRead], tags=["Admin"])
-def read_all_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), admin_user: models.User = Depends(get_current_admin_user)):
+def read_all_users(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    admin_user: models.User = Depends(get_current_admin_user)
+):
     """
     Retrieve all users. Requires admin privileges.
     """
@@ -145,7 +152,11 @@ def read_all_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
     return users
 
 @router.delete("/admin/users/{user_id}", status_code=status.HTTP_200_OK, tags=["Admin"])
-def delete_user(user_id: int, db: Session = Depends(get_db), admin_user: models.User = Depends(get_current_admin_user)):
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin_user: models.User = Depends(get_current_admin_user)
+):
     """
     Delete a user and all their associated data. Requires admin privileges.
     """
@@ -156,9 +167,14 @@ def delete_user(user_id: int, db: Session = Depends(get_db), admin_user: models.
     return {"detail": f"User {deleted_user.email} and all associated data deleted successfully."}
 
 @router.patch("/admin/users/{user_id}", response_model=schemas.UserRead, tags=["Admin"])
-def update_user_as_admin(user_id: int, user_update: schemas.UserUpdateAdmin, db: Session = Depends(get_db), admin_user: models.User = Depends(get_current_admin_user)):
+def update_user_as_admin(
+    user_id: int,
+    user_update: schemas.UserUpdateAdmin,
+    db: Session = Depends(get_db),
+    admin_user: models.User = Depends(get_current_admin_user)
+):
     """
-    Update a user's details. Requires admin privileges.
+    Update a user's details (e.g., watcher_limit, is_active). Requires admin privileges.
     """
     updated_user = crud.update_user_admin(db, user_id=user_id, user_update_data=user_update)
     if not updated_user:
@@ -168,6 +184,7 @@ def update_user_as_admin(user_id: int, user_update: schemas.UserUpdateAdmin, db:
         send_watcher_limit_update_email(updated_user.email, updated_user.watcher_limit)
         
     return updated_user
+
 
 # --- RESTO DE ENDPOINTS DE AUTENTICACIÓN ---
 @router.post("/forgot-password", response_model=schemas.ForgotPasswordResponse, status_code=status.HTTP_200_OK, tags=["Authentication"])
