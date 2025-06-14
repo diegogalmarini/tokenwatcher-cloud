@@ -2,7 +2,9 @@
 
 import os
 from pydantic_settings import BaseSettings
+# Se añade EmailStr para validar el formato del correo
 from typing import Literal
+from pydantic import EmailStr
 
 class Settings(BaseSettings):
     # Configuración de la base de datos
@@ -33,13 +35,15 @@ class Settings(BaseSettings):
 
     # --- Variables para envíos de correo con SendGrid ---
     SENDGRID_API_KEY: str
-    MAIL_FROM: str
+    MAIL_FROM: EmailStr # Usamos EmailStr para validar
 
     # --- URL base de tu Frontend (para construir links de reset/verificación) ---
     FRONTEND_BASE_URL: str
 
-    # --- VARIABLE PARA EL EMAIL DEL ADMINISTRADOR ---
-    ADMIN_EMAIL: str
+    # --- VARIABLES PARA EMAILS DE ADMINISTRACIÓN Y CONTACTO ---
+    ADMIN_EMAIL: EmailStr
+    # === NUEVA VARIABLE AÑADIDA ===
+    CONTACT_FORM_RECIPIENT_EMAIL: EmailStr
     
     # --- LÍMITE DE WATCHERS POR DEFECTO ---
     DEFAULT_WATCHER_LIMIT: int = 5

@@ -4,13 +4,14 @@ import os
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from .config import settings
+from .schemas import ContactFormRequest # Importamos el nuevo schema
 
 def send_email(to_email: str, subject: str, html_content: str) -> bool:
     """
     Función genérica para enviar un email usando SendGrid.
     """
     message = Mail(
-        from_email=settings.MAIL_FROM,
+        from_email=settings.MAIL_FROM, # Usará noreply@tokenwatcher.app que tienes en tus settings
         to_emails=to_email,
         subject=subject,
         html_content=html_content
@@ -57,7 +58,7 @@ def send_reset_email(email_to: str, token: str):
     """
     return send_email(email_to, subject, html_content)
 
-# --- NUEVA FUNCIÓN DE EMAIL ---
+
 def send_watcher_limit_update_email(email_to: str, new_limit: int):
     """
     Notifica al usuario que su límite de watchers ha sido actualizado.
@@ -72,3 +73,31 @@ def send_watcher_limit_update_email(email_to: str, new_limit: int):
     <p>Best regards,<br>TokenWatcher Team</p>
     """
     return send_email(email_to, subject, html_content)
+
+
+# --- NUEVA FUNCIÓN PARA EL FORMULARIO DE CONTACTO ---
+def send_contact_form_email(form_data: ContactFormRequest):
+    """
+    Envía el contenido de un formulario de contacto al email de soporte.
+    """
+    # El email al que llegarán los mensajes. Lo tomamos de los settings para flexibilidad.
+    to_email = settings.CONTACT_FORM_RECIPIENT_EMAIL
+    subject = f"[TokenWatcher Contact] New message from {form_data.name}"
+
+    # Creamos un cuerpo de email en HTML para que se vea bien
+    html_content = f"""
+    <html>
+    <body>
+        <h2>New Contact Form Submission</h2>
+        <p>You have received a new message from your TokenWatcher contact form.</p>
+        <hr>
+        <p><strong>Name:</strong> {form_data.name}</p>
+        <p><strong>Reply-to Email:</strong> {form_data.email}</p>
+        <p><strong>Message:</strong></p>
+        <p>{form_data.message.replace('\n', '<br>')}</p>
+        <hr>
+        <p>This email was sent from the TokenWatcher contact form.</p>
+    </body>
+    </html>
+    """
+    return send_email(to_email, subject, html_content)

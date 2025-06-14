@@ -138,3 +138,9 @@ class ResetPasswordRequest(BaseModel):
 
 class ResetPasswordResponse(BaseModel):
     msg: str
+
+# --- SCHEMA PARA FORMULARIO DE CONTACTO ---
+class ContactFormRequest(BaseModel):
+    name: str
+    email: EmailStr
+    message: str

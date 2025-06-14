@@ -9,10 +9,11 @@ from datetime import datetime
 
 from fastapi.middleware.cors import CORSMiddleware
 
+# He añadido email_utils a esta línea de importación
 from .database import engine, get_db
-from . import models, schemas, crud, auth
+from . import models, schemas, crud, auth, email_utils 
 from .config import settings
-from .clients import coingecko_client # Importamos nuestro nuevo cliente
+from .clients import coingecko_client
 
 # --- Inicializa tablas ---
 try:
@@ -24,8 +25,8 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.9.0", # Incrementamos versión por nueva funcionalidad
-    description="API para monitorizar transferencias de tokens ERC-20, con filtrado y ordenación de eventos."
+    version="0.9.1", # Incrementamos versión por nueva funcionalidad
+    description="API para monitorizar transferencias de tokens ERC-20, con gestión de contacto."
 )
 
 origins = [
@@ -44,8 +45,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- INCLUIR ROUTER /auth ---
+# --- INCLUIR ROUTERS ---
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+
+# === AÑADIMOS EL NUEVO ROUTER DE CONTACTO AQUÍ ===
+contact_router = APIRouter()
+
+@contact_router.post("/contact", status_code=status.HTTP_200_OK)
+def submit_contact_form(form_data: schemas.ContactFormRequest):
+    """
+    Endpoint para recibir los envíos del formulario de contacto y enviar el email.
+    Este endpoint es público y no requiere autenticación.
+    """
+    success = email_utils.send_contact_form_email(form_data=form_data)
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not send the message. Please try again later.",
+        )
+    
+    return {"detail": "Message sent successfully"}
+
+app.include_router(contact_router, prefix="/api", tags=["Contact"])
+# =================================================
 
 
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Session) -> schemas.WatcherRead:
