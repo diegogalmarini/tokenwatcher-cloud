@@ -2,8 +2,9 @@
 import React from 'react';
 
 export default function ProblemSolutionSection() {
+  // CORREGIDO: Cambiado bg-white a bg-[#e8e8e8] y añadido el fondo para dark mode
   return (
-    <section className="py-16 bg-white dark:bg-gray-900">
+    <section className="py-16 bg-[#e8e8e8] dark:bg-[#262626]">
       <div className="max-w-5xl mx-auto text-center px-6">
         <h2 className="text-3xl font-bold mb-4 text-gray-900 dark:text-gray-100">
           Why TokenWatcher?
