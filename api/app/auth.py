@@ -15,8 +15,8 @@ from . import crud, models, schemas
 from .database import get_db
 from .config import settings
 from .email_utils import send_reset_email, send_verification_email, send_watcher_limit_update_email
-# Importamos el limiter desde main.py para usarlo aquí
-from .main import limiter 
+# === IMPORTACIÓN CORREGIDA: Apuntamos a rate_limiter en lugar de a main ===
+from .rate_limiter import limiter
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")

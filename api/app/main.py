@@ -7,10 +7,10 @@ from pydantic import HttpUrl
 import json
 from datetime import datetime
 
-# === IMPORTACIONES DE SLOWAPI ===
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+# Importaciones para Rate Limiting
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from .rate_limiter import limiter # Importamos nuestro limiter centralizado
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -18,9 +18,6 @@ from .database import engine, get_db
 from . import models, schemas, crud, auth, email_utils 
 from .config import settings
 from .clients import coingecko_client
-
-# === INICIALIZACIÓN DEL LIMITADOR ===
-limiter = Limiter(key_func=get_remote_address)
 
 # --- Inicializa tablas ---
 try:
@@ -32,11 +29,11 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.9.2",
+    version="0.9.3",
     description="API para monitorizar transferencias de tokens ERC-20, con seguridad mejorada."
 )
 
-# === AÑADIMOS EL LIMITADOR AL ESTADO DE LA APP Y MANEJAMOS EXCEPCIONES ===
+# Añadimos el limiter al estado de la app y manejamos las excepciones
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -59,26 +56,21 @@ app.add_middleware(
 # --- INCLUIR ROUTERS ---
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
-# === ROUTER Y ENDPOINT PARA EL FORMULARIO DE CONTACTO ===
 contact_router = APIRouter()
 
 @contact_router.post("/contact", status_code=status.HTTP_200_OK)
-@limiter.limit("10/hour") # Límite: 10 peticiones por hora por IP
+@limiter.limit("10/hour")
 def submit_contact_form(request: Request, form_data: schemas.ContactFormRequest):
-    """
-    Endpoint para recibir los envíos del formulario de contacto y enviar el email.
-    """
     success = email_utils.send_contact_form_email(form_data=form_data)
-    
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not send the message. Please try again later.",
         )
-    
     return {"detail": "Message sent successfully"}
 
 app.include_router(contact_router, prefix="/api", tags=["Contact"])
+
 
 # --- FUNCIONES Y ENDPOINTS PRINCIPALES ---
 
@@ -99,29 +91,22 @@ def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher, db: Sessi
                 active_webhook_url = None
 
     return schemas.WatcherRead(
-        id=db_watcher.id,
-        owner_id=db_watcher.owner_id,
-        name=db_watcher.name,
-        token_address=db_watcher.token_address,
-        threshold=db_watcher.threshold,
-        is_active=db_watcher.is_active,
-        webhook_url=active_webhook_url,
-        created_at=db_watcher.created_at,
-        updated_at=db_watcher.updated_at
+        id=db_watcher.id, owner_id=db_watcher.owner_id, name=db_watcher.name,
+        token_address=db_watcher.token_address, threshold=db_watcher.threshold,
+        is_active=db_watcher.is_active, webhook_url=active_webhook_url,
+        created_at=db_watcher.created_at, updated_at=db_watcher.updated_at
     )
 
 @app.get("/health", tags=["System"])
 def health_check():
     return {"status": "ok", "message": "TokenWatcher API is healthy"}
 
-
 @app.get("/", tags=["System"], include_in_schema=False)
 def api_root_demo():
     return {"message": "🎉 Welcome to TokenWatcher API! Visit /docs for API documentation."}
 
-
 @app.get("/tokens/info/{contract_address}", response_model=schemas.TokenInfo, tags=["Tokens"])
-@limiter.limit("30/minute") # Rate limit añadido
+@limiter.limit("30/minute")
 def get_token_info(request: Request, contract_address: str, current_user: models.User = Depends(auth.get_current_user)):
     market_data = coingecko_client.get_token_market_data(contract_address)
     if not market_data:
@@ -132,11 +117,9 @@ def get_token_info(request: Request, contract_address: str, current_user: models
     minimum_threshold = max(settings.MINIMUM_WATCHER_THRESHOLD_USD, min_relative)
 
     return schemas.TokenInfo(
-        price=market_data["price"],
-        market_cap=market_data["market_cap"],
+        price=market_data["price"], market_cap=market_data["market_cap"],
         total_volume_24h=market_data["total_volume_24h"],
-        suggested_threshold=suggested_threshold,
-        minimum_threshold=minimum_threshold
+        suggested_threshold=suggested_threshold, minimum_threshold=minimum_threshold
     )
 
 
