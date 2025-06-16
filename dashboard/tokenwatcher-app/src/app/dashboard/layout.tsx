@@ -1,25 +1,19 @@
 // src/app/dashboard/layout.tsx
-"use client"; // Necesario porque usas handle de theme, auth, etc.
+"use client";
 
 import React, { ReactNode } from "react";
-import ClientProvidersDashboard from "./ClientProvidersDashboard";
-/*
-  ClientProvidersDashboard internamente se encarga de:
-    - ThemeProvider (next-themes)
-    - AuthProvider
-    - Mostrar el DashboardHeader (logo + usuario + toggle)
-    - renderizar {children}
-*/
+import DashboardHeader from "@/components/layout/DashboardHeader";
 
-interface DashboardLayoutProps {
-  children: ReactNode;
-}
-
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+// Este layout es responsable de dibujar el marco del dashboard
+export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
-    // ClientProvidersDashboard ya engloba a DashboardHeader y AuthProvider
-    <ClientProvidersDashboard>
-      {children}
-    </ClientProvidersDashboard>
+    // El AuthProvider y ThemeProvider ya vienen del layout raíz
+    <div className="flex flex-col min-h-screen bg-[#e8e8e8] dark:bg-[#262626]">
+      <DashboardHeader />
+      <main className="flex-grow p-4 sm:p-6 lg:p-8">
+        {children}
+      </main>
+      {/* Intencionadamente no hay Footer en el dashboard */}
+    </div>
   );
 }

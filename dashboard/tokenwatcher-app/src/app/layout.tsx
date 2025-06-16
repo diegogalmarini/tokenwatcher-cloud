@@ -2,13 +2,14 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import Script from 'next/script';
+import ClientProviders from "./ClientProviders";
 
-// --- METADATA MODIFICADA ---
 export const metadata: Metadata = {
-  title: "TokenWatcher - Real-Time ERC-20 Event Monitoring",
-  description:
-    "TokenWatcher – Monitor, track, and get real-time alerts for significant ERC-20 token transfers.",
-  // Propiedad 'icons' añadida para definir el favicon explícitamente
+  title: {
+    default: 'TokenWatcher - Real-Time ERC-20 Event Monitoring',
+    template: '%s | TokenWatcher',
+  },
+  description: "Monitor, track, and get real-time alerts for significant ERC-20 token transfers.",
   icons: {
     icon: '/favicon.ico',
   },
@@ -18,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const GTM_ID = 'GTM-N4JTJV7V';
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <Script
           id="gtm-script-head"
@@ -44,7 +45,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           ></iframe>
         </noscript>
         
-        {children}
+        {/* El layout raíz solo provee el contexto, SIN NINGÚN MARCO VISUAL. */}
+        <ClientProviders>
+          {children}
+        </ClientProviders>
       </body>
     </html>
   );

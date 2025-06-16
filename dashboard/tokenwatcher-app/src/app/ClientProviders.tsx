@@ -3,38 +3,10 @@
 
 import React, { ReactNode } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { ThemeProvider, useTheme } from "next-themes";
-import Navbar from "@/components/layout/Navbar";
-import Footer from "@/components/layout/Footer";
+import { ThemeProvider } from "next-themes";
 
-interface ClientProvidersProps {
-  children: ReactNode;
-}
-
-/**
- * Dentro de <ThemeProvider> podemos leer useTheme() para saber isDark / toggleDark.
- * Luego renderizamos Navbar + contenido público + Footer. 
- */
-function ClientNavbarAndFooter({ children }: { children: ReactNode }) {
-  const { theme, setTheme, systemTheme } = useTheme();
-  const currentTheme = theme === "system" ? systemTheme : theme;
-  const isDark = currentTheme === "dark";
-
-  const toggleDark = () => {
-    setTheme(isDark ? "light" : "dark");
-  };
-
-  return (
-    <>
-      <Navbar isDark={isDark} toggleDark={toggleDark} />
-      {/* Quitamos el pt-16 aquí para que el contenido no tenga ese gran espacio */}
-      {children}
-      <Footer />
-    </>
-  );
-}
-
-export default function ClientProviders({ children }: ClientProvidersProps) {
+// ESTE ARCHIVO AHORA SOLO CONTIENE PROVIDERS. NO HAY NAVBAR NI FOOTER.
+export default function ClientProviders({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider
       attribute="class"
@@ -43,7 +15,7 @@ export default function ClientProviders({ children }: ClientProvidersProps) {
       disableTransitionOnChange
     >
       <AuthProvider>
-        <ClientNavbarAndFooter>{children}</ClientNavbarAndFooter>
+        {children}
       </AuthProvider>
     </ThemeProvider>
   );
