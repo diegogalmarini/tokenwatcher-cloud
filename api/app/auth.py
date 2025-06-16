@@ -15,7 +15,7 @@ from . import crud, models, schemas
 from .database import get_db
 from .config import settings
 from .email_utils import send_reset_email, send_verification_email, send_watcher_limit_update_email
-# === IMPORTACIÓN CORREGIDA: Apuntamos a rate_limiter en lugar de a main ===
+# === IMPORTACIÓN CORREGIDA: Apuntamos a rate_limiter para evitar el error circular ===
 from .rate_limiter import limiter
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -129,7 +129,7 @@ async def read_current_user(current_user: models.User = Depends(get_current_user
 # --- FUNCIONES PARA ADMINISTRACIÓN ---
 def get_current_admin_user(current_user: models.User = Depends(get_current_user)):
     """
-    Checks if the current user is the admin based on the email in settings.
+    Checks if the current user is the admin.
     """
     if not current_user.is_admin:
         raise HTTPException(
@@ -139,12 +139,7 @@ def get_current_admin_user(current_user: models.User = Depends(get_current_user)
     return current_user
 
 @router.get("/admin/users", response_model=List[schemas.UserRead], tags=["Admin"])
-def read_all_users(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
-    admin_user: models.User = Depends(get_current_admin_user)
-):
+def read_all_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), admin_user: models.User = Depends(get_current_admin_user)):
     """
     Retrieve all users. Requires admin privileges.
     """
@@ -152,11 +147,7 @@ def read_all_users(
     return users
 
 @router.delete("/admin/users/{user_id}", status_code=status.HTTP_200_OK, tags=["Admin"])
-def delete_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    admin_user: models.User = Depends(get_current_admin_user)
-):
+def delete_user(user_id: int, db: Session = Depends(get_db), admin_user: models.User = Depends(get_current_admin_user)):
     """
     Delete a user and all their associated data. Requires admin privileges.
     """
@@ -167,12 +158,7 @@ def delete_user(
     return {"detail": f"User {deleted_user.email} and all associated data deleted successfully."}
 
 @router.patch("/admin/users/{user_id}", response_model=schemas.UserRead, tags=["Admin"])
-def update_user_as_admin(
-    user_id: int,
-    user_update: schemas.UserUpdateAdmin,
-    db: Session = Depends(get_db),
-    admin_user: models.User = Depends(get_current_admin_user)
-):
+def update_user_as_admin(user_id: int, user_update: schemas.UserUpdateAdmin, db: Session = Depends(get_db), admin_user: models.User = Depends(get_current_admin_user)):
     """
     Update a user's details (e.g., watcher_limit, is_active). Requires admin privileges.
     """

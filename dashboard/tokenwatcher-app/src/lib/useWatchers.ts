@@ -2,6 +2,19 @@
 import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
+// === TIPOS DE DATOS ACTUALIZADOS ===
+
+export type Transport = {
+  id: number;
+  watcher_id: number;
+  type: 'slack' | 'discord' | 'email' | 'telegram';
+  config: {
+    url?: string;
+    email?: string;
+    // Podríamos añadir aquí chat_id y bot_token para telegram en el futuro
+  };
+};
+
 export type Watcher = {
   id: number;
   owner_id: number;
@@ -9,24 +22,24 @@ export type Watcher = {
   token_address: string;
   threshold: number;
   is_active: boolean;
-  webhook_url: string | null;
   created_at: string;
   updated_at: string;
+  transports: Transport[];
 };
 
 export type WatcherCreatePayload = {
   name: string;
   token_address: string;
   threshold: number;
-  webhook_url: string;
+  // --- LÍNEA MODIFICADA: Añadido 'telegram' ---
+  transport_type: 'slack' | 'discord' | 'email' | 'telegram';
+  transport_target: string;
   is_active?: boolean;
 };
 
 export type WatcherUpdatePayload = {
   name?: string;
-  token_address?: string;
   threshold?: number;
-  webhook_url?: string | null;
   is_active?: boolean;
 };
 
@@ -93,7 +106,7 @@ export function useWatchers() {
       await fetchWatchers();
     } catch (err) {
       console.error("createWatcher error:", err);
-      throw err; // Solo relanzamos el error
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -115,7 +128,7 @@ export function useWatchers() {
       await fetchWatchers();
     } catch (err) {
       console.error("updateWatcher error:", err);
-      throw err; // Solo relanzamos el error
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -136,7 +149,7 @@ export function useWatchers() {
       await fetchWatchers();
     } catch (err) {
       console.error("deleteWatcher error:", err);
-      throw err; // Solo relanzamos el error
+      throw err;
     } finally {
       setIsLoading(false);
     }

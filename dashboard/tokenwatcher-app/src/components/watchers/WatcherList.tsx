@@ -3,9 +3,9 @@
 
 import React, { useEffect, useState } from "react";
 import Button from "@/components/ui/button";
-import WatcherFormModal from "./WatcherFormModal";
+import WatcherFormModal, { WatcherFormData } from "./WatcherFormModal"; // Importamos el tipo desde el Modal
 import WatcherTable from "./WatcherTable";
-import { useWatchers, Watcher, WatcherCreatePayload, WatcherUpdatePayload } from "@/lib/useWatchers";
+import { useWatchers, Watcher, WatcherUpdatePayload } from "@/lib/useWatchers";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function WatcherList() {
@@ -39,30 +39,24 @@ export default function WatcherList() {
     setModalOpen(true);
   };
 
-  const handleSaveWatcher = async (data: {
-    name: string;
-    token_address: string;
-    threshold: number;
-    webhook_url: string | null;
-  }) => {
+  // === FUNCIÓN HANDLESAVEWATCHER MODIFICADA PARA EL NUEVO FORMATO ===
+  const handleSaveWatcher = async (data: WatcherFormData) => {
     try {
       if (editing && editing.id) {
-        const payload: WatcherUpdatePayload = { ...data };
-        if (data.webhook_url === "") payload.webhook_url = null;
+        // Al editar un Watcher, solo actualizamos sus propiedades principales.
+        // La gestión de transportes se hará con sus propios endpoints en el futuro.
+        const payload: WatcherUpdatePayload = {
+            name: data.name,
+            threshold: data.threshold,
+        };
         await updateWatcher(editing.id, payload);
       } else {
-        if (!data.webhook_url) {
-          throw new Error("Webhook URL is required for new watchers.");
-        }
-        const payload: WatcherCreatePayload = {
-            name: data.name,
-            token_address: data.token_address,
-            threshold: data.threshold,
-            webhook_url: data.webhook_url,
-        };
-        await createWatcher(payload);
+        // Al crear un nuevo Watcher, pasamos el objeto de datos completo
+        // que ya tiene el formato correcto (transport_type y transport_target).
+        // La función `createWatcher` en el hook `useWatchers` deberá ser actualizada para manejar esto.
+        await createWatcher(data);
       }
-      setModalOpen(false); // Cierra el modal solo en caso de éxito
+      setModalOpen(false);
     } catch (err) {
       console.error("Failed to save watcher:", err);
       // El error se relanza para que el modal lo capture y muestre

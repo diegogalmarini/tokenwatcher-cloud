@@ -2,8 +2,8 @@
 
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import desc, asc, func as sql_func, distinct
-from fastapi import HTTPException
-from pydantic import HttpUrl
+from fastapi import HTTPException, status
+from pydantic import HttpUrl, EmailStr
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from web3 import Web3
@@ -11,62 +11,14 @@ from web3.exceptions import InvalidAddress
 
 from . import models, schemas, auth
 
-# --- Funciones Auxiliares para Transports ---
-def get_transport_type_from_url(webhook_url: HttpUrl | str) -> Optional[str]:
-    url_str = str(webhook_url)
-    if not url_str:
-        return None
-    if "discord.com/api/webhooks" in url_str:
-        return "discord"
-    elif "hooks.slack.com/services" in url_str:
-        return "slack"
-    return None
-
-def _create_or_update_primary_transport_for_watcher(
-    db: Session,
-    watcher_model_instance: models.Watcher,
-    webhook_url_from_schema: Optional[HttpUrl]
-):
-    db_transport = (
-        db.query(models.Transport)
-        .filter(models.Transport.watcher_id == watcher_model_instance.id)
-        .first()
-    )
-    if webhook_url_from_schema:
-        transport_type = get_transport_type_from_url(webhook_url_from_schema)
-        webhook_url_str = str(webhook_url_from_schema)
-        if not transport_type:
-            if db_transport:
-                db.delete(db_transport)
-            return
-
-        config_data = {"url": webhook_url_str}
-
-        if db_transport:
-            db_transport.type = transport_type
-            db_transport.config = config_data
-        else:
-            db_transport = models.Transport(
-                watcher_id=watcher_model_instance.id,
-                type=transport_type,
-                config=config_data,
-            )
-            db.add(db_transport)
-    elif db_transport:
-        db.delete(db_transport)
-
-
 # --- User CRUD ---
 def get_user(db: Session, user_id: int) -> models.User | None:
-    # --- MODIFICADO: Añadido selectinload para cargar watchers y solucionar el error 500 ---
     return db.query(models.User).options(selectinload(models.User.watchers)).filter(models.User.id == user_id).first()
 
 def get_user_by_email(db: Session, email: str) -> models.User | None:
-    # --- MODIFICADO: Añadido selectinload para cargar watchers y solucionar el error 500 ---
     return db.query(models.User).options(selectinload(models.User.watchers)).filter(models.User.email == email).first()
 
 def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[models.User]:
-    # --- MODIFICADO: Añadido selectinload para cargar watchers y solucionar el error 500 ---
     return db.query(models.User).options(selectinload(models.User.watchers)).order_by(models.User.id).offset(skip).limit(limit).all()
 
 def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) -> models.User:
@@ -79,7 +31,7 @@ def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) 
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
-    db.refresh(db_user, attribute_names=['watchers']) # Asegura que la relación esté cargada para la respuesta
+    db.refresh(db_user, attribute_names=['watchers'])
     return db_user
 
 def set_user_password(db: Session, user: models.User, new_password: str) -> models.User:
@@ -101,13 +53,10 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
     db_user = get_user(db, user_id=user_id)
     if not db_user:
         return None
-
     update_data = user_update_data.model_dump(exclude_unset=True)
-
     for field, value in update_data.items():
         if hasattr(db_user, field):
             setattr(db_user, field, value)
-    
     db.commit()
     db.refresh(db_user)
     db.refresh(db_user, attribute_names=['watchers'])
@@ -149,12 +98,12 @@ def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int
         .offset(skip).limit(limit).all()
     )
 
+# === FUNCIÓN CREATE_WATCHER REESCRITA PARA MANEJAR TRANSPORTES ===
 def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: int) -> models.Watcher:
-    # --- MODIFICADO: Añadida validación y conversión a Checksum ---
     try:
         checksum_address = Web3.to_checksum_address(watcher_data.token_address)
     except InvalidAddress:
-        raise HTTPException(status_code=400, detail="Invalid Ethereum address format.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Ethereum address format.")
     
     db_watcher = models.Watcher(
         name=watcher_data.name,
@@ -165,38 +114,65 @@ def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: i
     )
     db.add(db_watcher)
     db.flush()
-    _create_or_update_primary_transport_for_watcher(db, db_watcher, watcher_data.webhook_url)
+
+    transport_config = {}
+    transport_type = watcher_data.transport_type.lower()
+    target = watcher_data.transport_target
+
+    if transport_type in ["slack", "discord"]:
+        try:
+            HttpUrl(target)
+            transport_config = {"url": target}
+        except Exception:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Webhook URL format.")
+    elif transport_type == "email":
+        try:
+            validated_email = EmailStr.validate(target)
+            transport_config = {"email": validated_email}
+        except ValueError:
+             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Email address format.")
+    elif transport_type == "telegram":
+        # Para Telegram, esperamos que el target sea un JSON string con bot_token y chat_id
+        try:
+            config_data = json.loads(target)
+            if not isinstance(config_data, dict) or "bot_token" not in config_data or "chat_id" not in config_data:
+                raise ValueError()
+            transport_config = {"bot_token": str(config_data["bot_token"]), "chat_id": str(config_data["chat_id"])}
+        except (json.JSONDecodeError, ValueError):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Telegram config format. Expected a JSON string with 'bot_token' and 'chat_id'.")
+    
+    if not transport_config:
+         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported transport_type: {transport_type}")
+
+    db_transport = models.Transport(
+        watcher_id=db_watcher.id,
+        type=transport_type,
+        config=transport_config
+    )
+    db.add(db_transport)
+
     db.commit()
-    db.refresh(db_watcher)
+    db.refresh(db_watcher, attribute_names=['transports'])
     return db_watcher
 
+# === FUNCIÓN UPDATE_WATCHER SIMPLIFICADA ===
 def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.WatcherUpdatePayload, owner_id: int) -> models.Watcher:
     db_watcher = get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
     update_data = watcher_update_data.model_dump(exclude_unset=True)
-    webhook_url_in_payload = "webhook_url" in update_data
-    new_webhook_url_value = watcher_update_data.webhook_url if webhook_url_in_payload else None
 
     for field, value in update_data.items():
-        if field == "webhook_url":
-            continue
-        
-        # --- MODIFICADO: Añadida validación y conversión a Checksum al actualizar ---
-        if field == "token_address":
+        if field == "token_address" and value is not None:
             try:
                 checksum_address = Web3.to_checksum_address(value)
                 setattr(db_watcher, field, checksum_address)
             except InvalidAddress:
-                raise HTTPException(status_code=400, detail="Invalid Ethereum address format.")
-            continue
-            
-        if hasattr(db_watcher, field):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Ethereum address format.")
+        elif hasattr(db_watcher, field):
             setattr(db_watcher, field, value)
-
-    if webhook_url_in_payload:
-        _create_or_update_primary_transport_for_watcher(db, db_watcher, new_webhook_url_value)
 
     db.commit()
     db.refresh(db_watcher)
+    db.refresh(db_watcher, attribute_names=['transports'])
     return db_watcher
 
 def delete_watcher(db: Session, watcher_id: int, owner_id: int) -> None:
@@ -214,18 +190,7 @@ def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[
     if existing_event:
         return existing_event
 
-    db_event = models.TokenEvent(
-        watcher_id=event_data.watcher_id,
-        token_address_observed=event_data.token_address_observed,
-        from_address=event_data.from_address,
-        to_address=event_data.to_address,
-        amount=event_data.amount,
-        transaction_hash=event_data.transaction_hash,
-        block_number=event_data.block_number,
-        usd_value=event_data.usd_value,
-        token_name=event_data.token_name,
-        token_symbol=event_data.token_symbol
-    )
+    db_event = models.TokenEvent(**event_data.model_dump())
     try:
         db.add(db_event)
         db.commit()
@@ -239,22 +204,13 @@ def get_event_by_id(db: Session, event_id: int) -> models.TokenEvent | None:
     return db.query(models.TokenEvent).filter(models.TokenEvent.id == event_id).first()
 
 def get_all_events_for_owner(
-    db: Session,
-    owner_id: int,
-    skip: int = 0,
-    limit: int = 100,
-    watcher_id: Optional[int] = None,
-    token_address: Optional[str] = None,
-    token_symbol: Optional[str] = None,
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
-    from_address: Optional[str] = None,
-    to_address: Optional[str] = None,
-    min_usd_value: Optional[float] = None,
-    max_usd_value: Optional[float] = None,
-    sort_by: Optional[str] = "created_at",
-    sort_order: Optional[str] = "desc",
-    active_watchers_only: Optional[bool] = False
+    db: Session, owner_id: int, skip: int = 0, limit: int = 100,
+    watcher_id: Optional[int] = None, token_address: Optional[str] = None,
+    token_symbol: Optional[str] = None, start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None, from_address: Optional[str] = None,
+    to_address: Optional[str] = None, min_usd_value: Optional[float] = None,
+    max_usd_value: Optional[float] = None, sort_by: Optional[str] = "created_at",
+    sort_order: Optional[str] = "desc", active_watchers_only: Optional[bool] = False
 ) -> Dict[str, Any]:
     base_query = db.query(models.TokenEvent)\
                    .join(models.Watcher, models.TokenEvent.watcher_id == models.Watcher.id)\
@@ -282,18 +238,20 @@ def get_all_events_for_owner(
         base_query = base_query.filter(models.TokenEvent.usd_value >= min_usd_value)
     if max_usd_value is not None:
         base_query = base_query.filter(models.TokenEvent.usd_value <= max_usd_value)
+    
     total_events = base_query.with_entities(sql_func.count(models.TokenEvent.id)).scalar() or 0
+    
     sort_map = {
-        "created_at": models.TokenEvent.created_at,
-        "amount": models.TokenEvent.amount,
-        "usd_value": models.TokenEvent.usd_value,
-        "block_number": models.TokenEvent.block_number,
+        "created_at": models.TokenEvent.created_at, "amount": models.TokenEvent.amount,
+        "usd_value": models.TokenEvent.usd_value, "block_number": models.TokenEvent.block_number,
     }
     sort_column = sort_map.get(sort_by, models.TokenEvent.created_at)
+    
     if sort_order.lower() == "asc":
         ordered_query = base_query.order_by(asc(sort_column))
     else:
         ordered_query = base_query.order_by(desc(sort_column))
+    
     events = ordered_query.offset(skip).limit(limit).all()
     return {"total_events": total_events, "events": events}
 
@@ -343,7 +301,7 @@ def create_new_transport_for_watcher(db: Session, transport_data: schemas.Transp
     if transport_data.watcher_id != watcher_id:
         raise HTTPException(
             status_code=400,
-            detail=f"Watcher ID en payload ({transport_data.watcher_id}) no coincide con Watcher ID en path ({watcher_id})."
+            detail=f"Watcher ID in payload ({transport_data.watcher_id}) does not match Watcher ID in path ({watcher_id})."
         )
     get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
 

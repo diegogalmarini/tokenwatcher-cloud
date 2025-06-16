@@ -1,18 +1,19 @@
-// File: src/app/(marketing)/layout.tsx
+// src/app/(marketing)/layout.tsx
 "use client";
 
 import React, { ReactNode } from "react";
-import ClientProviders from "../ClientProviders";
+import Navbar from "@/components/layout/Navbar";
+import Footer from "@/components/layout/Footer";
 
-interface MarketingLayoutProps {
-  children: ReactNode;
-}
-
-export default function MarketingLayout({ children }: MarketingLayoutProps) {
-  /*
-    Ya no ponemos ningún <div className="pt-16"> aquí: 
-    el header es sticky o fixed y cada sección se encarga
-    de su propio padding/margin.
-  */
-  return <ClientProviders>{children}</ClientProviders>;
+// Este layout AHORA es el responsable de añadir el Navbar y Footer
+export default function MarketingLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-col min-h-screen bg-[#e8e8e8] dark:bg-[#262626]">
+        <Navbar />
+        <main className="flex-grow">
+            {children}
+        </main>
+        <Footer />
+    </div>
+  );
 }
