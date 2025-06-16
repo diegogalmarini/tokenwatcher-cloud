@@ -1,12 +1,13 @@
 // src/app/ClientProviders.tsx
 "use client";
 
-import React, { ReactNode } from "react";
-import { AuthProvider } from "@/contexts/AuthContext";
+import React from "react";
 import { ThemeProvider } from "next-themes";
+import { AuthProvider } from "@/contexts/AuthContext";
 
-// ESTE ARCHIVO AHORA SOLO CONTIENE PROVIDERS. NO HAY NAVBAR NI FOOTER.
-export default function ClientProviders({ children }: { children: ReactNode }) {
+// La única responsabilidad de este archivo es proveer contexto.
+// NO debe renderizar Navbar, Footer, ni ningún div de layout.
+export default function ClientProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider
       attribute="class"
