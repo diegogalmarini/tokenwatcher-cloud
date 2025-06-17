@@ -57,24 +57,24 @@ class WatcherBase(BaseModel):
     is_active: bool = True
 
 class WatcherCreate(WatcherBase):
-    # En lugar de un webhook, ahora definimos el primer transporte directamente.
     transport_type: Literal["slack", "discord", "email", "telegram"]
-    transport_target: str # Será la URL del webhook, la dirección de email, o los datos de Telegram.
+    transport_target: str
+    send_test_notification: bool = False
 
 class WatcherUpdatePayload(BaseModel):
-    # Ya no se puede actualizar el transporte desde aquí.
-    # Se hará con sus propios endpoints para añadir/quitar transportes.
     name: Optional[str] = None
-    token_address: Optional[str] = None
     threshold: Optional[float] = None
     is_active: Optional[bool] = None
+    # Se añaden los campos para poder editar el transporte
+    transport_type: Optional[Literal["slack", "discord", "email", "telegram"]] = None
+    transport_target: Optional[str] = None
+    send_test_notification: bool = False
 
 class WatcherRead(WatcherBase):
     id: int
     owner_id: int
     created_at: datetime
     updated_at: datetime
-    # En lugar de un solo webhook, ahora devolvemos una lista de todos los transportes.
     transports: List[TransportRead] = []
 
     class Config:
