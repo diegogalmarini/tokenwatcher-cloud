@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import { Watcher, Transport } from "@/lib/useWatchers";
 import Image from "next/image";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
+import Button from "@/components/ui/button"; // Importamos el componente Button
 import { EnvelopeIcon, LinkIcon } from '@heroicons/react/24/outline';
 import { FaTelegramPlane } from "react-icons/fa"; // Importamos el icono de Telegram
 
@@ -17,7 +18,7 @@ interface Props {
 
 const ETHERSCAN_BASE_URL = process.env.NEXT_PUBLIC_ETHERSCAN_URL || "https://etherscan.io";
 
-// === COMPONENTE AUXILIAR ACTUALIZADO CON TELEGRAM ===
+// === COMPONENTE AUXILIAR ACTUALIZADO CON LÓGICA PARA TELEGRAM ===
 const TransportDisplay = ({ transport }: { transport: Transport | null }) => {
     if (!transport) {
       return <span className="text-sm text-gray-400 dark:text-gray-500">N/A</span>;
@@ -38,7 +39,13 @@ const TransportDisplay = ({ transport }: { transport: Transport | null }) => {
     if (type === 'discord' || type === 'slack') {
       const url = config.url || "";
       return (
-        <a href={url || "#"} className={`flex items-center space-x-2 ${url ? "text-blue-600 dark:text-blue-400 hover:underline" : "text-gray-400 dark:text-gray-500"}`} title={url || "No webhook configured"} target="_blank" rel="noopener noreferrer">
+        <a 
+          href={url || "#"} 
+          className={`flex items-center space-x-2 ${url ? "text-blue-600 dark:text-blue-400 hover:underline" : "text-gray-400 dark:text-gray-500"}`} 
+          title={url || "No webhook configured"} 
+          target="_blank" 
+          rel="noopener noreferrer"
+        >
           <LinkIcon className="h-4 w-4 flex-shrink-0" />
           <span className="truncate block">{url ? `${url.slice(0, 35)}...` : "Invalid Webhook"}</span>
         </a>
@@ -59,6 +66,7 @@ const TransportDisplay = ({ transport }: { transport: Transport | null }) => {
   
     return <span className="text-sm text-gray-400 dark:text-gray-500">Unknown type</span>;
 };
+
 
 export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActive }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false);

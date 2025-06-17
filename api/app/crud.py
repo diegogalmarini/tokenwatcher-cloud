@@ -3,7 +3,8 @@
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import desc, asc, func as sql_func, distinct
 from fastapi import HTTPException, status
-from pydantic import HttpUrl, EmailStr
+from pydantic import HttpUrl, EmailStr, ValidationError
+import json
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from web3 import Web3
@@ -98,7 +99,6 @@ def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int
         .offset(skip).limit(limit).all()
     )
 
-# === FUNCIÓN CREATE_WATCHER REESCRITA PARA MANEJAR TRANSPORTES ===
 def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: int) -> models.Watcher:
     try:
         checksum_address = Web3.to_checksum_address(watcher_data.token_address)
@@ -117,26 +117,24 @@ def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: i
 
     transport_config = {}
     transport_type = watcher_data.transport_type.lower()
-    target = watcher_data.transport_target
-
+    
     if transport_type in ["slack", "discord"]:
         try:
-            HttpUrl(target)
-            transport_config = {"url": target}
+            HttpUrl(watcher_data.transport_target)
+            transport_config = {"url": watcher_data.transport_target}
         except Exception:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Webhook URL format.")
     elif transport_type == "email":
         try:
-            validated_email = EmailStr.validate(target)
+            validated_email = EmailStr(watcher_data.transport_target)
             transport_config = {"email": validated_email}
-        except ValueError:
+        except ValidationError:
              raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Email address format.")
     elif transport_type == "telegram":
-        # Para Telegram, esperamos que el target sea un JSON string con bot_token y chat_id
         try:
-            config_data = json.loads(target)
+            config_data = json.loads(watcher_data.transport_target)
             if not isinstance(config_data, dict) or "bot_token" not in config_data or "chat_id" not in config_data:
-                raise ValueError()
+                raise ValueError("JSON must contain 'bot_token' and 'chat_id' keys.")
             transport_config = {"bot_token": str(config_data["bot_token"]), "chat_id": str(config_data["chat_id"])}
         except (json.JSONDecodeError, ValueError):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Telegram config format. Expected a JSON string with 'bot_token' and 'chat_id'.")
@@ -155,7 +153,6 @@ def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: i
     db.refresh(db_watcher, attribute_names=['transports'])
     return db_watcher
 
-# === FUNCIÓN UPDATE_WATCHER SIMPLIFICADA ===
 def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.WatcherUpdatePayload, owner_id: int) -> models.Watcher:
     db_watcher = get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
     update_data = watcher_update_data.model_dump(exclude_unset=True)
