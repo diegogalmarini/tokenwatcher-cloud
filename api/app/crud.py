@@ -99,7 +99,6 @@ def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int
         .offset(skip).limit(limit).all()
     )
 
-# === FUNCIÓN CREATE_WATCHER CON LA VALIDACIÓN CORREGIDA ===
 def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: int) -> models.Watcher:
     try:
         checksum_address = Web3.to_checksum_address(watcher_data.token_address)
@@ -128,9 +127,8 @@ def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: i
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Webhook URL format.")
     elif transport_type == "email":
         try:
-            # Pydantic v2 valida al instanciar el tipo
             validated_email = EmailStr(target)
-            transport_config = {"email": validated_email}
+            transport_config = {"email": str(validated_email)}
         except ValidationError:
              raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Email address format.")
     elif transport_type == "telegram":
@@ -179,6 +177,7 @@ def delete_watcher(db: Session, watcher_id: int, owner_id: int) -> None:
     db_watcher = get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
     db.delete(db_watcher)
     db.commit()
+
 
 # --- Event (TokenEvent) CRUD ---
 def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[models.TokenEvent]:
