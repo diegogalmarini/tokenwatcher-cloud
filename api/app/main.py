@@ -7,7 +7,6 @@ from pydantic import HttpUrl
 import json
 from datetime import datetime
 
-# Importaciones para Rate Limiting
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from .rate_limiter import limiter 
@@ -19,7 +18,6 @@ from . import models, schemas, crud, auth, email_utils
 from .config import settings
 from .clients import coingecko_client
 
-# --- Inicializa tablas ---
 try:
     print("ℹ️ [DB_INIT] Intentando crear/verificar todas las tablas definidas en Base...")
     models.Base.metadata.create_all(bind=engine)
@@ -33,7 +31,6 @@ app = FastAPI(
     description="API para monitorizar transferencias de tokens ERC-20, con seguridad mejorada."
 )
 
-# Añadimos el limiter al estado de la app y manejamos las excepciones
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -53,7 +50,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- INCLUIR ROUTERS ---
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 
 contact_router = APIRouter()
@@ -61,9 +57,6 @@ contact_router = APIRouter()
 @contact_router.post("/contact", status_code=status.HTTP_200_OK)
 @limiter.limit("10/hour")
 def submit_contact_form(request: Request, form_data: schemas.ContactFormRequest):
-    """
-    Endpoint para recibir los envíos del formulario de contacto y enviar el email.
-    """
     success = email_utils.send_contact_form_email(form_data=form_data)
     if not success:
         raise HTTPException(
@@ -74,14 +67,7 @@ def submit_contact_form(request: Request, form_data: schemas.ContactFormRequest)
 
 app.include_router(contact_router, prefix="/api", tags=["Contact"])
 
-
-# --- FUNCIONES Y ENDPOINTS PRINCIPALES ---
-
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher) -> schemas.WatcherRead:
-    """
-    Convierte un objeto Watcher de la base de datos al esquema Pydantic de lectura.
-    SQLAlchemy cargará la relación 'transports' gracias a la configuración de la query.
-    """
     return schemas.WatcherRead.model_validate(db_watcher)
 
 
@@ -97,11 +83,7 @@ def api_root_demo():
 @app.get("/tokens/info/{contract_address}", response_model=schemas.TokenInfo, tags=["Tokens"])
 @limiter.limit("30/minute")
 def get_token_info(request: Request, contract_address: str, current_user: models.User = Depends(auth.get_current_user)):
-    """
-    Obtiene datos de mercado para un token y sugiere un umbral.
-    """
     market_data = coingecko_client.get_token_market_data(contract_address)
-    
     if not market_data:
         raise HTTPException(status_code=404, detail="Could not fetch market data for this token address.")
 
@@ -118,7 +100,6 @@ def get_token_info(request: Request, contract_address: str, current_user: models
     )
 
 
-# --- Watchers CRUD ---
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
 def create_new_watcher_for_current_user(
     watcher_data: schemas.WatcherCreate,
@@ -183,8 +164,9 @@ def update_existing_watcher_for_current_user(
 ):
     if not current_user.is_admin and watcher_update_data.threshold is not None:
         existing_watcher = crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id)
-        # En la actualización, el token_address no se puede cambiar, así que usamos el existente.
         token_address_for_validation = existing_watcher.token_address
+        if hasattr(watcher_update_data, 'token_address') and watcher_update_data.token_address:
+            token_address_for_validation = watcher_update_data.token_address
         
         market_data = coingecko_client.get_token_market_data(token_address_for_validation)
         if market_data and market_data.get("total_volume_24h", 0) > 0:
@@ -219,7 +201,6 @@ def delete_existing_watcher_for_current_user(
     return
 
 
-# --- Events CRUD ---
 @app.get("/events/", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
 def list_all_events_for_current_user(
     db: Session = Depends(get_db),
@@ -253,6 +234,7 @@ def list_all_events_for_current_user(
     )
     return schemas.PaginatedTokenEventResponse(total_events=data["total_events"], events=data["events"])
 
+
 @app.get("/events/distinct-token-symbols/", response_model=List[str], tags=["Events"])
 def list_distinct_token_symbols_for_current_user(
     db: Session = Depends(get_db),
@@ -283,12 +265,10 @@ def get_single_event_for_current_user(
     db_event = crud.get_event_by_id(db, event_id=event_id)
     if not db_event:
         raise HTTPException(status_code=404, detail="Event not found")
-    # Check ownership
     crud.get_watcher_db(db, watcher_id=db_event.watcher_id, owner_id=current_user.id)
     return db_event
 
 
-# --- Transports CRUD ---
 @app.post("/watchers/{watcher_id}/transports/", response_model=schemas.TransportRead, status_code=status.HTTP_201_CREATED, tags=["Transports (Watcher-Specific)"])
 def add_new_transport_to_watcher(
     watcher_id: int, 
@@ -299,6 +279,7 @@ def add_new_transport_to_watcher(
     if transport_payload.watcher_id != watcher_id:
         raise HTTPException(status_code=400, detail="Watcher ID in path does not match watcher ID in transport payload.")
     return crud.create_new_transport_for_watcher(db=db, transport_data=transport_payload, watcher_id=watcher_id, owner_id=current_user.id)
+
 
 @app.get("/watchers/{watcher_id}/transports/", response_model=List[schemas.TransportRead], tags=["Transports (Watcher-Specific)"])
 def list_all_transports_for_specific_watcher(
@@ -311,6 +292,7 @@ def list_all_transports_for_specific_watcher(
     crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id)
     return crud.get_transports_for_watcher_owner_checked(db, watcher_id=watcher_id, owner_id=current_user.id, skip=skip, limit=limit)
 
+
 @app.delete("/transports/{transport_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Transports (Global ID)"])
 def delete_specific_transport_by_id(
     transport_id: int, 
@@ -321,7 +303,6 @@ def delete_specific_transport_by_id(
     return
 
 
-# --- Token Volume Endpoint ---
 @app.get("/tokens/{contract_address}/volume", response_model=schemas.TokenRead, tags=["Tokens"])
 @limiter.limit("60/minute")
 def read_token_total_volume(request: Request, contract_address: str, db: Session = Depends(get_db)):
