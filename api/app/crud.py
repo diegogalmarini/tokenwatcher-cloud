@@ -3,7 +3,7 @@
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import desc, asc, func as sql_func, distinct
 from fastapi import HTTPException, status
-from pydantic import HttpUrl, EmailStr, ValidationError # Importamos ValidationError
+from pydantic import HttpUrl, EmailStr, ValidationError
 import json
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
@@ -99,7 +99,7 @@ def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int
         .offset(skip).limit(limit).all()
     )
 
-# === FUNCIÓN CREATE_WATCHER MODIFICADA ===
+# === FUNCIÓN CREATE_WATCHER CON LA VALIDACIÓN CORREGIDA ===
 def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: int) -> models.Watcher:
     try:
         checksum_address = Web3.to_checksum_address(watcher_data.token_address)
@@ -122,14 +122,14 @@ def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: i
 
     if transport_type in ["slack", "discord"]:
         try:
-            HttpUrl(target) # Pydantic v2 usa el constructor para validar
+            HttpUrl(target)
             transport_config = {"url": target}
         except ValidationError:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Webhook URL format.")
     elif transport_type == "email":
         try:
-            # === ESTA ES LA LÍNEA CORREGIDA ===
-            validated_email = EmailStr(target) # Pydantic v2 usa el constructor para validar
+            # Pydantic v2 valida al instanciar el tipo
+            validated_email = EmailStr(target)
             transport_config = {"email": validated_email}
         except ValidationError:
              raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Email address format.")
