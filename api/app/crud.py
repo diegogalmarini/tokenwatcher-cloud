@@ -127,6 +127,7 @@ def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: i
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Webhook URL format.")
     elif transport_type == "email":
         try:
+            # Pydantic V2 valida creando una instancia del tipo
             validated_email = EmailStr(target)
             transport_config = {"email": str(validated_email)}
         except ValidationError:

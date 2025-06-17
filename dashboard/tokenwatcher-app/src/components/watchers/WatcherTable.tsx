@@ -5,9 +5,9 @@ import React, { useState } from "react";
 import { Watcher, Transport } from "@/lib/useWatchers";
 import Image from "next/image";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
-import Button from "@/components/ui/button"; // Importamos el componente Button
+import Button from "@/components/ui/button"; // --- ESTA ES LA LÍNEA QUE FALTA ---
 import { EnvelopeIcon, LinkIcon } from '@heroicons/react/24/outline';
-import { FaTelegramPlane } from "react-icons/fa"; // Importamos el icono de Telegram
+import { FaTelegramPlane } from "react-icons/fa";
 
 interface Props {
   watchers: Watcher[];
@@ -15,6 +15,7 @@ interface Props {
   onDelete: (watcherId: number) => void;
   onToggleActive: (watcher: Watcher) => void;
 }
+
 
 const ETHERSCAN_BASE_URL = process.env.NEXT_PUBLIC_ETHERSCAN_URL || "https://etherscan.io";
 
