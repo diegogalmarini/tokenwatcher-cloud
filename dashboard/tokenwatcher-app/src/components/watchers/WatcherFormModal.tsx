@@ -6,20 +6,19 @@ import Button from "@/components/ui/button";
 import { Watcher } from "@/lib/useWatchers";
 import { useAuth } from "@/contexts/AuthContext";
 
-// Interfaz para la info del token que recibimos de la API
 interface TokenInfo {
   price: number;
   suggested_threshold: number;
   minimum_threshold: number;
 }
 
-// El tipo de datos del formulario ahora incluye 'telegram'
 export type WatcherFormData = {
   name: string;
   token_address: string;
   threshold: number;
   transport_type: 'discord' | 'slack' | 'email' | 'telegram';
-  transport_target: string; // Para webhook/email o el JSON de telegram
+  transport_target: string;
+  send_test_notification: boolean;
 };
 
 type InitialModalData = Partial<Watcher> & { id?: number };
@@ -44,11 +43,11 @@ export default function WatcherFormModal({
   const [threshold, setThreshold] = useState<number | string>("");
   const [transportType, setTransportType] = useState<'webhook' | 'email' | 'telegram'>('webhook');
   
-  // Estados para los diferentes tipos de destino
   const [webhookUrl, setWebhookUrl] = useState("");
   const [emailAddress, setEmailAddress] = useState("");
   const [telegramBotToken, setTelegramBotToken] = useState("");
   const [telegramChatId, setTelegramChatId] = useState("");
+  const [sendTest, setSendTest] = useState(false);
   
   const [error, setError] = useState<ReactNode | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -61,24 +60,33 @@ export default function WatcherFormModal({
       setTokenInfo(null);
       setIsSaving(false);
       setIsFetchingInfo(false);
+      setSendTest(false);
       
-      if (initialData?.id && Array.isArray(initialData.transports) && initialData.transports.length > 0) {
-        const firstTransport = initialData.transports[0];
+      if (initialData?.id) {
         setName(initialData.name || "");
         setTokenAddress(initialData.token_address || "");
         setThreshold(initialData.threshold ?? "");
         
-        const type = firstTransport.type;
-        if (type === 'email') {
-          setTransportType('email');
-          setEmailAddress(firstTransport.config.email || "");
-        } else if (type === 'telegram') {
-          setTransportType('telegram');
-          setTelegramBotToken(firstTransport.config.bot_token || "");
-          setTelegramChatId(firstTransport.config.chat_id || "");
-        } else { 
-          setTransportType('webhook');
-          setWebhookUrl(firstTransport.config.url || "");
+        if (Array.isArray(initialData.transports) && initialData.transports.length > 0) {
+            const firstTransport = initialData.transports[0];
+            const type = firstTransport.type;
+            if (type === 'email') {
+              setTransportType('email');
+              setEmailAddress(firstTransport.config.email || "");
+            } else if (type === 'telegram') {
+              setTransportType('telegram');
+              setTelegramBotToken(firstTransport.config.bot_token || "");
+              setTelegramChatId(firstTransport.config.chat_id || "");
+            } else { 
+              setTransportType('webhook');
+              setWebhookUrl(firstTransport.config.url || "");
+            }
+        } else {
+            setTransportType('webhook');
+            setWebhookUrl("");
+            setEmailAddress("");
+            setTelegramBotToken("");
+            setTelegramChatId("");
         }
       } else {
         setName(""); setTokenAddress(""); setThreshold("");
@@ -128,38 +136,41 @@ export default function WatcherFormModal({
       return;
     }
     
-    let payload: WatcherFormData;
+    let transport_target = "";
+    let transport_type_to_send: 'discord' | 'slack' | 'email' | 'telegram' = 'discord';
 
     if (transportType === 'webhook') {
       if (!webhookUrl.trim() || !isValidHttpUrl(webhookUrl.trim())) {
-        setError("A valid Webhook URL is required.");
-        setIsSaving(false);
-        return;
+        setError("A valid Webhook URL is required."); setIsSaving(false); return;
       }
-      payload = { name: name.trim(), token_address: tokenAddress.trim(), threshold: currentThreshold, transport_type: 'discord', transport_target: webhookUrl.trim() };
+      transport_type_to_send = webhookUrl.includes("slack.com") ? 'slack' : 'discord';
+      transport_target = webhookUrl.trim();
     } else if (transportType === 'email') {
       if (!emailAddress.trim()) {
-        setError("Email address is required.");
-        setIsSaving(false);
-        return;
+        setError("Email address is required."); setIsSaving(false); return;
       }
-      payload = { name: name.trim(), token_address: tokenAddress.trim(), threshold: currentThreshold, transport_type: 'email', transport_target: emailAddress.trim() };
+      transport_type_to_send = 'email';
+      transport_target = emailAddress.trim();
     } else if (transportType === 'telegram') {
       if (!telegramBotToken.trim() || !telegramChatId.trim()) {
-        setError("Bot Token and Chat ID are required for Telegram.");
-        setIsSaving(false);
-        return;
+        setError("Bot Token and Chat ID are required for Telegram."); setIsSaving(false); return;
       }
       const telegramConfig = { bot_token: telegramBotToken.trim(), chat_id: telegramChatId.trim() };
-      payload = { name: name.trim(), token_address: tokenAddress.trim(), threshold: currentThreshold, transport_type: 'telegram', transport_target: JSON.stringify(telegramConfig) };
+      transport_type_to_send = 'telegram';
+      transport_target = JSON.stringify(telegramConfig);
     } else {
-        setError("Invalid transport type selected.");
-        setIsSaving(false);
-        return;
+        setError("Invalid transport type selected."); setIsSaving(false); return;
     }
 
     try {
-      await onSave(payload);
+      await onSave({
+        name: name.trim(),
+        token_address: tokenAddress.trim(),
+        threshold: currentThreshold,
+        transport_type: transport_type_to_send,
+        transport_target: transport_target,
+        send_test_notification: sendTest,
+      });
       onClose();
     } catch (err: unknown) {
       console.error("Error in WatcherFormModal handleSubmit:", err);
@@ -248,29 +259,33 @@ export default function WatcherFormModal({
           {transportType === 'webhook' && (
             <div>
               <label htmlFor="webhook-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Webhook URL (Discord or Slack)</label>
-              <input id="webhook-url" type="url" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-[#525252] text-gray-900 dark:text-gray-100" placeholder="https://discord.com/api/webhooks/..." required />
+              <input id="webhook-url" type="url" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-[#525252]" placeholder="https://discord.com/api/webhooks/..." required />
             </div>
           )}
           {transportType === 'email' && (
             <div>
               <label htmlFor="email-address" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
-              <input id="email-address" type="email" value={emailAddress} onChange={(e) => setEmailAddress(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-[#525252] text-gray-900 dark:text-gray-100" placeholder="you@example.com" required />
+              <input id="email-address" type="email" value={emailAddress} onChange={(e) => setEmailAddress(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-[#525252]" placeholder="you@example.com" required />
             </div>
           )}
           {transportType === 'telegram' && (
             <div className="space-y-4 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md">
               <div>
                 <label htmlFor="bot-token" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Telegram Bot Token</label>
-                <input id="bot-token" type="text" value={telegramBotToken} onChange={(e) => setTelegramBotToken(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-[#525252] text-gray-900 dark:text-gray-100" placeholder="123456:ABC-DEF1234..." required />
+                <input id="bot-token" type="text" value={telegramBotToken} onChange={(e) => setTelegramBotToken(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-[#525252]" placeholder="123456:ABC-DEF1234..." required />
               </div>
               <div>
                 <label htmlFor="chat-id" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Telegram Chat ID</label>
-                <input id="chat-id" type="text" value={telegramChatId} onChange={(e) => setTelegramChatId(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-[#525252] text-gray-900 dark:text-gray-100" placeholder="-100123456789" required />
+                <input id="chat-id" type="text" value={telegramChatId} onChange={(e) => setTelegramChatId(e.target.value)} className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-[#525252]" placeholder="-100123456789" required />
               </div>
             </div>
           )}
 
-          <div className="flex justify-end space-x-3 pt-4">
+          <div className="mt-6 flex items-center justify-end space-x-4">
+            <label className="flex items-center space-x-2 cursor-pointer text-sm">
+                <input type="checkbox" checked={sendTest} onChange={(e) => setSendTest(e.target.checked)} className="form-checkbox h-4 w-4 rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-500" />
+                <span className="text-gray-600 dark:text-gray-300">Send test notification on save</span>
+            </label>
             <Button type="button" intent="secondary" onClick={onClose} size="md" disabled={isSaving}>Cancel</Button>
             <Button type="submit" intent="default" size="md" disabled={isSaving}>
               {isSaving ? 'Saving...' : (initialData?.id ? "Save Changes" : "Create Watcher")}

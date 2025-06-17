@@ -66,7 +66,6 @@ const TransportDisplay = ({ transport }: { transport: Transport | null }) => {
     return <span className="text-sm text-gray-400 dark:text-gray-500">Unknown type</span>;
 };
 
-
 export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActive }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState({

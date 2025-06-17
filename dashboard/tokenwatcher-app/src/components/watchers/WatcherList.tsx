@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState } from "react";
 import Button from "@/components/ui/button";
-import WatcherFormModal, { WatcherFormData } from "./WatcherFormModal"; // Importamos el tipo desde el Modal
+import WatcherFormModal, { WatcherFormData } from "./WatcherFormModal";
 import WatcherTable from "./WatcherTable";
 import { useWatchers, Watcher, WatcherUpdatePayload } from "@/lib/useWatchers";
 import { useAuth } from "@/contexts/AuthContext";
@@ -39,27 +39,23 @@ export default function WatcherList() {
     setModalOpen(true);
   };
 
-  // === FUNCIÓN HANDLESAVEWATCHER MODIFICADA PARA EL NUEVO FORMATO ===
   const handleSaveWatcher = async (data: WatcherFormData) => {
     try {
       if (editing && editing.id) {
-        // Al editar un Watcher, solo actualizamos sus propiedades principales.
-        // La gestión de transportes se hará con sus propios endpoints en el futuro.
         const payload: WatcherUpdatePayload = {
-            name: data.name,
-            threshold: data.threshold,
+          name: data.name,
+          threshold: data.threshold,
+          transport_type: data.transport_type,
+          transport_target: data.transport_target,
+          send_test_notification: data.send_test_notification,
         };
         await updateWatcher(editing.id, payload);
       } else {
-        // Al crear un nuevo Watcher, pasamos el objeto de datos completo
-        // que ya tiene el formato correcto (transport_type y transport_target).
-        // La función `createWatcher` en el hook `useWatchers` deberá ser actualizada para manejar esto.
         await createWatcher(data);
       }
       setModalOpen(false);
     } catch (err) {
       console.error("Failed to save watcher:", err);
-      // El error se relanza para que el modal lo capture y muestre
       throw err;
     }
   };
