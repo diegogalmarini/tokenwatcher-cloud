@@ -151,3 +151,9 @@ class ContactFormRequest(BaseModel):
     name: str
     email: EmailStr
     message: str
+
+    # === NUEVO SCHEMA PARA EL BOTÓN DE TEST ===
+class TransportTest(BaseModel):
+    watcher_id: int
+    transport_type: Literal["slack", "discord", "email", "telegram"]
+    transport_target: str
