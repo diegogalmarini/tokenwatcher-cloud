@@ -6,8 +6,8 @@ from typing import List, Optional
 from pydantic import HttpUrl
 import json
 from datetime import datetime
+import datetime as dt
 
-# Importaciones para Rate Limiting
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from .rate_limiter import limiter 
@@ -135,12 +135,13 @@ def create_new_watcher_for_current_user(
     db_watcher = crud.create_watcher(db=db, watcher_data=watcher_data, owner_id=current_user.id)
     
     if watcher_data.send_test_notification:
+        db.refresh(db_watcher, attribute_names=['transports'])
         test_event = schemas.TokenEventRead(
             id=0, watcher_id=db_watcher.id, token_address_observed=db_watcher.token_address,
             from_address="0xFROM_ADDRESS_HERE", to_address="0xTO_ADDRESS_HERE",
             amount=12345.67, transaction_hash="0x0000000000000000000000000000000000000000000000000000000000000000",
             block_number=12345678, usd_value=(12345.67 * 1.05), token_name="Test Token", token_symbol="TEST",
-            created_at=datetime.now(datetime.timezone.utc)
+            created_at=dt.datetime.now(dt.timezone.utc)
         )
         notifier.send_notifications_for_event_batch(watcher_obj=db_watcher, events_list=[test_event])
 
@@ -176,7 +177,7 @@ def update_existing_watcher_for_current_user(
 ):
     if not current_user.is_admin and watcher_update_data.threshold is not None:
         existing_watcher = crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id)
-        token_address_for_validation = watcher_update_data.token_address or existing_watcher.token_address
+        token_address_for_validation = existing_watcher.token_address
         
         market_data = coingecko_client.get_token_market_data(token_address_for_validation)
         if market_data and market_data.get("total_volume_24h", 0) > 0:
@@ -206,7 +207,7 @@ def update_existing_watcher_for_current_user(
             from_address="0xFROM_ADDRESS_HERE", to_address="0xTO_ADDRESS_HERE",
             amount=12345.67, transaction_hash="0x0000000000000000000000000000000000000000000000000000000000000000",
             block_number=12345678, usd_value=(12345.67 * 1.05), token_name="Test Token", token_symbol="TEST",
-            created_at=datetime.now(datetime.timezone.utc)
+            created_at=dt.datetime.now(dt.timezone.utc)
         )
         notifier.send_notifications_for_event_batch(watcher_obj=db_watcher, events_list=[test_event])
 
@@ -220,46 +221,6 @@ def delete_existing_watcher_for_current_user(
 ):
     crud.delete_watcher(db=db, watcher_id=watcher_id, owner_id=current_user.id)
     return
-
-
-@app.post("/transports/test", status_code=status.HTTP_200_OK, tags=["Transports (Watcher-Specific)"])
-def test_transport_notification(
-    transport_test_payload: schemas.TransportTest,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user)
-):
-    db_watcher = crud.get_watcher_db(db, watcher_id=transport_test_payload.watcher_id, owner_id=current_user.id)
-    
-    # Creamos un objeto de transporte temporal para la prueba
-    temp_transport = models.Transport(
-        type=transport_test_payload.transport_type,
-        config=crud.get_transport_config_from_target(
-            transport_type=transport_test_payload.transport_type,
-            target=transport_test_payload.transport_target
-        )
-    )
-
-    test_event = schemas.TokenEventRead(
-        id=0, watcher_id=db_watcher.id, token_address_observed=db_watcher.token_address,
-        from_address="0xSENDER_ADDRESS_HERE", to_address="0xRECIPIENT_ADDRESS_HERE",
-        amount=98765.43, transaction_hash="0x1111111111111111111111111111111111111111111111111111111111111111",
-        block_number=87654321, usd_value=(98765.43 * 1.05), token_name="Test Token", token_symbol="TEST",
-        created_at=datetime.now(datetime.timezone.utc)
-    )
-    
-    # Modificamos el objeto watcher temporalmente para la notificación
-    class TempWatcher:
-        def __init__(self, watcher, transport):
-            self.id = watcher.id
-            self.name = f"[TEST] {watcher.name}"
-            self.token_address = watcher.token_address
-            self.transports = [transport]
-
-    temp_watcher_obj = TempWatcher(db_watcher, temp_transport)
-    
-    notifier.send_notifications_for_event_batch(watcher_obj=temp_watcher_obj, events_list=[test_event])
-
-    return {"detail": "Test notification sent successfully."}
 
 @app.get("/events/", response_model=schemas.PaginatedTokenEventResponse, tags=["Events"])
 def list_all_events_for_current_user(
