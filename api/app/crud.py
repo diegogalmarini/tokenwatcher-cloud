@@ -12,7 +12,6 @@ from web3.exceptions import InvalidAddress
 
 from . import models, schemas, auth
 
-# --- User CRUD ---
 def get_user(db: Session, user_id: int) -> models.User | None:
     return db.query(models.User).options(selectinload(models.User.watchers)).filter(models.User.id == user_id).first()
 
@@ -127,7 +126,7 @@ def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: i
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Webhook URL format.")
     elif transport_type == "email":
         try:
-            # Pydantic V2 valida creando una instancia del tipo
+            # Pydantic V2 valida creando una instancia del tipo. El resultado es un objeto EmailStr, lo convertimos a string.
             validated_email = EmailStr(target)
             transport_config = {"email": str(validated_email)}
         except ValidationError:
@@ -179,8 +178,6 @@ def delete_watcher(db: Session, watcher_id: int, owner_id: int) -> None:
     db.delete(db_watcher)
     db.commit()
 
-
-# --- Event (TokenEvent) CRUD ---
 def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[models.TokenEvent]:
     existing_event = db.query(models.TokenEvent).filter(
         models.TokenEvent.transaction_hash == event_data.transaction_hash,
