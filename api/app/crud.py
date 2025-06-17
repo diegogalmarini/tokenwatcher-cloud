@@ -3,7 +3,7 @@
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import desc, asc, func as sql_func, distinct
 from fastapi import HTTPException, status
-from pydantic import HttpUrl, EmailStr, ValidationError
+from pydantic import HttpUrl, EmailStr, ValidationError # Importamos ValidationError
 import json
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
@@ -99,6 +99,7 @@ def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int
         .offset(skip).limit(limit).all()
     )
 
+# === FUNCIÓN CREATE_WATCHER MODIFICADA ===
 def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: int) -> models.Watcher:
     try:
         checksum_address = Web3.to_checksum_address(watcher_data.token_address)
@@ -117,22 +118,24 @@ def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: i
 
     transport_config = {}
     transport_type = watcher_data.transport_type.lower()
-    
+    target = watcher_data.transport_target
+
     if transport_type in ["slack", "discord"]:
         try:
-            HttpUrl(watcher_data.transport_target)
-            transport_config = {"url": watcher_data.transport_target}
-        except Exception:
+            HttpUrl(target) # Pydantic v2 usa el constructor para validar
+            transport_config = {"url": target}
+        except ValidationError:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Webhook URL format.")
     elif transport_type == "email":
         try:
-            validated_email = EmailStr(watcher_data.transport_target)
+            # === ESTA ES LA LÍNEA CORREGIDA ===
+            validated_email = EmailStr(target) # Pydantic v2 usa el constructor para validar
             transport_config = {"email": validated_email}
         except ValidationError:
              raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Email address format.")
     elif transport_type == "telegram":
         try:
-            config_data = json.loads(watcher_data.transport_target)
+            config_data = json.loads(target)
             if not isinstance(config_data, dict) or "bot_token" not in config_data or "chat_id" not in config_data:
                 raise ValueError("JSON must contain 'bot_token' and 'chat_id' keys.")
             transport_config = {"bot_token": str(config_data["bot_token"]), "chat_id": str(config_data["chat_id"])}
@@ -177,7 +180,6 @@ def delete_watcher(db: Session, watcher_id: int, owner_id: int) -> None:
     db.delete(db_watcher)
     db.commit()
 
-
 # --- Event (TokenEvent) CRUD ---
 def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[models.TokenEvent]:
     existing_event = db.query(models.TokenEvent).filter(
@@ -186,7 +188,6 @@ def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[
     ).first()
     if existing_event:
         return existing_event
-
     db_event = models.TokenEvent(**event_data.model_dump())
     try:
         db.add(db_event)
@@ -238,10 +239,7 @@ def get_all_events_for_owner(
     
     total_events = base_query.with_entities(sql_func.count(models.TokenEvent.id)).scalar() or 0
     
-    sort_map = {
-        "created_at": models.TokenEvent.created_at, "amount": models.TokenEvent.amount,
-        "usd_value": models.TokenEvent.usd_value, "block_number": models.TokenEvent.block_number,
-    }
+    sort_map = { "created_at": models.TokenEvent.created_at, "amount": models.TokenEvent.amount, "usd_value": models.TokenEvent.usd_value, "block_number": models.TokenEvent.block_number }
     sort_column = sort_map.get(sort_by, models.TokenEvent.created_at)
     
     if sort_order.lower() == "asc":
@@ -301,12 +299,7 @@ def create_new_transport_for_watcher(db: Session, transport_data: schemas.Transp
             detail=f"Watcher ID in payload ({transport_data.watcher_id}) does not match Watcher ID in path ({watcher_id})."
         )
     get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
-
-    db_transport = models.Transport(
-        watcher_id=watcher_id,
-        type=transport_data.type,
-        config=transport_data.config
-    )
+    db_transport = models.Transport(**transport_data.model_dump())
     db.add(db_transport)
     db.commit()
     db.refresh(db_transport)
