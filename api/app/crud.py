@@ -12,6 +12,7 @@ from web3.exceptions import InvalidAddress
 
 from . import models, schemas, auth
 
+# --- User CRUD ---
 def get_user(db: Session, user_id: int) -> models.User | None:
     return db.query(models.User).options(selectinload(models.User.watchers)).filter(models.User.id == user_id).first()
 
