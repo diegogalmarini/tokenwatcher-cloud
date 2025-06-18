@@ -47,11 +47,6 @@ class TransportRead(TransportBase):
     class Config:
         orm_mode = True
 
-class TransportTest(BaseModel):
-    watcher_id: int
-    transport_type: Literal["slack", "discord", "email", "telegram"]
-    transport_target: str
-
 
 # --- SCHEMAS DE WATCHER ---
 class WatcherBase(BaseModel):
@@ -154,9 +149,13 @@ class ChangePasswordRequest(BaseModel):
 class DeleteAccountRequest(BaseModel):
     password: str
 
-
 # --- OTROS ---
 class ContactFormRequest(BaseModel):
     name: str
     email: EmailStr
     message: str
+
+class TransportTest(BaseModel):
+    watcher_id: int
+    transport_type: Literal["slack", "discord", "email", "telegram"]
+    transport_target: str
