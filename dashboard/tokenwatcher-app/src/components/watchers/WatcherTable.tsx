@@ -5,7 +5,7 @@ import React, { useState } from "react";
 import { Watcher, Transport } from "@/lib/useWatchers";
 import Image from "next/image";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
-import Button from "@/components/ui/button";
+import Button from "@/components/ui/button"; // --- ESTA ES LA LÍNEA QUE SOLUCIONA EL ERROR ---
 import { EnvelopeIcon, LinkIcon } from '@heroicons/react/24/outline';
 import { FaTelegramPlane } from "react-icons/fa";
 
@@ -14,6 +14,7 @@ interface Props {
   onEdit: (watcher: Watcher) => void;
   onDelete: (watcherId: number) => void;
   onToggleActive: (watcher: Watcher) => void;
+  onTest: (watcher: Watcher) => void;
 }
 
 const ETHERSCAN_BASE_URL = process.env.NEXT_PUBLIC_ETHERSCAN_URL || "https://etherscan.io";
@@ -66,7 +67,8 @@ const TransportDisplay = ({ transport }: { transport: Transport | null }) => {
     return <span className="text-sm text-gray-400 dark:text-gray-500">Unknown type</span>;
 };
 
-export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActive }: Props) {
+
+export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActive, onTest }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState({
     title: "", message: "", confirmAction: () => {}, confirmText: "Confirm",
@@ -169,6 +171,7 @@ export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActiv
                     >
                       {watcher.is_active ? "Pause" : "Activate"}
                     </Button>
+                    <Button intent="secondary" size="sm" onClick={() => onTest(watcher)}>Test</Button>
                     <Button
                       intent="destructive" size="sm"
                       onClick={() => openModal(
