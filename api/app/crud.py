@@ -14,13 +14,13 @@ from . import models, schemas, auth
 
 # --- User CRUD ---
 def get_user(db: Session, user_id: int) -> models.User | None:
-    return db.query(models.User).options(selectinload(models.User.watchers)).filter(models.User.id == user_id).first()
+    return db.query(models.User).options(selectinload(models.User.watchers), selectinload(models.User.subscription).selectinload(models.Subscription.plan)).filter(models.User.id == user_id).first()
 
 def get_user_by_email(db: Session, email: str) -> models.User | None:
-    return db.query(models.User).options(selectinload(models.User.watchers)).filter(models.User.email == email).first()
+    return db.query(models.User).options(selectinload(models.User.watchers), selectinload(models.User.subscription).selectinload(models.Subscription.plan)).filter(models.User.email == email).first()
 
 def get_users(db: Session, skip: int = 0, limit: int = 100) -> List[models.User]:
-    return db.query(models.User).options(selectinload(models.User.watchers)).order_by(models.User.id).offset(skip).limit(limit).all()
+    return db.query(models.User).options(selectinload(models.User.watchers), selectinload(models.User.subscription).selectinload(models.Subscription.plan)).order_by(models.User.id).offset(skip).limit(limit).all()
 
 def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) -> models.User:
     hashed_password = auth.get_password_hash(user.password)
@@ -30,14 +30,26 @@ def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) 
         is_active=is_active
     )
     db.add(db_user)
+    db.flush() 
+
+    free_plan = db.query(models.Plan).filter(models.Plan.name == "Free").first()
+    if free_plan:
+        db_subscription = models.Subscription(
+            user_id=db_user.id,
+            plan_id=free_plan.id,
+            status="active"
+        )
+        db.add(db_subscription)
+    
     db.commit()
     db.refresh(db_user)
-    db.refresh(db_user, attribute_names=['watchers'])
+    db.refresh(db_user, attribute_names=['watchers', 'subscription'])
     return db_user
 
 def set_user_password(db: Session, user: models.User, new_password: str) -> models.User:
     hashed = auth.get_password_hash(new_password)
     user.hashed_password = hashed
+    db.add(user)
     db.commit()
     db.refresh(user)
     return user
@@ -60,7 +72,7 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
             setattr(db_user, field, value)
     db.commit()
     db.refresh(db_user)
-    db.refresh(db_user, attribute_names=['watchers'])
+    db.refresh(db_user, attribute_names=['watchers', 'subscription'])
     return db_user
 
 
@@ -163,17 +175,10 @@ def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.Wa
     update_data = watcher_update_data.model_dump(exclude_unset=True)
 
     for field, value in update_data.items():
-        if field in ["transport_type", "transport_target", "send_test_notification"]:
+        if field in ["transport_type", "transport_target", "send_test_notification", "token_address"]:
             continue
         if hasattr(db_watcher, field) and value is not None:
-            if field == "token_address":
-                try:
-                    checksum_address = Web3.to_checksum_address(value)
-                    setattr(db_watcher, field, checksum_address)
-                except InvalidAddress:
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Ethereum address format.")
-            else:
-                setattr(db_watcher, field, value)
+            setattr(db_watcher, field, value)
 
     if watcher_update_data.transport_type and watcher_update_data.transport_target:
         for transport in db_watcher.transports:
@@ -339,3 +344,20 @@ def get_volume(db: Session, contract_address: str) -> float:
           .scalar()
     )
     return total_volume if total_volume is not None else 0.0
+
+# --- Plan and Subscription CRUD ---
+def get_plan_by_name(db: Session, name: str) -> Optional[models.Plan]:
+    return db.query(models.Plan).filter(models.Plan.name == name).first()
+
+def get_plan(db: Session, plan_id: int) -> Optional[models.Plan]:
+    return db.query(models.Plan).filter(models.Plan.id == plan_id).first()
+
+def get_plans(db: Session, skip: int = 0, limit: int = 100) -> List[models.Plan]:
+    return db.query(models.Plan).order_by(models.Plan.price_monthly).offset(skip).limit(limit).all()
+
+def create_plan(db: Session, plan: schemas.PlanCreate) -> models.Plan:
+    db_plan = models.Plan(**plan.model_dump())
+    db.add(db_plan)
+    db.commit()
+    db.refresh(db_plan)
+    return db_plan

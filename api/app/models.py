@@ -11,6 +11,7 @@ from sqlalchemy import (
     DateTime,
     UniqueConstraint,
     PrimaryKeyConstraint,
+    DECIMAL
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
@@ -21,6 +22,30 @@ from typing import List, Dict, Any, Optional
 from .database import Base
 from .config import settings
 
+class Plan(Base):
+    __tablename__ = "plans"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=True)
+    price_monthly: Mapped[int] = mapped_column(Integer, nullable=False) 
+    price_annually: Mapped[int] = mapped_column(Integer, nullable=False)
+    watcher_limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    stripe_price_id_monthly: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    stripe_price_id_annually: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    plan_id: Mapped[int] = mapped_column(Integer, ForeignKey("plans.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="inactive") # por ejemplo: active, inactive, cancelled
+    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True, index=True)
+    current_period_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    
+    user: Mapped["User"] = relationship("User", back_populates="subscription")
+    plan: Mapped["Plan"] = relationship("Plan")
+
 class User(Base):
     __tablename__ = "users"
 
@@ -30,11 +55,13 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     
-    watcher_limit: Mapped[int] = mapped_column(Integer, nullable=False, server_default=str(settings.DEFAULT_WATCHER_LIMIT))
-    plan: Mapped[str] = mapped_column(String, nullable=False, server_default="Free")
+    stripe_customer_id: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True, index=True)
 
     watchers: Mapped[List["Watcher"]] = relationship(
         "Watcher", back_populates="owner", cascade="all, delete-orphan"
+    )
+    subscription: Mapped[Optional["Subscription"]] = relationship(
+        "Subscription", back_populates="user", cascade="all, delete-orphan", uselist=False
     )
 
     @property
@@ -44,6 +71,27 @@ class User(Base):
     @property
     def watcher_count(self) -> int:
         return len(self.watchers)
+
+    @property
+    def plan(self) -> str:
+        if self.subscription and self.subscription.status == 'active':
+            return self.subscription.plan.name
+        return "Free"
+
+    @property
+    def watcher_limit(self) -> int:
+        if self.subscription and self.subscription.status == 'active':
+            return self.subscription.plan.watcher_limit
+        
+        free_plan_limit = settings.DEFAULT_WATCHER_LIMIT
+        try:
+            with Session(engine) as session:
+                free_plan = session.query(Plan).filter(Plan.name == "Free").first()
+                if free_plan:
+                    return free_plan.watcher_limit
+                return free_plan_limit
+        except:
+             return free_plan_limit
 
 
 class Watcher(Base):
@@ -89,13 +137,12 @@ class TokenEvent(Base):
     from_address: Mapped[str] = mapped_column(String, index=True)
     to_address: Mapped[str] = mapped_column(String, index=True)
     
-    # --- CAMBIO AQUÍ: Aumentamos la precisión para aceptar números gigantes ---
     amount: Mapped[float] = mapped_column(Numeric(78, 18))
     
     transaction_hash: Mapped[str] = mapped_column(String, index=True)
     block_number: Mapped[int] = mapped_column(Integer)
     usd_value: Mapped[Optional[float]] = mapped_column(
-        Numeric(20, 4), nullable=True
+        DECIMAL(20, 4), nullable=True
     )
 
     token_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
