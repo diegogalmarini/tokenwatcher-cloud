@@ -10,37 +10,32 @@ from . import schemas
 from .clients import telegram_client
 import logging
 
-# Configuración del logger para este módulo
 logger = logging.getLogger(__name__)
 
 MAX_FIELD_VALUE_LENGTH = 1024
 
-# --- FUNCIONES AUXILIARES ---
 def _backoff_sleep(attempt: int, max_retries: int, base_delay: float) -> None:
     delay = base_delay * (2 ** (attempt - 1))
-    print(f"    ⚠️ [NOTIFY_WARN] Rate limited o error. Reintento {attempt}/{max_retries} después de {delay:.2f}s")
+    logger.warning(f"Rate limited o error. Reintento {attempt}/{max_retries} después de {delay:.2f}s")
     time.sleep(delay)
 
 def _truncate_field(value: str, length: int = MAX_FIELD_VALUE_LENGTH) -> str:
-    if len(value) > length:
-        return value[:length - 3] + "..."
-    return value
+    if len(str(value)) > length:
+        return str(value)[:length - 3] + "..."
+    return str(value)
 
 def escape_markdown_v2(text: str) -> str:
-    """Escapa caracteres especiales para el formato MarkdownV2 de Telegram."""
     if not isinstance(text, str):
         text = str(text)
     escape_chars = r'_*[]()~`>#+-=|{}.!'
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
-# --- NOTIFICADORES ESPECIALIZADOS (HELPERS INTERNOS) ---
-# Tu código original para Slack y Discord, sin modificaciones.
 def notify_slack_blockkit(webhook_url: Optional[str], watcher_obj: Any, events_list: List[Any]) -> None:
-    if not webhook_url or webhook_url == "YOUR_SLACK_WEBHOOK_URL_HERE" or "example.com" in webhook_url:
-        print(f"    ℹ️ [NOTIFY_INFO] Slack webhook URL no válida o no proporcionada para Watcher ID={watcher_obj.id}. Saltando Slack.")
+    if not webhook_url or "example.com" in webhook_url:
+        logger.info(f"Slack webhook URL no válida para Watcher ID={watcher_obj.id}. Saltando Slack.")
         return
     if not events_list:
-        print(f"    ℹ️ [SLACK_INFO] Lista de eventos vacía para Watcher ID={watcher_obj.id}, no se enviará notificación a Slack.")
+        logger.info(f"Lista de eventos vacía para Watcher ID={watcher_obj.id}, no se enviará notificación a Slack.")
         return
 
     blocks: List[Dict[str, Any]] = []
@@ -84,21 +79,21 @@ def notify_slack_blockkit(webhook_url: Optional[str], watcher_obj: Any, events_l
         try:
             resp = requests.post(webhook_url, json=payload, timeout=10)
             resp.raise_for_status()
-            print(f"    ✅ [NOTIFY_SUCCESS] Notificación Slack enviada para Watcher ID='{watcher_obj.id}'. URL: {webhook_url[:50]}...")
+            logger.info(f"Notificación Slack enviada para Watcher ID='{watcher_obj.id}'.")
             return
         except requests.exceptions.RequestException as e:
-            print(f"    ❌ [NOTIFY_ERROR] Fallo en API Slack (intento {attempt}) para Watcher ID='{watcher_obj.id}': {e}")
+            logger.error(f"Fallo en API Slack (intento {attempt}) para Watcher ID='{watcher_obj.id}': {e}")
             if attempt < settings.NOTIFY_MAX_RETRIES:
                 _backoff_sleep(attempt, settings.NOTIFY_MAX_RETRIES, settings.NOTIFY_BACKOFF_BASE)
             else:
-                print(f"    ❌ [NOTIFY_FATAL] Fallo notificación Slack para Watcher ID='{watcher_obj.id}' después de {settings.NOTIFY_MAX_RETRIES} intentos.")
+                logger.error(f"Fallo notificación Slack para Watcher ID='{watcher_obj.id}' después de {settings.NOTIFY_MAX_RETRIES} intentos.")
 
 def notify_discord_embed(webhook_url: Optional[str], watcher_obj: Any, events_list: List[Any]) -> None:
-    if not webhook_url or webhook_url == "YOUR_DISCORD_WEBHOOK_URL_HERE" or "example.com" in webhook_url:
-        print(f"    ℹ️ [NOTIFY_INFO] Discord webhook URL no válida o no proporcionada para Watcher ID={watcher_obj.id}. Saltando notificación Discord.")
+    if not webhook_url or "example.com" in webhook_url:
+        logger.info(f"Discord webhook URL no válida para Watcher ID={watcher_obj.id}. Saltando notificación Discord.")
         return
     if not events_list:
-        print(f"    ℹ️ [DISCORD_INFO] Lista de eventos vacía para Watcher ID={watcher_obj.id}, no se enviarán notificaciones a Discord.")
+        logger.info(f"Lista de eventos vacía para Watcher ID={watcher_obj.id}, no se enviarán notificaciones a Discord.")
         return
 
     batch_size = min(settings.DISCORD_BATCH_SIZE, 10) 
@@ -108,7 +103,7 @@ def notify_discord_embed(webhook_url: Optional[str], watcher_obj: Any, events_li
         current_batch_events = events_list[i:i + batch_size]
         embeds: List[Dict[str, Any]] = []
         
-        print(f"    ℹ️ [DISCORD_BATCH_PROC] Procesando lote {i//batch_size + 1} de {len(current_batch_events)} evento(s) para Discord (Watcher ID={watcher_obj.id}).")
+        logger.info(f"Procesando lote {i//batch_size + 1} de {len(current_batch_events)} evento(s) para Discord (Watcher ID={watcher_obj.id}).")
 
         for event_item in current_batch_events:
             etherscan_url = f"{settings.ETHERSCAN_TX_URL}/{event_item.transaction_hash}"
@@ -151,11 +146,11 @@ def notify_discord_embed(webhook_url: Optional[str], watcher_obj: Any, events_li
             try:
                 response_from_discord = requests.post(webhook_url, json=payload, timeout=10)
                 response_from_discord.raise_for_status()
-                print(f"    ✅ [NOTIFY_SUCCESS] Lote de Discord enviado para Watcher ID='{watcher_obj.id}'. URL: {webhook_url[:50]}...")
+                logger.info(f"Lote de Discord enviado para Watcher ID='{watcher_obj.id}'.")
                 success_this_batch = True
                 break 
             except requests.exceptions.RequestException as e:
-                print(f"    ❌ [NOTIFY_ERROR] Fallo en API Discord para lote (intento {attempt}) Watcher ID='{watcher_obj.id}': {e}")
+                logger.error(f"Fallo en API Discord para lote (intento {attempt}) Watcher ID='{watcher_obj.id}': {e}")
                 status_code_for_rate_limit = response_from_discord.status_code if response_from_discord is not None else None
                 if status_code_for_rate_limit == 429:
                     retry_after_str = response_from_discord.headers.get("Retry-After", str(settings.NOTIFY_BACKOFF_BASE * (2 ** (attempt - 1))))
@@ -165,110 +160,90 @@ def notify_discord_embed(webhook_url: Optional[str], watcher_obj: Any, events_li
                              retry_after_seconds /= 1000.0
                     except ValueError:
                         retry_after_seconds = settings.NOTIFY_BACKOFF_BASE * (2 ** (attempt - 1))
-                    
-                    print(f"    ⚠️ [DISCORD_RATE_LIMIT] Discord sugiere esperar {retry_after_seconds:.2f}s. Aplicando delay.")
+                    logger.warning(f"Discord sugiere esperar {retry_after_seconds:.2f}s. Aplicando delay.")
                     time.sleep(max(0.1, retry_after_seconds) + 0.5)
                     if attempt >= settings.NOTIFY_MAX_RETRIES:
-                        print(f"    ❌ [NOTIFY_FATAL] Falló envío de lote de Discord para Watcher ID='{watcher_obj.id}' después de {settings.NOTIFY_MAX_RETRIES} intentos (con rate limit).")
+                        logger.error(f"Falló envío de lote de Discord para Watcher ID='{watcher_obj.id}' después de {settings.NOTIFY_MAX_RETRIES} intentos (con rate limit).")
                         break 
                     continue 
                 if attempt < settings.NOTIFY_MAX_RETRIES:
                     _backoff_sleep(attempt, settings.NOTIFY_MAX_RETRIES, settings.NOTIFY_BACKOFF_BASE)
                 else:
-                    print(f"    ❌ [NOTIFY_FATAL] Falló envío de lote de Discord para Watcher ID='{watcher_obj.id}' después de {settings.NOTIFY_MAX_RETRIES} intentos.")
+                    logger.error(f"Falló envío de lote de Discord para Watcher ID='{watcher_obj.id}' después de {settings.NOTIFY_MAX_RETRIES} intentos.")
         
         if success_this_batch and (i + batch_size) < len(events_list): 
-            print(f"    ℹ️ [DISCORD_BATCH_DELAY] Esperando ~1-2s antes de enviar el siguiente lote de Discord (buena práctica para evitar rate limit)...")
+            logger.info("Esperando ~1-2s antes de enviar el siguiente lote de Discord...")
             time.sleep(1.5)
 
-# === NUEVA SECCIÓN DE NOTIFICADORES ===
 def notify_email_batch(transport_config: Dict[str, Any], watcher_obj: Any, events_list: List[schemas.TokenEventRead]):
     to_email = transport_config.get("email")
     if not to_email:
-        print(f"    ℹ️ [NOTIFY_INFO] Configuración de email incompleta para Watcher ID={watcher_obj.id}. Saltando Email.")
+        logger.info(f"Configuración de email incompleta para Watcher ID={watcher_obj.id}. Saltando Email.")
         return
-
-    print(f"    ℹ️ [EMAIL_PROC] Procesando {len(events_list)} evento(s) para enviar un email de resumen a {to_email}...")
-    
+    logger.info(f"Procesando {len(events_list)} evento(s) para enviar un email de resumen a {to_email}...")
     try:
-        success = email_utils.send_token_alert_email_batch(
-            to_email=to_email,
-            watcher_name=watcher_obj.name,
-            events=events_list
-        )
+        success = email_utils.send_token_alert_email_batch(to_email=to_email, watcher_name=watcher_obj.name, events=events_list)
         if success:
-            print(f"    ✅ [NOTIFY_SUCCESS] Email de resumen enviado a {to_email} para {len(events_list)} evento(s).")
+            logger.info(f"Email de resumen enviado a {to_email} para {len(events_list)} evento(s).")
         else:
-            print(f"    ❌ [NOTIFY_ERROR] Fallo al enviar email de resumen a {to_email}.")
+            logger.error(f"Fallo al enviar email de resumen a {to_email}.")
     except Exception as e:
-        print(f"    ❌ [NOTIFY_FATAL] Excepción al construir o enviar email de resumen: {e}")
+        logger.exception(f"Excepción al construir o enviar email de resumen: {e}")
 
 def notify_telegram_batch(transport_config: Dict[str, Any], watcher_obj: Any, events_list: List[schemas.TokenEventRead]):
     bot_token = transport_config.get("bot_token")
     chat_id = transport_config.get("chat_id")
-
     if not bot_token or not chat_id:
-        print(f"    ℹ️ [NOTIFY_INFO] Configuración de Telegram incompleta para Watcher ID={watcher_obj.id}. Saltando Telegram.")
+        logger.info(f"Configuración de Telegram incompleta para Watcher ID={watcher_obj.id}. Saltando Telegram.")
         return
-
-    print(f"    ℹ️ [TELEGRAM_PROC] Procesando {len(events_list)} evento(s) para enviar a Telegram Chat ID {chat_id}...")
-    
+    logger.info(f"Procesando {len(events_list)} evento(s) para enviar a Telegram Chat ID {chat_id}...")
     for event in events_list:
-        watcher_name_escaped = escape_markdown_v2(watcher_obj.name)
-        amount_formatted = escape_markdown_v2(f"{event.amount:,.4f} {event.token_symbol or ''}".strip())
-        usd_value_formatted = f"\\(${event.usd_value:,.2f} USD\\)" if event.usd_value is not None else "_N/A_"
-        etherscan_link = f"{settings.ETHERSCAN_TX_URL}/{event.transaction_hash}"
-
-        text_message = (
-            f"🚨 *TokenWatcher Alert: {watcher_name_escaped}*\n\n"
-            f"A significant transfer has been detected:\n\n"
-            f"▪️ *Amount*: `{amount_formatted}`\n"
-            f"▪️ *USD Value*: {usd_value_formatted}\n"
-            f"▪️ *From*: `{escape_markdown_v2(event.from_address)}`\n"
-            f"▪️ *To*: `{escape_markdown_v2(event.to_address)}`\n\n"
-            f"[View Transaction on Etherscan]({etherscan_link})"
-        )
-        
         try:
+            watcher_name_escaped = escape_markdown_v2(watcher_obj.name)
+            amount_formatted = escape_markdown_v2(f"{event.amount:,.4f} {event.token_symbol or ''}".strip())
+            usd_value_formatted = escape_markdown_v2(f"${event.usd_value:,.2f} USD") if event.usd_value is not None else "N/A"
+            from_addr_escaped = escape_markdown_v2(event.from_address)
+            to_addr_escaped = escape_markdown_v2(event.to_address)
+            etherscan_link = f"{settings.ETHERSCAN_TX_URL}/{event.transaction_hash}"
+            text_message = (
+                f"🚨 *{watcher_name_escaped}*\n\n"
+                f"A significant transfer has been detected:\n\n"
+                f"▪️ *Amount*: `{amount_formatted}`\n"
+                f"▪️ *USD Value*: `{usd_value_formatted}`\n"
+                f"▪️ *From*: `{from_addr_escaped}`\n"
+                f"▪️ *To*: `{to_addr_escaped}`\n\n"
+                f"[View Transaction on Etherscan]({etherscan_link})"
+            )
             telegram_client.send_telegram_message(bot_token=bot_token, chat_id=chat_id, text=text_message)
+            time.sleep(1)
         except Exception as e:
-             print(f"    ❌ [NOTIFY_FATAL] Excepción al enviar mensaje de Telegram para evento ID {event.id}: {e}")
-        time.sleep(0.5)
+            logger.error(f"Excepción al enviar mensaje de Telegram para evento ID {event.id}: {e}")
 
-# === NUEVA FUNCIÓN PRINCIPAL (DISPATCHER) ===
 def send_notifications_for_event_batch(watcher_obj: Any, events_list: List[schemas.TokenEventRead]):
     if not events_list:
         return
     if not watcher_obj.transports:
-        print(f"    ⚠️ [NOTIFY_DISPATCHER] El Watcher ID={watcher_obj.id} no tiene transportes configurados.")
+        logger.warning(f"El Watcher ID={watcher_obj.id} no tiene transportes configurados.")
         return
-
     for transport in watcher_obj.transports:
         transport_type = transport.type.lower()
         transport_config = transport.config
-        
         if not isinstance(transport_config, dict):
             try:
                 transport_config = json.loads(transport_config) if isinstance(transport_config, str) else {}
             except json.JSONDecodeError:
-                print(f"    ❌ [NOTIFY_ERROR] El config del transporte ID={transport.id} no es un JSON válido.")
+                logger.error(f"El config del transporte ID={transport.id} no es un JSON válido.")
                 continue
-
-        print(f"  -> [DISPATCH] Procesando transporte tipo '{transport_type}' para Watcher ID={watcher_obj.id}")
-
+        logger.info(f"-> [DISPATCH] Procesando transporte tipo '{transport_type}' para Watcher ID={watcher_obj.id}")
         if transport_type == "slack":
             webhook_url = transport_config.get("url")
             notify_slack_blockkit(webhook_url, watcher_obj, events_list)
-        
         elif transport_type == "discord":
             webhook_url = transport_config.get("url")
             notify_discord_embed(webhook_url, watcher_obj, events_list)
-        
         elif transport_type == "email":
             notify_email_batch(transport_config, watcher_obj, events_list)
-        
         elif transport_type == "telegram":
             notify_telegram_batch(transport_config, watcher_obj, events_list)
-        
         else:
-            print(f"    ⚠️ [NOTIFY_WARN] Tipo de transporte desconocido '{transport_type}' para Watcher ID={watcher_obj.id}.")
+            logger.warning(f"Tipo de transporte desconocido '{transport_type}' para Watcher ID={watcher_obj.id}.")
