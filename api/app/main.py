@@ -338,3 +338,24 @@ def read_token_total_volume(request: Request, contract_address: str, db: Session
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid contract address format.")
     volume = crud.get_volume(db, contract_address=contract_address)
     return schemas.TokenRead(contract=contract_address, volume=volume)
+
+admin_router = APIRouter(prefix="/admin", tags=["Admin"])
+
+@admin_router.post("/plans/", response_model=schemas.PlanRead, status_code=status.HTTP_201_CREATED)
+def create_new_plan(
+    plan_data: schemas.PlanCreate,
+    db: Session = Depends(get_db),
+    admin_user: models.User = Depends(auth.get_current_admin_user)
+):
+    return crud.create_plan(db=db, plan=plan_data)
+
+@admin_router.get("/plans/", response_model=List[schemas.PlanRead])
+def get_all_plans(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    admin_user: models.User = Depends(auth.get_current_admin_user)
+):
+    return crud.get_plans(db=db, skip=skip, limit=limit)
+
+app.include_router(admin_router)

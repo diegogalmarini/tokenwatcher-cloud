@@ -9,38 +9,8 @@ class OrmBase(BaseModel):
     class Config:
         from_attributes = True
 
-# --- SCHEMAS DE PLANES Y SUSCRIPCIONES ---
-class PlanBase(OrmBase):
-    name: str
-    description: Optional[str] = None
-    price_monthly: int
-    price_annually: int
-    watcher_limit: int
-    is_active: bool = True
-
-class PlanCreate(PlanBase):
-    stripe_price_id_monthly: Optional[str] = None
-    stripe_price_id_annually: Optional[str] = None
-
-class PlanRead(PlanBase):
-    id: int
-
-class SubscriptionBase(OrmBase):
-    user_id: int
-    plan_id: int
-    status: str
-    stripe_subscription_id: Optional[str] = None
-    current_period_end: Optional[datetime] = None
-
-class SubscriptionCreate(SubscriptionBase):
-    pass
-
-class SubscriptionRead(SubscriptionBase):
-    id: int
-    plan: PlanRead
-
 # --- SCHEMAS DE EVENTOS ---
-class TokenEventBase(OrmBase):
+class TokenEventBase(BaseModel):
     watcher_id: int
     token_address_observed: str
     from_address: str
@@ -59,13 +29,16 @@ class TokenEventRead(TokenEventBase):
     id: int
     created_at: datetime
 
-class PaginatedTokenEventResponse(OrmBase):
+    class Config:
+        from_attributes = True
+
+class PaginatedTokenEventResponse(BaseModel):
     total_events: int
     events: List[TokenEventRead]
 
 
 # --- SCHEMAS DE TRANSPORT ---
-class TransportBase(OrmBase):
+class TransportBase(BaseModel):
     type: str
     config: Dict[str, Any]
 
@@ -76,14 +49,17 @@ class TransportRead(TransportBase):
     id: int
     watcher_id: int
 
-class TransportTest(OrmBase):
+    class Config:
+        from_attributes = True
+
+class TransportTest(BaseModel):
     watcher_id: int
     transport_type: Literal["slack", "discord", "email", "telegram"]
     transport_target: str
 
 
 # --- SCHEMAS DE WATCHER ---
-class WatcherBase(OrmBase):
+class WatcherBase(BaseModel):
     name: str
     token_address: str
     threshold: float
@@ -109,9 +85,12 @@ class WatcherRead(WatcherBase):
     updated_at: datetime
     transports: List[TransportRead] = []
 
+    class Config:
+        from_attributes = True
+
 
 # --- SCHEMAS DE USUARIO ---
-class UserBase(OrmBase):
+class UserBase(BaseModel):
     email: EmailStr
 
 class UserCreate(UserBase):
@@ -125,8 +104,9 @@ class UserRead(UserBase):
     plan: str
     watcher_count: int
     watcher_limit: int
-    subscription: Optional[SubscriptionRead] = None
 
+    class Config:
+        from_attributes = True
 
 class UserUpdateAdmin(BaseModel):
     watcher_limit: Optional[int] = None
@@ -134,19 +114,23 @@ class UserUpdateAdmin(BaseModel):
     plan: Optional[str] = None
 
 
-class Token(OrmBase):
+class Token(BaseModel):
     access_token: str
     token_type: str
 
-class TokenData(OrmBase):
+class TokenData(BaseModel):
     email: Optional[str] = None
 
-class TokenRead(OrmBase):
+class TokenRead(BaseModel):
     contract: str
     volume: float
 
+    class Config:
+        from_attributes = True
+
+
 # --- TOKEN INFO ---
-class TokenInfo(OrmBase):
+class TokenInfo(BaseModel):
     price: float
     market_cap: float
     total_volume_24h: float
@@ -158,14 +142,14 @@ class TokenInfo(OrmBase):
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
-class ForgotPasswordResponse(OrmBase):
+class ForgotPasswordResponse(BaseModel):
     msg: str
 
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
 
-class ResetPasswordResponse(OrmBase):
+class ResetPasswordResponse(BaseModel):
     msg: str
 
 class ChangePasswordRequest(BaseModel):
