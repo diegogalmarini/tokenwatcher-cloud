@@ -175,27 +175,7 @@ def update_existing_watcher_for_current_user(
     db: Session = Depends(get_db), 
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    if not current_user.is_admin and watcher_update_data.threshold is not None:
-        existing_watcher = crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id)
-        token_address_for_validation = existing_watcher.token_address
-        
-        market_data = coingecko_client.get_token_market_data(token_address_for_validation)
-        if market_data and market_data.get("total_volume_24h", 0) > 0:
-            min_relative_threshold = market_data["total_volume_24h"] * settings.MINIMUM_THRESHOLD_VOLUME_PERCENT
-            effective_min_threshold = max(settings.MINIMUM_WATCHER_THRESHOLD_USD, min_relative_threshold)
-            
-            if watcher_update_data.threshold < effective_min_threshold:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Threshold is too low. For this token, the minimum allowed threshold is ${effective_min_threshold:,.2f} USD."
-                )
-        else:
-            if watcher_update_data.threshold < settings.MINIMUM_WATCHER_THRESHOLD_USD:
-                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Threshold must be at least ${settings.MINIMUM_WATCHER_THRESHOLD_USD:,.2f} USD."
-                )
-
+    # La validación de umbral se hace en el CRUD ahora, esta lógica es más limpia
     db_watcher = crud.update_watcher(
         db=db, watcher_id=watcher_id, watcher_update_data=watcher_update_data, owner_id=current_user.id
     )

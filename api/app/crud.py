@@ -99,6 +99,33 @@ def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int
         .offset(skip).limit(limit).all()
     )
 
+def get_transport_config_from_target(transport_type: str, target: str) -> Dict[str, Any]:
+    transport_config = {}
+    transport_type_lower = transport_type.lower()
+    if transport_type_lower in ["slack", "discord"]:
+        try:
+            parse_obj_as(HttpUrl, target)
+            transport_config = {"url": target}
+        except ValidationError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Webhook URL format.")
+    elif transport_type_lower == "email":
+        try:
+            validated_email = parse_obj_as(EmailStr, target)
+            transport_config = {"email": str(validated_email)}
+        except ValidationError:
+             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Email address format.")
+    elif transport_type_lower == "telegram":
+        try:
+            config_data = json.loads(target)
+            if not isinstance(config_data, dict) or "bot_token" not in config_data or "chat_id" not in config_data:
+                raise ValueError("JSON must contain 'bot_token' and 'chat_id' keys.")
+            transport_config = {"bot_token": str(config_data["bot_token"]), "chat_id": str(config_data["chat_id"])}
+        except (json.JSONDecodeError, ValueError):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Telegram config format. Expected a JSON string with 'bot_token' and 'chat_id'.")
+    if not transport_config:
+         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported transport_type: {transport_type}")
+    return transport_config
+
 def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: int) -> models.Watcher:
     try:
         checksum_address = Web3.to_checksum_address(watcher_data.token_address)
@@ -115,37 +142,14 @@ def create_watcher(db: Session, watcher_data: schemas.WatcherCreate, owner_id: i
     db.add(db_watcher)
     db.flush()
 
-    transport_config = {}
-    transport_type = watcher_data.transport_type.lower()
-    target = watcher_data.transport_target
-
-    if transport_type in ["slack", "discord"]:
-        try:
-            parse_obj_as(HttpUrl, target)
-            transport_config = {"url": target}
-        except ValidationError:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Webhook URL format.")
-    elif transport_type == "email":
-        try:
-            validated_email = parse_obj_as(EmailStr, target)
-            transport_config = {"email": str(validated_email)}
-        except ValidationError:
-             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Email address format.")
-    elif transport_type == "telegram":
-        try:
-            config_data = json.loads(target)
-            if not isinstance(config_data, dict) or "bot_token" not in config_data or "chat_id" not in config_data:
-                raise ValueError("JSON must contain 'bot_token' and 'chat_id' keys.")
-            transport_config = {"bot_token": str(config_data["bot_token"]), "chat_id": str(config_data["chat_id"])}
-        except (json.JSONDecodeError, ValueError):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Telegram config format. Expected a JSON string with 'bot_token' and 'chat_id'.")
-    
-    if not transport_config:
-         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported transport_type: {transport_type}")
+    transport_config = get_transport_config_from_target(
+        watcher_data.transport_type,
+        watcher_data.transport_target
+    )
 
     db_transport = models.Transport(
         watcher_id=db_watcher.id,
-        type=transport_type,
+        type=watcher_data.transport_type.lower(),
         config=transport_config
     )
     db.add(db_transport)
@@ -159,14 +163,26 @@ def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.Wa
     update_data = watcher_update_data.model_dump(exclude_unset=True)
 
     for field, value in update_data.items():
-        if field == "token_address" and value is not None:
-            try:
-                checksum_address = Web3.to_checksum_address(value)
-                setattr(db_watcher, field, checksum_address)
-            except InvalidAddress:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Ethereum address format.")
-        elif hasattr(db_watcher, field):
+        if field in ["transport_type", "transport_target", "send_test_notification"]:
+            continue
+        if hasattr(db_watcher, field) and value is not None:
             setattr(db_watcher, field, value)
+
+    if watcher_update_data.transport_type and watcher_update_data.transport_target:
+        for transport in db_watcher.transports:
+            db.delete(transport)
+        
+        transport_config = get_transport_config_from_target(
+            watcher_update_data.transport_type,
+            watcher_update_data.transport_target
+        )
+        
+        new_transport = models.Transport(
+            watcher_id=db_watcher.id,
+            type=watcher_update_data.transport_type.lower(),
+            config=transport_config
+        )
+        db.add(new_transport)
 
     db.commit()
     db.refresh(db_watcher)
@@ -177,6 +193,7 @@ def delete_watcher(db: Session, watcher_id: int, owner_id: int) -> None:
     db_watcher = get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
     db.delete(db_watcher)
     db.commit()
+
 
 # --- Event (TokenEvent) CRUD ---
 def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[models.TokenEvent]:
