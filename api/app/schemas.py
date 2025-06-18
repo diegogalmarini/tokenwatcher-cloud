@@ -25,7 +25,7 @@ class TokenEventRead(TokenEventBase):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class PaginatedTokenEventResponse(BaseModel):
     total_events: int
@@ -45,7 +45,12 @@ class TransportRead(TransportBase):
     watcher_id: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+class TransportTest(BaseModel):
+    watcher_id: int
+    transport_type: Literal["slack", "discord", "email", "telegram"]
+    transport_target: str
 
 
 # --- SCHEMAS DE WATCHER ---
@@ -76,7 +81,7 @@ class WatcherRead(WatcherBase):
     transports: List[TransportRead] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # --- SCHEMAS DE USUARIO ---
@@ -96,7 +101,7 @@ class UserRead(UserBase):
     watcher_limit: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class UserUpdateAdmin(BaseModel):
     watcher_limit: Optional[int] = None
@@ -116,7 +121,7 @@ class TokenRead(BaseModel):
     volume: float
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 # --- TOKEN INFO ---
@@ -154,8 +159,3 @@ class ContactFormRequest(BaseModel):
     name: str
     email: EmailStr
     message: str
-
-class TransportTest(BaseModel):
-    watcher_id: int
-    transport_type: Literal["slack", "discord", "email", "telegram"]
-    transport_target: str

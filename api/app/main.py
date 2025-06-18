@@ -265,6 +265,45 @@ def delete_specific_transport_by_id(
     crud.delete_transport_by_id(db=db, transport_id=transport_id, owner_id=current_user.id)
     return
 
+@app.post("/transports/test", status_code=status.HTTP_200_OK, tags=["Transports (Watcher-Specific)"])
+def test_transport_notification(
+    transport_test_payload: schemas.TransportTest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    db_watcher = crud.get_watcher_db(db, watcher_id=transport_test_payload.watcher_id, owner_id=current_user.id)
+    
+    transport_config = crud.get_transport_config_from_target(
+        transport_type=transport_test_payload.transport_type,
+        target=transport_test_payload.transport_target
+    )
+
+    temp_transport = models.Transport(
+        type=transport_test_payload.transport_type,
+        config=transport_config
+    )
+
+    test_event = schemas.TokenEventRead(
+        id=0, watcher_id=db_watcher.id, token_address_observed=db_watcher.token_address,
+        from_address="0xSENDER_ADDRESS_HERE", to_address="0xRECIPIENT_ADDRESS_HERE",
+        amount=98765.43, transaction_hash="0x1111111111111111111111111111111111111111111111111111111111111111",
+        block_number=87654321, usd_value=(98765.43 * 1.05), token_name="Test Token", token_symbol="TEST",
+        created_at=datetime.now(timezone.utc)
+    )
+    
+    class TempWatcher:
+        def __init__(self, watcher, transport):
+            self.id = watcher.id
+            self.name = f"[TEST] {watcher.name}"
+            self.token_address = watcher.token_address
+            self.transports = [transport]
+
+    temp_watcher_obj = TempWatcher(db_watcher, temp_transport)
+    
+    notifier.send_notifications_for_event_batch(watcher_obj=temp_watcher_obj, events_list=[test_event])
+
+    return {"detail": "Test notification sent successfully."}
+
 @app.get("/tokens/{contract_address}/volume", response_model=schemas.TokenRead, tags=["Tokens"])
 @limiter.limit("60/minute")
 def read_token_total_volume(request: Request, contract_address: str, db: Session = Depends(get_db)):
