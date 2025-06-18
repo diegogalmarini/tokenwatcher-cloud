@@ -169,7 +169,7 @@ def delete_user(user_id: int, db: Session = Depends(get_db), admin_user: models.
 def update_user_as_admin(user_id: int, user_update: schemas.UserUpdateAdmin, db: Session = Depends(get_db), admin_user: models.User = Depends(get_current_admin_user)):
     updated_user = crud.update_user_admin(db, user_id=user_id, user_update_data=user_update)
     if not updated_user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"User with id {user_id} not found")
+        raise HTTPException(status_code=status.HTTP_404, detail=f"User with id {user_id} not found")
     
     if user_update.watcher_limit is not None:
         send_watcher_limit_update_email(updated_user.email, updated_user.watcher_limit)
