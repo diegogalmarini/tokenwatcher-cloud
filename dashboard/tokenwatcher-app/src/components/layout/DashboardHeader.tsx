@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Popover, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import { UserCircleIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon, UserGroupIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline';
+import Button from "../ui/button";
 
 export default function DashboardHeader() {
   const { theme, setTheme, systemTheme } = useTheme();
@@ -42,17 +43,17 @@ export default function DashboardHeader() {
         <div className="flex items-center space-x-2 sm:space-x-4">
           {isAuthenticated && user ? (
               <Popover className="relative">
-                {({ open, close }) => (
+                {({ open }) => (
                   <>
                     <Popover.Button
-                      className={`flex items-center space-x-2 p-2 rounded-full transition-colors focus:outline-none ${
+                      className={`flex items-center space-x-2 p-2 rounded-full transition-colors focus:outline-none ring-2 ring-offset-2 ring-offset-transparent focus:ring-blue-500 ${
                         open 
                           ? (isDark ? 'bg-neutral-700' : 'bg-gray-200')
                           : (isDark ? 'hover:bg-neutral-800' : 'hover:bg-gray-100')
                       }`}
                     >
                       <span className="hidden sm:inline text-sm font-medium">{user.email}</span>
-                      <UserCircleIcon className="h-6 w-6 sm:hidden" />
+                      <UserCircleIcon className="h-6 w-6 text-gray-700 dark:text-gray-300 sm:hidden" />
                     </Popover.Button>
                     <Transition
                       as={Fragment}
@@ -106,11 +107,7 @@ export default function DashboardHeader() {
 
           <button
             onClick={toggleDark}
-            className={`p-2 rounded-full transition-colors ${
-              isDark
-                ? "hover:bg-neutral-800"
-                : "hover:bg-gray-100"
-            }`}
+            className="p-2 rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-neutral-800"
             aria-label="Toggle theme"
           >
             {isDark ? (
