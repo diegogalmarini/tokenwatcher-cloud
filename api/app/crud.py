@@ -166,7 +166,14 @@ def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.Wa
         if field in ["transport_type", "transport_target", "send_test_notification"]:
             continue
         if hasattr(db_watcher, field) and value is not None:
-            setattr(db_watcher, field, value)
+            if field == "token_address":
+                try:
+                    checksum_address = Web3.to_checksum_address(value)
+                    setattr(db_watcher, field, checksum_address)
+                except InvalidAddress:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Ethereum address format.")
+            else:
+                setattr(db_watcher, field, value)
 
     if watcher_update_data.transport_type and watcher_update_data.transport_target:
         for transport in db_watcher.transports:
