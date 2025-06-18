@@ -25,7 +25,7 @@ class TokenEventRead(TokenEventBase):
     created_at: datetime
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class PaginatedTokenEventResponse(BaseModel):
     total_events: int
@@ -45,11 +45,15 @@ class TransportRead(TransportBase):
     watcher_id: int
 
     class Config:
-        from_attributes = True
+        orm_mode = True
+
+class TransportTest(BaseModel):
+    watcher_id: int
+    transport_type: Literal["slack", "discord", "email", "telegram"]
+    transport_target: str
 
 
-# === SECCIÓN DE SCHEMAS DE WATCHER MODIFICADA ===
-
+# --- SCHEMAS DE WATCHER ---
 class WatcherBase(BaseModel):
     name: str
     token_address: str
@@ -65,7 +69,6 @@ class WatcherUpdatePayload(BaseModel):
     name: Optional[str] = None
     threshold: Optional[float] = None
     is_active: Optional[bool] = None
-    # Se añaden los campos para poder editar el transporte
     transport_type: Optional[Literal["slack", "discord", "email", "telegram"]] = None
     transport_target: Optional[str] = None
     send_test_notification: bool = False
@@ -78,9 +81,7 @@ class WatcherRead(WatcherBase):
     transports: List[TransportRead] = []
 
     class Config:
-        from_attributes = True
-
-# =================================================
+        orm_mode = True
 
 
 # --- SCHEMAS DE USUARIO ---
@@ -100,7 +101,7 @@ class UserRead(UserBase):
     watcher_limit: int
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 class UserUpdateAdmin(BaseModel):
     watcher_limit: Optional[int] = None
@@ -120,10 +121,10 @@ class TokenRead(BaseModel):
     volume: float
 
     class Config:
-        from_attributes = True
+        orm_mode = True
 
 
-# --- NUEVO SCHEMA PARA LA INFORMACIÓN DE UN TOKEN ---
+# --- TOKEN INFO ---
 class TokenInfo(BaseModel):
     price: float
     market_cap: float
@@ -132,7 +133,7 @@ class TokenInfo(BaseModel):
     minimum_threshold: float
 
 
-# --- SCHEMAS PARA “FORGOT / RESET PASSWORD” ---
+# --- AUTHENTICATION & USER MANAGEMENT ---
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
@@ -146,14 +147,16 @@ class ResetPasswordRequest(BaseModel):
 class ResetPasswordResponse(BaseModel):
     msg: str
 
-# --- SCHEMA PARA FORMULARIO DE CONTACTO ---
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+    
+class DeleteAccountRequest(BaseModel):
+    password: str
+
+
+# --- OTROS ---
 class ContactFormRequest(BaseModel):
     name: str
     email: EmailStr
     message: str
-
-    # === NUEVO SCHEMA PARA EL BOTÓN DE TEST ===
-class TransportTest(BaseModel):
-    watcher_id: int
-    transport_type: Literal["slack", "discord", "email", "telegram"]
-    transport_target: str

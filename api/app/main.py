@@ -5,8 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import HttpUrl
 import json
-from datetime import datetime
-import datetime as dt
+from datetime import datetime, timezone
 
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -141,7 +140,7 @@ def create_new_watcher_for_current_user(
             from_address="0xFROM_ADDRESS_HERE", to_address="0xTO_ADDRESS_HERE",
             amount=12345.67, transaction_hash="0x0000000000000000000000000000000000000000000000000000000000000000",
             block_number=12345678, usd_value=(12345.67 * 1.05), token_name="Test Token", token_symbol="TEST",
-            created_at=dt.datetime.now(dt.timezone.utc)
+            created_at=datetime.now(timezone.utc)
         )
         notifier.send_notifications_for_event_batch(watcher_obj=db_watcher, events_list=[test_event])
 
@@ -175,7 +174,6 @@ def update_existing_watcher_for_current_user(
     db: Session = Depends(get_db), 
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    # La validación de umbral se hace en el CRUD ahora, esta lógica es más limpia
     db_watcher = crud.update_watcher(
         db=db, watcher_id=watcher_id, watcher_update_data=watcher_update_data, owner_id=current_user.id
     )
@@ -187,7 +185,7 @@ def update_existing_watcher_for_current_user(
             from_address="0xFROM_ADDRESS_HERE", to_address="0xTO_ADDRESS_HERE",
             amount=12345.67, transaction_hash="0x0000000000000000000000000000000000000000000000000000000000000000",
             block_number=12345678, usd_value=(12345.67 * 1.05), token_name="Test Token", token_symbol="TEST",
-            created_at=dt.datetime.now(dt.timezone.utc)
+            created_at=datetime.now(timezone.utc)
         )
         notifier.send_notifications_for_event_batch(watcher_obj=db_watcher, events_list=[test_event])
 
