@@ -67,8 +67,30 @@ def submit_contact_form(request: Request, form_data: schemas.ContactFormRequest)
 
 app.include_router(contact_router, prefix="/api", tags=["Contact"])
 
+admin_router = APIRouter(prefix="/admin", tags=["Admin"])
+
+@admin_router.post("/plans/", response_model=schemas.PlanRead, status_code=status.HTTP_201_CREATED)
+def create_new_plan(
+    plan_data: schemas.PlanCreate,
+    db: Session = Depends(get_db),
+    admin_user: models.User = Depends(auth.get_current_admin_user)
+):
+    return crud.create_plan(db=db, plan=plan_data)
+
+@admin_router.get("/plans/", response_model=List[schemas.PlanRead])
+def get_all_plans(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    admin_user: models.User = Depends(auth.get_current_admin_user)
+):
+    return crud.get_plans(db=db, skip=skip, limit=limit)
+
+app.include_router(admin_router)
+
+
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher) -> schemas.WatcherRead:
-    return schemas.WatcherRead.model_validate(db_watcher)
+    return schemas.WatcherRead.from_orm(db_watcher)
 
 
 @app.get("/health", tags=["System"])
@@ -135,13 +157,15 @@ def create_new_watcher_for_current_user(
     
     if watcher_data.send_test_notification:
         db.refresh(db_watcher, attribute_names=['transports'])
-        test_event = schemas.TokenEventRead.model_validate({
-            "id": 0, "watcher_id": db_watcher.id, "token_address_observed": db_watcher.token_address,
-            "from_address": "0xFROM_ADDRESS_HERE", "to_address": "0xTO_ADDRESS_HERE",
-            "amount": 12345.67, "transaction_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-            "block_number": 12345678, "usd_value": (12345.67 * 1.05), "token_name": "Test Token", "token_symbol": "TEST",
-            "created_at": datetime.now(timezone.utc)
-        })
+        test_event = schemas.TokenEventRead.from_orm(
+            models.TokenEvent(
+                id=0, watcher_id=db_watcher.id, token_address_observed=db_watcher.token_address,
+                from_address="0xFROM_ADDRESS_HERE", to_address="0xTO_ADDRESS_HERE",
+                amount=12345.67, transaction_hash="0x0000000000000000000000000000000000000000000000000000000000000000",
+                block_number=12345678, usd_value=(12345.67 * 1.05), token_name="Test Token", token_symbol="TEST",
+                created_at=datetime.now(timezone.utc)
+            )
+        )
         notifier.send_notifications_for_event_batch(watcher_obj=db_watcher, events_list=[test_event])
 
     return _populate_watcher_read_from_db_watcher(db_watcher)
@@ -201,13 +225,15 @@ def update_existing_watcher_for_current_user(
     
     if watcher_update_data.send_test_notification:
         db.refresh(db_watcher, attribute_names=['transports'])
-        test_event = schemas.TokenEventRead.model_validate({
-            "id": 0, "watcher_id": db_watcher.id, "token_address_observed": db_watcher.token_address,
-            "from_address": "0xFROM_ADDRESS_HERE", "to_address": "0xTO_ADDRESS_HERE",
-            "amount": 12345.67, "transaction_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-            "block_number": 12345678, "usd_value": (12345.67 * 1.05), "token_name": "Test Token", "token_symbol": "TEST",
-            "created_at": datetime.now(timezone.utc)
-        })
+        test_event = schemas.TokenEventRead.from_orm(
+            models.TokenEvent(
+                id=0, watcher_id=db_watcher.id, token_address_observed=db_watcher.token_address,
+                from_address="0xFROM_ADDRESS_HERE", to_address="0xTO_ADDRESS_HERE",
+                amount=12345.67, transaction_hash="0x0000000000000000000000000000000000000000000000000000000000000000",
+                block_number=12345678, usd_value=(12345.67 * 1.05), token_name="Test Token", token_symbol="TEST",
+                created_at=datetime.now(timezone.utc)
+            )
+        )
         notifier.send_notifications_for_event_batch(watcher_obj=db_watcher, events_list=[test_event])
 
     return _populate_watcher_read_from_db_watcher(db_watcher)
@@ -304,13 +330,15 @@ def test_transport_notification(
         config=transport_config
     )
 
-    test_event = schemas.TokenEventRead.model_validate({
-        "id": 0, "watcher_id": db_watcher.id, "token_address_observed": db_watcher.token_address,
-        "from_address": "0xSENDER_ADDRESS_HERE", "to_address": "0xRECIPIENT_ADDRESS_HERE",
-        "amount": 98765.43, "transaction_hash": "0x1111111111111111111111111111111111111111111111111111111111111111",
-        "block_number": 87654321, "usd_value": (98765.43 * 1.05), "token_name": "Test Token", "token_symbol": "TEST",
-        "created_at": datetime.now(timezone.utc)
-    })
+    test_event = schemas.TokenEventRead.from_orm(
+        models.TokenEvent(
+            id=0, watcher_id=db_watcher.id, token_address_observed=db_watcher.token_address,
+            from_address="0xSENDER_ADDRESS_HERE", to_address="0xRECIPIENT_ADDRESS_HERE",
+            amount=98765.43, transaction_hash="0x1111111111111111111111111111111111111111111111111111111111111111",
+            block_number=87654321, usd_value=(98765.43 * 1.05), token_name="Test Token", token_symbol="TEST",
+            created_at=datetime.now(timezone.utc)
+        )
+    )
     
     class TempWatcher:
         def __init__(self, watcher, transport):
