@@ -1,4 +1,4 @@
-// File: dashboard/tokenwatcher-app/src/app/dashboard/admin/page.tsx
+// dashboard/tokenwatcher-app/src/app/dashboard/admin/page.tsx
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -22,6 +22,7 @@ interface AdminUserView {
 interface UserUpdatePayload {
     watcher_limit?: number;
     is_active?: boolean;
+    plan?: string;
 }
 
 export default function AdminPage() {
@@ -139,14 +140,11 @@ export default function AdminPage() {
       onConfirm: () => handleUpdateUser(userToToggle.id, { is_active: !userToToggle.is_active }),
     });
   };
-
-  const handleEditLimitClick = (userToEdit: AdminUserView) => {
-    const newLimit = prompt(`Enter new watcher limit for ${userToEdit.email}:`, String(userToEdit.watcher_limit));
-    if (newLimit !== null && !isNaN(parseInt(newLimit, 10))) {
-        const limitAsNumber = parseInt(newLimit, 10);
-        handleUpdateUser(userToEdit.id, { watcher_limit: limitAsNumber });
-    } else if (newLimit !== null) {
-        alert("Please enter a valid number.");
+  
+  const handleEditPlanClick = (userToEdit: AdminUserView) => {
+    const newPlan = prompt(`Enter new plan for ${userToEdit.email} (e.g., Free, Pro):`, userToEdit.plan);
+    if (newPlan) {
+        handleUpdateUser(userToEdit.id, { plan: newPlan });
     }
   };
 
@@ -189,9 +187,8 @@ export default function AdminPage() {
                   <td className="py-3 px-6 text-center">{u.is_active ? '✅' : '❌'}</td>
                   <td className="py-3 px-6 text-center">{u.is_admin ? '👑' : ''}</td>
                   <td className="py-3 px-6 text-left">{new Date(u.created_at).toLocaleString()}</td>
-                  {/* --- NUEVOS BOTONES DE ACCIÓN --- */}
                   <td className="py-3 px-6 text-center whitespace-nowrap space-x-2">
-                    <button onClick={() => handleEditLimitClick(u)} className="bg-gray-500 text-white py-1 px-3 rounded hover:bg-gray-600 disabled:bg-gray-400 text-xs" disabled={u.is_admin}>Edit Limit</button>
+                    <button onClick={() => handleEditPlanClick(u)} className="bg-gray-500 text-white py-1 px-3 rounded hover:bg-gray-600 disabled:bg-gray-400 text-xs" disabled={u.is_admin}>Edit Plan</button>
                     <button onClick={() => openToggleActiveModal(u)} className={`${u.is_active ? 'bg-orange-500 hover:bg-orange-600' : 'bg-green-500 hover:bg-green-600'} text-white py-1 px-3 rounded disabled:bg-gray-400 text-xs`} disabled={u.id === user.id}>{u.is_active ? 'Pause' : 'Activate'}</button>
                     <button onClick={() => openDeleteModal(u)} className="bg-red-500 text-white py-1 px-3 rounded hover:bg-red-600 disabled:bg-gray-400 text-xs" disabled={u.id === user.id}>Delete</button>
                   </td>

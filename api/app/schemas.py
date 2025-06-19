@@ -8,6 +8,7 @@ class OrmBase(BaseModel):
     class Config:
         from_attributes = True
 
+# --- SCHEMAS DE PLANES Y SUSCRIPCIONES ---
 class PlanBase(OrmBase):
     name: str
     description: Optional[str] = None
@@ -37,6 +38,7 @@ class SubscriptionRead(SubscriptionBase):
     id: int
     plan: PlanRead
 
+# --- SCHEMAS DE EVENTOS ---
 class TokenEventBase(OrmBase):
     watcher_id: int
     token_address_observed: str
@@ -60,6 +62,7 @@ class PaginatedTokenEventResponse(OrmBase):
     total_events: int
     events: List[TokenEventRead]
 
+# --- SCHEMAS DE TRANSPORT ---
 class TransportBase(OrmBase):
     type: str
     config: Dict[str, Any]
@@ -71,6 +74,12 @@ class TransportRead(TransportBase):
     id: int
     watcher_id: int
 
+class TransportTest(BaseModel):
+    watcher_id: int
+    transport_type: Literal["slack", "discord", "email", "telegram"]
+    transport_target: str
+
+# --- SCHEMAS DE WATCHER ---
 class WatcherBase(OrmBase):
     name: str
     token_address: str
@@ -97,6 +106,7 @@ class WatcherRead(WatcherBase):
     updated_at: datetime
     transports: List[TransportRead] = []
 
+# --- SCHEMAS DE USUARIO ---
 class UserBase(OrmBase):
     email: EmailStr
 
@@ -160,8 +170,3 @@ class ContactFormRequest(BaseModel):
     name: str
     email: EmailStr
     message: str
-
-class TransportTest(BaseModel):
-    watcher_id: int
-    transport_type: Literal["slack", "discord", "email", "telegram"]
-    transport_target: str
