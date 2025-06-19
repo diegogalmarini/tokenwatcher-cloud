@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/contexts/AuthContext";
 import { SunIcon, MoonIcon, Cog6ToothIcon, ArrowRightOnRectangleIcon, UserGroupIcon } from '@heroicons/react/24/outline';
-import Button from "../ui/button";
+import Button from "@/components/ui/button"; // <-- ESTA ES LA LÍNEA QUE FALTABA
 
 export default function DashboardHeader() {
   const { theme, setTheme, systemTheme } = useTheme();
