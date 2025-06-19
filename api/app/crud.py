@@ -66,17 +66,41 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
     db_user = get_user(db, user_id=user_id)
     if not db_user:
         return None
+    
     update_data = user_update_data.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        if hasattr(db_user, field):
-            setattr(db_user, field, value)
+
+    if 'plan' in update_data and update_data['plan'] is not None:
+        new_plan_name = update_data['plan']
+        new_plan = get_plan_by_name(db, name=new_plan_name)
+        if not new_plan:
+            raise HTTPException(status_code=404, detail=f"Plan '{new_plan_name}' not found.")
+        
+        if db_user.subscription:
+            db_user.subscription.plan_id = new_plan.id
+            if 'watcher_limit' not in update_data:
+                db_user.subscription.plan.watcher_limit = new_plan.watcher_limit
+        else:
+            # Crear una nueva suscripción si el usuario no tiene una
+            new_subscription = models.Subscription(user_id=db_user.id, plan_id=new_plan.id, status="active")
+            db.add(new_subscription)
+
+    if 'watcher_limit' in update_data and update_data['watcher_limit'] is not None:
+        if db_user.subscription:
+            # Esto se convierte en un override manual del límite del plan
+            # Podríamos querer una columna separada para esto en el futuro
+            db_user.subscription.plan.watcher_limit = update_data['watcher_limit']
+    
+    if 'is_active' in update_data:
+        db_user.is_active = update_data['is_active']
+
     db.commit()
     db.refresh(db_user)
     db.refresh(db_user, attribute_names=['watchers', 'subscription'])
     return db_user
 
-
 # --- Watcher CRUD ---
+# (El resto del archivo se mantiene igual)
+
 def count_watchers_for_owner(db: Session, owner_id: int) -> int:
     return db.query(models.Watcher).filter(models.Watcher.owner_id == owner_id).count()
 
