@@ -18,6 +18,11 @@ export default function AdminPlansPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
 
+  const [deleteModalState, setDeleteModalState] = useState({
+    isOpen: false,
+    planId: null as number | null,
+  });
+
   // Proteger la ruta
   useEffect(() => {
     if (!isAuthLoading && !user?.is_admin) {
@@ -48,17 +53,35 @@ export default function AdminPlansPage() {
   };
 
   const handleSavePlan = async (data: PlanCreatePayload | PlanUpdatePayload, id?: number) => {
-    if (id) {
-      await updatePlan(id, data as PlanUpdatePayload);
-    } else {
-      await createPlan(data as PlanCreatePayload);
+    try {
+        if (id) {
+          await updatePlan(id, data as PlanUpdatePayload);
+        } else {
+          await createPlan(data as PlanCreatePayload);
+        }
+        handleCloseModal();
+    } catch (err) {
+        console.error("Failed to save plan", err);
+        // El error se mostrará en el modal, que lo gestiona internamente
+        throw err;
     }
   };
+  
+  const openDeleteConfirmation = (planId: number) => {
+    setDeleteModalState({ isOpen: true, planId });
+  };
+  
+  const closeDeleteConfirmation = () => {
+    setDeleteModalState({ isOpen: false, planId: null });
+  };
 
-  const handleDeletePlan = (planId: number) => {
-    // Lógica para el modal de confirmación de borrado
-    alert(`(WIP) Lógica para borrar el plan con ID: ${planId}`);
-    // Aquí abriríamos un ConfirmationModal y llamaríamos a una función deletePlan del hook
+  const handleDeletePlan = async () => {
+    if (!deleteModalState.planId) return;
+    
+    alert(`(WIP) Lógica para borrar el plan con ID: ${deleteModalState.planId}. La API no tiene endpoint de borrado aún.`);
+    // Cuando el endpoint DELETE /admin/plans/{id} exista, se llamará aquí
+    // await deletePlan(deleteModalState.planId);
+    closeDeleteConfirmation();
   };
 
   if (isAuthLoading || !user?.is_admin) {
@@ -74,14 +97,14 @@ export default function AdminPlansPage() {
         </Button>
       </div>
 
-      {loading && <p>Loading plans...</p>}
+      {isLoading && <p>Loading plans...</p>}
       {error && <p className="text-red-500">{error}</p>}
       
-      {!loading && !error && (
+      {!isLoading && !error && (
         <PlansTable
           plans={plans}
           onEdit={handleOpenEditModal}
-          onDelete={handleDeletePlan}
+          onDelete={openDeleteConfirmation}
         />
       )}
 
@@ -91,6 +114,17 @@ export default function AdminPlansPage() {
         onSave={handleSavePlan}
         initialData={editingPlan}
       />
+      
+      <ConfirmationModal
+        isOpen={deleteModalState.isOpen}
+        onClose={closeDeleteConfirmation}
+        onConfirm={handleDeletePlan}
+        title="Delete Plan"
+        confirmButtonText="Yes, Delete"
+        confirmButtonVariant="destructive"
+      >
+        <p>Are you sure you want to delete this plan? This action cannot be undone.</p>
+      </ConfirmationModal>
     </div>
   );
 }
