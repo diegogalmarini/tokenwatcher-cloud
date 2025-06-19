@@ -3,8 +3,11 @@
 
 import React, { useState, FormEvent } from 'react';
 import Button from '@/components/ui/button';
+import { useAuth } from '@/contexts/AuthContext'; // 1. Importamos el hook de autenticación
 
 export default function ChangePasswordForm() {
+  const { changePassword } = useAuth(); // 2. Obtenemos la función changePassword del contexto
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -12,6 +15,7 @@ export default function ChangePasswordForm() {
   const [success, setSuccess] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // --- 3. FUNCIÓN handleSubmit ACTUALIZADA ---
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -23,22 +27,26 @@ export default function ChangePasswordForm() {
     }
 
     setIsSaving(true);
-    // --- Lógica para llamar a la API irá aquí ---
-    console.log({
-      current_password: currentPassword,
-      new_password: newPassword,
-    });
-    // Simulación de llamada a la API
-    setTimeout(() => {
-      // Aquí manejaríamos el éxito o el error de la API
-      // Por ahora, simulamos un éxito.
+    
+    try {
+      // Llamamos a la función del AuthContext que habla con la API
+      await changePassword({
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
+
+      // Si la llamada tiene éxito...
       setSuccess("Password updated successfully!");
-      setIsSaving(false);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    }, 1000);
-    // ---------------------------------------------
+
+    } catch (err: any) {
+      // Si la llamada falla, mostramos el error que nos devuelve la API
+      setError(err.message || 'An unknown error occurred while updating the password.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (

@@ -4,13 +4,40 @@ from pydantic import BaseModel, HttpUrl, EmailStr
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Literal
 
-# --- Configuración Base para todos los Schemas ---
 class OrmBase(BaseModel):
     class Config:
         from_attributes = True
 
-# --- SCHEMAS DE EVENTOS ---
-class TokenEventBase(BaseModel):
+class PlanBase(OrmBase):
+    name: str
+    description: Optional[str] = None
+    price_monthly: int
+    price_annually: int
+    watcher_limit: int
+    is_active: bool = True
+
+class PlanCreate(PlanBase):
+    stripe_price_id_monthly: Optional[str] = None
+    stripe_price_id_annually: Optional[str] = None
+
+class PlanRead(PlanBase):
+    id: int
+
+class SubscriptionBase(OrmBase):
+    user_id: int
+    plan_id: int
+    status: str
+    stripe_subscription_id: Optional[str] = None
+    current_period_end: Optional[datetime] = None
+
+class SubscriptionCreate(SubscriptionBase):
+    pass
+
+class SubscriptionRead(SubscriptionBase):
+    id: int
+    plan: PlanRead
+
+class TokenEventBase(OrmBase):
     watcher_id: int
     token_address_observed: str
     from_address: str
@@ -29,16 +56,11 @@ class TokenEventRead(TokenEventBase):
     id: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
-class PaginatedTokenEventResponse(BaseModel):
+class PaginatedTokenEventResponse(OrmBase):
     total_events: int
     events: List[TokenEventRead]
 
-
-# --- SCHEMAS DE TRANSPORT ---
-class TransportBase(BaseModel):
+class TransportBase(OrmBase):
     type: str
     config: Dict[str, Any]
 
@@ -49,17 +71,7 @@ class TransportRead(TransportBase):
     id: int
     watcher_id: int
 
-    class Config:
-        from_attributes = True
-
-class TransportTest(BaseModel):
-    watcher_id: int
-    transport_type: Literal["slack", "discord", "email", "telegram"]
-    transport_target: str
-
-
-# --- SCHEMAS DE WATCHER ---
-class WatcherBase(BaseModel):
+class WatcherBase(OrmBase):
     name: str
     token_address: str
     threshold: float
@@ -85,12 +97,7 @@ class WatcherRead(WatcherBase):
     updated_at: datetime
     transports: List[TransportRead] = []
 
-    class Config:
-        from_attributes = True
-
-
-# --- SCHEMAS DE USUARIO ---
-class UserBase(BaseModel):
+class UserBase(OrmBase):
     email: EmailStr
 
 class UserCreate(UserBase):
@@ -104,52 +111,42 @@ class UserRead(UserBase):
     plan: str
     watcher_count: int
     watcher_limit: int
-
-    class Config:
-        from_attributes = True
+    subscription: Optional[SubscriptionRead] = None
 
 class UserUpdateAdmin(BaseModel):
     watcher_limit: Optional[int] = None
     is_active: Optional[bool] = None
     plan: Optional[str] = None
 
-
-class Token(BaseModel):
+class Token(OrmBase):
     access_token: str
     token_type: str
 
-class TokenData(BaseModel):
+class TokenData(OrmBase):
     email: Optional[str] = None
 
-class TokenRead(BaseModel):
+class TokenRead(OrmBase):
     contract: str
     volume: float
 
-    class Config:
-        from_attributes = True
-
-
-# --- TOKEN INFO ---
-class TokenInfo(BaseModel):
+class TokenInfo(OrmBase):
     price: float
     market_cap: float
     total_volume_24h: float
     suggested_threshold: float
     minimum_threshold: float
 
-
-# --- AUTHENTICATION & USER MANAGEMENT ---
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
-class ForgotPasswordResponse(BaseModel):
+class ForgotPasswordResponse(OrmBase):
     msg: str
 
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
 
-class ResetPasswordResponse(BaseModel):
+class ResetPasswordResponse(OrmBase):
     msg: str
 
 class ChangePasswordRequest(BaseModel):
@@ -159,8 +156,12 @@ class ChangePasswordRequest(BaseModel):
 class DeleteAccountRequest(BaseModel):
     password: str
 
-# --- OTROS ---
 class ContactFormRequest(BaseModel):
     name: str
     email: EmailStr
     message: str
+
+class TransportTest(BaseModel):
+    watcher_id: int
+    transport_type: Literal["slack", "discord", "email", "telegram"]
+    transport_target: str

@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from web3 import Web3
 from web3.exceptions import InvalidAddress
 
-from . import models, schemas, auth, clients
+from . import models, schemas, auth
 
 # --- User CRUD ---
 def get_user(db: Session, user_id: int) -> models.User | None:
