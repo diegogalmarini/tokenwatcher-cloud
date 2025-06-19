@@ -14,21 +14,21 @@ from sqlalchemy import (
     DECIMAL
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy.orm import relationship, Mapped, mapped_column, Session
 from sqlalchemy.sql import func
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
-from .database import Base
+from .database import Base, engine
 from .config import settings
 
 class Plan(Base):
     __tablename__ = "plans"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
-    description: Mapped[str] = mapped_column(String, nullable=True)
-    price_monthly: Mapped[int] = mapped_column(Integer, nullable=False) 
-    price_annually: Mapped[int] = mapped_column(Integer, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    price_monthly: Mapped[int] = mapped_column(Integer, nullable=False, comment="Precio en centavos") 
+    price_annually: Mapped[int] = mapped_column(Integer, nullable=False, comment="Precio en centavos")
     watcher_limit: Mapped[int] = mapped_column(Integer, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     stripe_price_id_monthly: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -39,7 +39,7 @@ class Subscription(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
     plan_id: Mapped[int] = mapped_column(Integer, ForeignKey("plans.id"), nullable=False)
-    status: Mapped[str] = mapped_column(String, nullable=False, default="inactive") # por ejemplo: active, inactive, cancelled
+    status: Mapped[str] = mapped_column(String, nullable=False, default="inactive")
     stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True, index=True)
     current_period_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
@@ -90,7 +90,7 @@ class User(Base):
                 if free_plan:
                     return free_plan.watcher_limit
                 return free_plan_limit
-        except:
+        except Exception:
              return free_plan_limit
 
 
