@@ -1,4 +1,3 @@
-// dashboard/tokenwatcher-app/src/app/dashboard/admin/page.tsx
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -7,6 +6,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import ConfirmationModal from '@/components/common/ConfirmationModal';
 import Button from '@/components/ui/button';
+import { usePlans, Plan } from '@/lib/usePlans';
+import EditUserModal from '@/components/admin/users/EditUserModal';
 
 // Interfaz para el objeto de usuario que recibimos de la API de admin
 interface AdminUserView {
@@ -55,7 +56,6 @@ function AdminTabs() {
     );
 }
 
-
 export default function AdminPage() {
   const { user, token, isLoading: isAuthLoading } = useAuth();
   const router = useRouter();
@@ -63,6 +63,11 @@ export default function AdminPage() {
   const [users, setUsers] = useState<AdminUserView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const { plans, fetchPlans } = usePlans();
+  
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<AdminUserView | null>(null);
 
   const [modalState, setModalState] = useState({
     isOpen: false,
@@ -73,6 +78,7 @@ export default function AdminPage() {
     variant: 'primary' as 'primary' | 'danger',
   });
 
+  // Proteger la ruta
   useEffect(() => {
     if (!isAuthLoading && !user?.is_admin) {
       router.push('/dashboard');
@@ -99,8 +105,9 @@ export default function AdminPage() {
   useEffect(() => {
     if (user?.is_admin) {
       fetchUsers();
+      fetchPlans(); // También cargamos los planes para el modal
     }
-  }, [user, fetchUsers]);
+  }, [user, fetchUsers, fetchPlans]);
 
   const handleUpdateUser = async (userId: number, payload: UserUpdatePayload) => {
     if (!token) return;
@@ -118,6 +125,7 @@ export default function AdminPage() {
         throw new Error(errorData.detail || 'Failed to update user.');
       }
       fetchUsers();
+      setIsEditModalOpen(false); // Cierra el modal de edición al guardar
     } catch (err: any) {
       alert(`Error updating user: ${err.message}`);
     }
@@ -148,16 +156,10 @@ export default function AdminPage() {
     });
   };
   
-  const handleEditLimitClick = (userToEdit: AdminUserView) => {
-    const newLimit = prompt(`Enter new watcher limit for ${userToEdit.email}:`, String(userToEdit.watcher_limit));
-    if (newLimit !== null && !isNaN(parseInt(newLimit, 10))) {
-        const limitAsNumber = parseInt(newLimit, 10);
-        handleUpdateUser(userToEdit.id, { watcher_limit: limitAsNumber });
-    } else if (newLimit !== null) {
-        alert("Please enter a valid number.");
-    }
+  const openEditModal = (userToEdit: AdminUserView) => {
+      setEditingUser(userToEdit);
+      setIsEditModalOpen(true);
   };
-
 
   if (isAuthLoading || !user?.is_admin) {
     return <div className="text-center p-10"><p>Loading or unauthorized...</p></div>;
@@ -199,7 +201,7 @@ export default function AdminPage() {
                         <td className="py-3 px-6 text-center">{u.is_admin ? '👑' : ''}</td>
                         <td className="py-3 px-6 text-left">{new Date(u.created_at).toLocaleString()}</td>
                         <td className="py-3 px-6 text-center whitespace-nowrap space-x-2">
-                            <Button onClick={() => handleEditLimitClick(u)} intent="secondary" size="sm" disabled={u.is_admin}>Edit Limit</Button>
+                            <Button onClick={() => openEditModal(u)} intent="secondary" size="sm" disabled={u.is_admin}>Edit</Button>
                             <Button onClick={() => openDeleteModal(u)} intent="destructive" size="sm" disabled={u.id === user.id}>Delete</Button>
                         </td>
                         </tr>
@@ -209,6 +211,16 @@ export default function AdminPage() {
                 </div>
             )}
         </div>
+
+        {editingUser && (
+            <EditUserModal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                user={editingUser}
+                plans={plans}
+                onSave={handleUpdateUser}
+            />
+        )}
 
         <ConfirmationModal
             isOpen={modalState.isOpen}
