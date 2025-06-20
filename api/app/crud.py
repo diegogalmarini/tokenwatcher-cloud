@@ -70,23 +70,24 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
     
     plan_changed = False
     limit_changed = False
+    new_plan_name_for_email = None
 
     if 'plan' in update_data and update_data['plan'] is not None:
-        new_plan_name = update_data['plan']
-        new_plan = get_plan_by_name(db, name=new_plan_name)
+        new_plan = get_plan_by_name(db, name=update_data['plan'])
         if not new_plan:
-            raise HTTPException(status_code=404, detail=f"Plan '{new_plan_name}' not found.")
+            raise HTTPException(status_code=404, detail=f"Plan '{update_data['plan']}' not found.")
         
         if db_user.subscription:
             if db_user.subscription.plan_id != new_plan.id:
                 db_user.subscription.plan_id = new_plan.id
-                # Reset override so the new plan's default limit applies
-                db_user.subscription.watcher_limit_override = None
+                db_user.subscription.watcher_limit_override = None # Reset override to apply new plan's limit
                 plan_changed = True
+                new_plan_name_for_email = new_plan.name
         else:
             new_subscription = models.Subscription(user_id=db_user.id, plan_id=new_plan.id, status="active")
             db.add(new_subscription)
             plan_changed = True
+            new_plan_name_for_email = new_plan.name
 
     if 'watcher_limit' in update_data and update_data['watcher_limit'] is not None:
         if db_user.subscription:
@@ -97,15 +98,19 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
         db_user.is_active = update_data['is_active']
 
     db.commit()
+    
+    # We refresh the relationships to get the latest data before sending emails
     db.refresh(db_user)
     if db_user.subscription:
       db.refresh(db_user.subscription)
       db.refresh(db_user.subscription.plan)
 
-    # Send notifications after changes are committed
-    if plan_changed:
-        email_utils.send_plan_change_email(db_user.email, db_user.subscription.plan.name)
-    if limit_changed:
+    # Send notifications after changes are committed and data is fresh
+    if plan_changed and new_plan_name_for_email:
+        email_utils.send_plan_change_email(db_user.email, new_plan_name_for_email)
+    
+    # Send limit change notification ONLY if it was changed manually and was not part of a plan change
+    if limit_changed and not plan_changed:
         email_utils.send_watcher_limit_update_email(db_user.email, db_user.watcher_limit)
         
     return db_user
@@ -238,7 +243,6 @@ def delete_watcher(db: Session, watcher_id: int, owner_id: int) -> None:
     db_watcher = get_watcher_db(db, watcher_id=watcher_id, owner_id=owner_id)
     db.delete(db_watcher)
     db.commit()
-
 
 # --- Event (TokenEvent) CRUD ---
 def create_event(db: Session, event_data: schemas.TokenEventCreate) -> Optional[models.TokenEvent]:
