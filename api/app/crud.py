@@ -414,7 +414,12 @@ def get_plan(db: Session, plan_id: int) -> Optional[models.Plan]:
     return db.query(models.Plan).filter(models.Plan.id == plan_id).first()
 
 def get_plans(db: Session, skip: int = 0, limit: int = 100) -> List[models.Plan]:
+    """Returns all plans, for admin use."""
     return db.query(models.Plan).order_by(models.Plan.price_monthly).offset(skip).limit(limit).all()
+
+def get_active_plans(db: Session, skip: int = 0, limit: int = 100) -> List[models.Plan]:
+    """Returns only plans that are marked as active, for public view."""
+    return db.query(models.Plan).filter(models.Plan.is_active == True).order_by(models.Plan.price_monthly).offset(skip).limit(limit).all()
 
 def create_plan(db: Session, plan: schemas.PlanCreate) -> models.Plan:
     db_plan = models.Plan(**plan.model_dump())
