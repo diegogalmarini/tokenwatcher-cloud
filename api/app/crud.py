@@ -72,12 +72,10 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
     limit_manually_changed = False
     new_plan_name_for_email = None
 
-    # First, determine if the plan is being changed
     if 'plan' in update_data and update_data['plan'] is not None:
         if not db_user.subscription or db_user.subscription.plan.name != update_data['plan']:
             plan_changed = True
 
-    # Now, apply changes based on whether the plan was changed
     if plan_changed:
         new_plan = get_plan_by_name(db, name=update_data['plan'])
         if not new_plan:
@@ -86,12 +84,11 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
         new_plan_name_for_email = new_plan.name
         if db_user.subscription:
             db_user.subscription.plan_id = new_plan.id
-            db_user.subscription.watcher_limit_override = None # Reset manual override
+            db_user.subscription.watcher_limit_override = None 
         else:
             new_subscription = models.Subscription(user_id=db_user.id, plan_id=new_plan.id, status="active")
             db.add(new_subscription)
     
-    # A manual limit change is only processed if the plan was NOT changed in the same request
     elif 'watcher_limit' in update_data:
         if db_user.subscription:
             db_user.subscription.watcher_limit_override = update_data['watcher_limit']
@@ -102,13 +99,11 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
 
     db.commit()
     
-    # We refresh the relationships to get the latest data before sending emails
     db.refresh(db_user)
     if db_user.subscription:
       db.refresh(db_user.subscription)
       db.refresh(db_user.subscription.plan)
 
-    # Send notifications after changes are committed and data is fresh
     if plan_changed and new_plan_name_for_email:
         email_utils.send_plan_change_email(db_user.email, new_plan_name_for_email)
     
@@ -116,6 +111,33 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
         email_utils.send_watcher_limit_update_email(db_user.email, db_user.watcher_limit)
         
     return db_user
+
+def update_user_plan(db: Session, user: models.User, new_plan_id: int) -> models.User:
+    new_plan = get_plan(db, plan_id=new_plan_id)
+    if not new_plan:
+        raise HTTPException(status_code=404, detail="Plan not found.")
+
+    if not new_plan.is_active:
+        raise HTTPException(status_code=400, detail="Cannot switch to an inactive plan.")
+
+    if user.subscription:
+        if user.subscription.plan_id != new_plan.id:
+            user.subscription.plan_id = new_plan.id
+            user.subscription.watcher_limit_override = None # Reset override on any plan change
+            email_utils.send_plan_change_email(user.email, new_plan.name)
+    else:
+        new_subscription = models.Subscription(user_id=user.id, plan_id=new_plan.id, status="active")
+        db.add(new_subscription)
+        email_utils.send_plan_change_email(user.email, new_plan.name)
+    
+    db.commit()
+    db.refresh(user)
+    if user.subscription:
+        db.refresh(user.subscription)
+        db.refresh(user.subscription.plan)
+        
+    return user
+
 
 # --- Watcher CRUD ---
 def count_watchers_for_owner(db: Session, owner_id: int) -> int:
@@ -422,8 +444,7 @@ def delete_plan(db: Session, plan_id: int) -> Optional[models.Plan]:
     if db_plan.name == 'Free':
         raise HTTPException(status_code=400, detail="The Free plan cannot be deleted.")
 
-    # Check if any user is subscribed to this plan
-    active_subscriptions = db.query(models.Subscription).filter_by(plan_id=plan_id, status='active').count()
+    active_subscriptions = db.query(models.Subscription).filter(models.Subscription.plan_id == plan_id).count()
     if active_subscriptions > 0:
         raise HTTPException(
             status_code=400, 

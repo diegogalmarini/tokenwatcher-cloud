@@ -27,7 +27,7 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.9.6",
+    version="0.9.8",
     description="API para monitorizar transferencias de tokens ERC-20, con seguridad mejorada y notificaciones por email/telegram."
 )
 
@@ -66,6 +66,16 @@ def submit_contact_form(request: Request, form_data: schemas.ContactFormRequest)
     return {"detail": "Message sent successfully"}
 
 app.include_router(contact_router, prefix="/api", tags=["Contact"])
+
+# --- RUTA PARA QUE EL USUARIO CAMBIE SU PROPIO PLAN ---
+@app.patch("/users/me/plan", response_model=schemas.UserRead, tags=["User Management"])
+def change_current_user_plan(
+    plan_update: schemas.PlanChangeRequest,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    updated_user = crud.update_user_plan(db, user=current_user, new_plan_id=plan_update.plan_id)
+    return updated_user
 
 # --- Router de Administrador Unificado ---
 admin_router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -148,7 +158,6 @@ def update_user_as_admin(
         
     return updated_user
 
-# Incluir el router de administrador unificado en la app
 app.include_router(admin_router)
 
 
@@ -232,7 +241,6 @@ def create_new_watcher_for_current_user(
 
     return _populate_watcher_read_from_db_watcher(db_watcher)
 
-
 @app.get("/watchers/", response_model=List[schemas.WatcherRead], tags=["Watchers"])
 def list_watchers_for_current_user(
     skip: int = 0, limit: int = 100, 
@@ -242,7 +250,6 @@ def list_watchers_for_current_user(
     db_watchers = crud.get_watchers_for_owner(db, owner_id=current_user.id, skip=skip, limit=limit)
     return [_populate_watcher_read_from_db_watcher(w) for w in db_watchers]
 
-
 @app.get("/watchers/{watcher_id}", response_model=schemas.WatcherRead, tags=["Watchers"])
 def get_single_watcher_for_current_user(
     watcher_id: int, 
@@ -251,7 +258,6 @@ def get_single_watcher_for_current_user(
 ):
     db_watcher = crud.get_watcher_db(db, watcher_id=watcher_id, owner_id=current_user.id)
     return _populate_watcher_read_from_db_watcher(db_watcher)
-
 
 @app.put("/watchers/{watcher_id}", response_model=schemas.WatcherRead, tags=["Watchers"])
 def update_existing_watcher_for_current_user(
