@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from web3 import Web3
 from web3.exceptions import InvalidAddress
 
-from . import models, schemas, auth
+from . import models, schemas, auth, email_utils
 
 # --- User CRUD ---
 def get_user(db: Session, user_id: int) -> models.User | None:
@@ -67,6 +67,9 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
         return None
     
     update_data = user_update_data.model_dump(exclude_unset=True)
+    
+    plan_changed = False
+    limit_changed = False
 
     if 'plan' in update_data and update_data['plan'] is not None:
         new_plan_name = update_data['plan']
@@ -75,19 +78,20 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
             raise HTTPException(status_code=404, detail=f"Plan '{new_plan_name}' not found.")
         
         if db_user.subscription:
-            db_user.subscription.plan_id = new_plan.id
-            # Reset override when changing plans, unless a new limit is also provided
-            if 'watcher_limit' not in update_data:
+            if db_user.subscription.plan_id != new_plan.id:
+                db_user.subscription.plan_id = new_plan.id
+                # Reset override so the new plan's default limit applies
                 db_user.subscription.watcher_limit_override = None
+                plan_changed = True
         else:
-            # Create a new subscription if the user doesn't have one
             new_subscription = models.Subscription(user_id=db_user.id, plan_id=new_plan.id, status="active")
             db.add(new_subscription)
+            plan_changed = True
 
     if 'watcher_limit' in update_data and update_data['watcher_limit'] is not None:
         if db_user.subscription:
-            # Set the specific override for this user's subscription
             db_user.subscription.watcher_limit_override = update_data['watcher_limit']
+            limit_changed = True
     
     if 'is_active' in update_data and update_data['is_active'] is not None:
         db_user.is_active = update_data['is_active']
@@ -96,11 +100,17 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
     db.refresh(db_user)
     if db_user.subscription:
       db.refresh(db_user.subscription)
+      db.refresh(db_user.subscription.plan)
+
+    # Send notifications after changes are committed
+    if plan_changed:
+        email_utils.send_plan_change_email(db_user.email, db_user.subscription.plan.name)
+    if limit_changed:
+        email_utils.send_watcher_limit_update_email(db_user.email, db_user.watcher_limit)
+        
     return db_user
 
 # --- Watcher CRUD ---
-# (El resto del archivo se mantiene igual)
-
 def count_watchers_for_owner(db: Session, owner_id: int) -> int:
     return db.query(models.Watcher).filter(models.Watcher.owner_id == owner_id).count()
 
@@ -383,4 +393,37 @@ def create_plan(db: Session, plan: schemas.PlanCreate) -> models.Plan:
     db.add(db_plan)
     db.commit()
     db.refresh(db_plan)
+    return db_plan
+
+def update_plan(db: Session, plan_id: int, plan_data: schemas.PlanUpdatePayload) -> Optional[models.Plan]:
+    db_plan = get_plan(db, plan_id)
+    if not db_plan:
+        return None
+    
+    update_data = plan_data.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_plan, key, value)
+        
+    db.commit()
+    db.refresh(db_plan)
+    return db_plan
+
+def delete_plan(db: Session, plan_id: int) -> Optional[models.Plan]:
+    db_plan = get_plan(db, plan_id)
+    if not db_plan:
+        return None
+    
+    if db_plan.name == 'Free':
+        raise HTTPException(status_code=400, detail="The Free plan cannot be deleted.")
+
+    # Check if any user is subscribed to this plan
+    active_subscriptions = db.query(models.Subscription).filter_by(plan_id=plan_id, status='active').count()
+    if active_subscriptions > 0:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot delete plan. {active_subscriptions} user(s) are currently subscribed to it."
+        )
+
+    db.delete(db_plan)
+    db.commit()
     return db_plan
