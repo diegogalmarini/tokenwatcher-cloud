@@ -34,6 +34,9 @@ class PlanUpdatePayload(BaseModel):
     stripe_price_id_monthly: Optional[str] = None
     stripe_price_id_annually: Optional[str] = None
 
+class PlanChangeRequest(BaseModel):
+    plan_id: int
+
 class SubscriptionBase(OrmBase):
     user_id: int
     plan_id: int
@@ -47,6 +50,9 @@ class SubscriptionCreate(SubscriptionBase):
 class SubscriptionRead(SubscriptionBase):
     id: int
     plan: PlanRead
+
+# ... (el resto del archivo schemas.py se mantiene igual)
+# (TokenEvent, Transport, Watcher, User, etc.)
 
 # --- SCHEMAS DE EVENTOS ---
 class TokenEventBase(OrmBase):
