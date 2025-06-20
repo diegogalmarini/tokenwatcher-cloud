@@ -24,6 +24,16 @@ class PlanCreate(PlanBase):
 class PlanRead(PlanBase):
     id: int
 
+class PlanUpdatePayload(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price_monthly: Optional[int] = None
+    price_annually: Optional[int] = None
+    watcher_limit: Optional[int] = None
+    is_active: Optional[bool] = None
+    stripe_price_id_monthly: Optional[str] = None
+    stripe_price_id_annually: Optional[str] = None
+
 class SubscriptionBase(OrmBase):
     user_id: int
     plan_id: int
