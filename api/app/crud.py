@@ -65,34 +65,37 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
     db_user = get_user(db, user_id=user_id)
     if not db_user:
         return None
-    
+
     update_data = user_update_data.model_dump(exclude_unset=True)
     
     plan_changed = False
-    limit_changed = False
+    limit_manually_changed = False
     new_plan_name_for_email = None
 
+    # First, determine if the plan is being changed
     if 'plan' in update_data and update_data['plan'] is not None:
+        if not db_user.subscription or db_user.subscription.plan.name != update_data['plan']:
+            plan_changed = True
+
+    # Now, apply changes based on whether the plan was changed
+    if plan_changed:
         new_plan = get_plan_by_name(db, name=update_data['plan'])
         if not new_plan:
             raise HTTPException(status_code=404, detail=f"Plan '{update_data['plan']}' not found.")
         
+        new_plan_name_for_email = new_plan.name
         if db_user.subscription:
-            if db_user.subscription.plan_id != new_plan.id:
-                db_user.subscription.plan_id = new_plan.id
-                db_user.subscription.watcher_limit_override = None # Reset override to apply new plan's limit
-                plan_changed = True
-                new_plan_name_for_email = new_plan.name
+            db_user.subscription.plan_id = new_plan.id
+            db_user.subscription.watcher_limit_override = None # Reset manual override
         else:
             new_subscription = models.Subscription(user_id=db_user.id, plan_id=new_plan.id, status="active")
             db.add(new_subscription)
-            plan_changed = True
-            new_plan_name_for_email = new_plan.name
-
-    if 'watcher_limit' in update_data and update_data['watcher_limit'] is not None:
+    
+    # A manual limit change is only processed if the plan was NOT changed in the same request
+    elif 'watcher_limit' in update_data:
         if db_user.subscription:
             db_user.subscription.watcher_limit_override = update_data['watcher_limit']
-            limit_changed = True
+            limit_manually_changed = True
     
     if 'is_active' in update_data and update_data['is_active'] is not None:
         db_user.is_active = update_data['is_active']
@@ -109,8 +112,7 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
     if plan_changed and new_plan_name_for_email:
         email_utils.send_plan_change_email(db_user.email, new_plan_name_for_email)
     
-    # Send limit change notification ONLY if it was changed manually and was not part of a plan change
-    if limit_changed and not plan_changed:
+    if limit_manually_changed:
         email_utils.send_watcher_limit_update_email(db_user.email, db_user.watcher_limit)
         
     return db_user

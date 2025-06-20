@@ -2,7 +2,7 @@
 
 import os
 from typing import List
-from datetime import datetime # <--- LA LÍNEA QUE FALTABA
+from datetime import datetime
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from .config import settings
@@ -12,6 +12,7 @@ def _create_styled_html_content(title: str, body_html: str) -> str:
     """
     Creates a styled HTML container for the email content.
     """
+    logo_url = "https://www.tokenwatcher.app/TokenWatcherB.svg" # URL del logo
     return f"""
     <!DOCTYPE html>
     <html>
@@ -19,19 +20,22 @@ def _create_styled_html_content(title: str, body_html: str) -> str:
     <style>
         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f7; color: #333; }}
         .email-container {{ max-width: 600px; margin: 40px auto; background-color: #ffffff; border: 1px solid #e1e1e1; border-radius: 8px; overflow: hidden; }}
-        .email-header {{ background-color: #2d3748; color: #ffffff; padding: 20px; text-align: center; font-size: 24px; }}
+        .email-header {{ background-color: #ffffff; padding: 20px; text-align: center; border-bottom: 1px solid #e1e1e1;}}
+        .email-header img {{ max-height: 50px; }}
         .email-body {{ padding: 30px; line-height: 1.6; font-size: 16px; }}
+        .email-body h2 {{ font-size: 20px; color: #1a1a1a; margin-top: 0;}}
         .email-body a {{ color: #3b82f6; text-decoration: none; font-weight: 600; }}
-        .email-body .button {{ display: inline-block; background-color: #3b82f6; color: #ffffff; padding: 12px 25px; margin: 20px 0; border-radius: 5px; text-decoration: none; font-weight: bold; }}
+        .email-body .button {{ display: inline-block; background-color: #3b82f6; color: #ffffff !important; padding: 12px 25px; margin: 20px 0; border-radius: 5px; text-decoration: none; font-weight: bold; }}
         .email-footer {{ background-color: #f7fafc; padding: 20px; text-align: center; font-size: 12px; color: #718096; border-top: 1px solid #e1e1e1; }}
     </style>
     </head>
     <body>
         <div class="email-container">
             <div class="email-header">
-                {title}
+                <img src="{logo_url}" alt="TokenWatcher Logo">
             </div>
             <div class="email-body">
+                <h2>{title}</h2>
                 {body_html}
                 <p>If you have any questions, feel free to contact our support team.</p>
                 <p>Best regards,<br>The TokenWatcher Team</p>
@@ -149,7 +153,7 @@ def send_token_alert_email_batch(to_email: str, watcher_name: str, events: List[
     Sends a single summary email for a batch of token events.
     """
     event_count = len(events)
-    subject = f"🚨 TokenWatcher Alert: {event_count} New Event(s) Detected for '{watcher_name}'"
+    subject = f"🚨 {event_count} New Alert(s) for '{watcher_name}'"
     
     event_rows_html = ""
     for event in events:
