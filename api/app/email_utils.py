@@ -2,6 +2,7 @@
 
 import os
 from typing import List
+from datetime import datetime # <--- LA LÍNEA QUE FALTABA
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from .config import settings
