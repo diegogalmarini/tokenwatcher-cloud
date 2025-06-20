@@ -1,16 +1,17 @@
 // dashboard/tokenwatcher-app/src/app/dashboard/billing/page.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePlans, Plan } from '@/lib/usePlans';
+import { Plan } from '@/lib/usePlans';
 import Button from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import ConfirmationModal from '@/components/common/ConfirmationModal';
 
 export default function BillingPage() {
     const { user, token, isLoading, refetchUser } = useAuth();
-    const { plans, fetchPlans, loading: loadingPlans } = usePlans();
+    const [plans, setPlans] = useState<Plan[]>([]);
+    const [loadingPlans, setLoadingPlans] = useState(true);
     const router = useRouter();
 
     const [modalState, setModalState] = useState({
@@ -20,19 +21,37 @@ export default function BillingPage() {
         onConfirm: () => {},
     });
 
+    const fetchActivePlans = useCallback(async () => {
+        setLoadingPlans(true);
+        try {
+            // Llamamos a la nueva ruta pública que solo trae planes activos
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/plans/`);
+            if (!response.ok) {
+                throw new Error("Could not fetch available plans.");
+            }
+            const data = await response.json();
+            setPlans(data);
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoadingPlans(false);
+        }
+    }, []);
+
     useEffect(() => {
         if (!isLoading && !user) {
             router.push('/login');
         }
-        if(user) {
-            fetchPlans();
+        if (user) {
+            fetchActivePlans();
         }
-    }, [user, isLoading, router, fetchPlans]);
+    }, [user, isLoading, router, fetchActivePlans]);
 
     const handlePlanChange = async (newPlanId: number) => {
-        if (!token) return;
+        if (!token || !user) return;
 
         try {
+            // Esta ruta permite al usuario cambiar su PROPIO plan
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/me/plan`, {
                 method: 'PATCH',
                 headers: {
@@ -47,17 +66,15 @@ export default function BillingPage() {
                 throw new Error(errorData.detail || "Failed to update plan.");
             }
             
-            // Refresca la información del usuario para mostrar el nuevo plan
             await refetchUser();
 
         } catch (error: any) {
-            console.error("Plan change error:", error);
             alert(`Error: ${error.message}`);
         } finally {
             setModalState({ ...modalState, isOpen: false });
         }
     };
-
+    
     const openConfirmationModal = (plan: Plan) => {
         setModalState({
             isOpen: true,
@@ -67,18 +84,15 @@ export default function BillingPage() {
         });
     };
 
-    if (isLoading || loadingPlans) {
+    if (isLoading || loadingPlans || !user) {
         return <div className="p-8 text-center">Loading your plan details...</div>;
     }
 
-    if (!user) return null;
-
-    const currentPlan = plans.find(p => p.name === user.plan);
+    const currentPlan = plans.find(p => p.name === user.plan) || { price_monthly: 0 };
 
     const PlanCard = ({ plan }: { plan: Plan }) => {
         const isCurrent = plan.name === user.plan;
-        const isUpgrade = currentPlan ? plan.price_monthly > currentPlan.price_monthly : false;
-        
+        const isUpgrade = plan.price_monthly > currentPlan.price_monthly;
         const buttonText = isCurrent ? "Current Plan" : (isUpgrade ? "Upgrade" : "Downgrade");
 
         return (
@@ -87,14 +101,8 @@ export default function BillingPage() {
                 <p className="text-gray-500 dark:text-gray-400 mt-1 h-10">{plan.description}</p>
                 <p className="text-3xl font-bold my-4">${plan.price_monthly / 100}/mo</p>
                 <ul className="space-y-2 text-gray-600 dark:text-gray-300 flex-grow">
-                    <li className="flex items-center">
-                        <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                        {plan.watcher_limit} Watchers
-                    </li>
-                    <li className="flex items-center">
-                        <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                        Email Alerts
-                    </li>
+                    <li className="flex items-center">✔ {plan.watcher_limit} Watchers</li>
+                    <li className="flex items-center">✔ Email Alerts</li>
                 </ul>
                 <Button 
                     className="w-full mt-6" 
@@ -109,12 +117,10 @@ export default function BillingPage() {
     };
 
     return (
-        <div className="p-4 sm:p-6 lg:p-8">
-            <h1 className="text-2xl font-bold mb-2">Billing & Plan</h1>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">Manage your subscription and view your current plan details.</p>
-
-            <div className="bg-white dark:bg-neutral-800/50 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700 mb-8">
-                <h2 className="text-lg font-semibold mb-4">Current Subscription</h2>
+        <div className="space-y-8">
+            <h1 className="text-3xl font-bold tracking-tight">Billing & Plan</h1>
+            <div className="bg-white dark:bg-neutral-800/50 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700">
+                 <h2 className="text-lg font-semibold mb-4">Current Subscription</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">Plan</p>
@@ -130,24 +136,13 @@ export default function BillingPage() {
                     </div>
                 </div>
             </div>
-
-            <h2 className="text-xl font-semibold mb-4">Available Plans</h2>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">Choose a plan that best fits your needs. You can upgrade or downgrade at any time.</p>
-            
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                 {plans.map(plan => <PlanCard key={plan.id} plan={plan} />)}
+            <div>
+                <h2 className="text-xl font-semibold mb-4">Available Plans</h2>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                     {plans.map(plan => <PlanCard key={plan.id} plan={plan} />)}
+                </div>
             </div>
-
-            <ConfirmationModal
-                isOpen={modalState.isOpen}
-                onClose={() => setModalState({ ...modalState, isOpen: false })}
-                onConfirm={modalState.onConfirm}
-                title={modalState.title}
-                confirmButtonText="Confirm"
-                confirmButtonVariant="primary"
-            >
-                <p>{modalState.message}</p>
-            </ConfirmationModal>
+            <ConfirmationModal {...modalState} onClose={() => setModalState({ ...modalState, isOpen: false })} confirmButtonText="Confirm" confirmButtonVariant='primary' />
         </div>
     );
 }
