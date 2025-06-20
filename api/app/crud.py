@@ -42,7 +42,6 @@ def create_user(db: Session, user: schemas.UserCreate, is_active: bool = False) 
         db.add(db_subscription)
     
     db.commit()
-    db.refresh(db_user)
     db.refresh(db_user, attribute_names=['watchers', 'subscription'])
     return db_user
 
@@ -77,25 +76,26 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
         
         if db_user.subscription:
             db_user.subscription.plan_id = new_plan.id
+            # Reset override when changing plans, unless a new limit is also provided
             if 'watcher_limit' not in update_data:
-                db_user.subscription.plan.watcher_limit = new_plan.watcher_limit
+                db_user.subscription.watcher_limit_override = None
         else:
-            # Crear una nueva suscripción si el usuario no tiene una
+            # Create a new subscription if the user doesn't have one
             new_subscription = models.Subscription(user_id=db_user.id, plan_id=new_plan.id, status="active")
             db.add(new_subscription)
 
     if 'watcher_limit' in update_data and update_data['watcher_limit'] is not None:
         if db_user.subscription:
-            # Esto se convierte en un override manual del límite del plan
-            # Podríamos querer una columna separada para esto en el futuro
-            db_user.subscription.plan.watcher_limit = update_data['watcher_limit']
+            # Set the specific override for this user's subscription
+            db_user.subscription.watcher_limit_override = update_data['watcher_limit']
     
-    if 'is_active' in update_data:
+    if 'is_active' in update_data and update_data['is_active'] is not None:
         db_user.is_active = update_data['is_active']
 
     db.commit()
     db.refresh(db_user)
-    db.refresh(db_user, attribute_names=['watchers', 'subscription'])
+    if db_user.subscription:
+      db.refresh(db_user.subscription)
     return db_user
 
 # --- Watcher CRUD ---
@@ -221,7 +221,6 @@ def update_watcher(db: Session, watcher_id: int, watcher_update_data: schemas.Wa
         db.add(new_transport)
 
     db.commit()
-    db.refresh(db_watcher)
     db.refresh(db_watcher, attribute_names=['transports'])
     return db_watcher
 

@@ -88,11 +88,16 @@ export default function AdminPage() {
   const fetchUsers = useCallback(async () => {
     if (!token) return;
     setLoading(true);
+    setError(null); // Reset error on new fetch
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/admin/users`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (!response.ok) throw new Error('Failed to fetch users.');
+      if (!response.ok) {
+        // More descriptive error
+        const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch users.' }));
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
       const data: AdminUserView[] = await response.json();
       setUsers(data);
     } catch (err: any) {
@@ -124,11 +129,18 @@ export default function AdminPage() {
         const errorData = await response.json();
         throw new Error(errorData.detail || 'Failed to update user.');
       }
-      fetchUsers();
+      await fetchUsers(); // Await fetch to ensure data is fresh
       setIsEditModalOpen(false); // Cierra el modal de edición al guardar
     } catch (err: any) {
-      alert(`Error updating user: ${err.message}`);
+      // Use a more user-friendly error display if possible
+      setError(`Error updating user: ${err.message}`);
     }
+  };
+
+  const handleToggleUserStatus = async (userToUpdate: AdminUserView) => {
+    const newStatus = !userToUpdate.is_active;
+    const payload = { is_active: newStatus };
+    await handleUpdateUser(userToUpdate.id, payload);
   };
 
   const handleDeleteUser = async (userId: number) => {
@@ -141,7 +153,7 @@ export default function AdminPage() {
       if (!response.ok) throw new Error('Failed to delete user.');
       setUsers(currentUsers => currentUsers.filter(u => u.id !== userId));
     } catch (err: any) {
-      alert(`Error deleting user: ${err.message}`);
+        setError(`Error deleting user: ${err.message}`);
     }
   };
 
@@ -173,7 +185,7 @@ export default function AdminPage() {
         <div className="mt-6">
             <h2 className="text-xl font-semibold mb-4">User Management</h2>
             {loading && <p>Loading users...</p>}
-            {error && <p className="text-red-500">{error}</p>}
+            {error && <p className="text-red-500 bg-red-100 p-3 rounded-md dark:bg-red-900/50">{error}</p>}
             
             {!loading && !error && (
                 <div className="overflow-x-auto">
@@ -184,7 +196,7 @@ export default function AdminPage() {
                         <th className="py-3 px-6 text-left">Email</th>
                         <th className="py-3 px-6 text-center">Plan</th>
                         <th className="py-3 px-6 text-center">Usage</th>
-                        <th className="py-3 px-6 text-center">Active</th>
+                        <th className="py-3 px-6 text-center">Status</th>
                         <th className="py-3 px-6 text-center">Admin</th>
                         <th className="py-3 px-6 text-left">Created At</th>
                         <th className="py-3 px-6 text-center">Actions</th>
@@ -197,12 +209,29 @@ export default function AdminPage() {
                         <td className="py-3 px-6 text-left">{u.email}</td>
                         <td className="py-3 px-6 text-center">{u.plan}</td>
                         <td className="py-3 px-6 text-center">{`${u.watcher_count} / ${u.watcher_limit}`}</td>
-                        <td className="py-3 px-6 text-center">{u.is_active ? '✅' : '❌'}</td>
+                        <td className="py-3 px-6 text-center">
+                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                u.is_active 
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                            }`}>
+                                {u.is_active ? 'Active' : 'Paused'}
+                            </span>
+                        </td>
                         <td className="py-3 px-6 text-center">{u.is_admin ? '👑' : ''}</td>
                         <td className="py-3 px-6 text-left">{new Date(u.created_at).toLocaleString()}</td>
                         <td className="py-3 px-6 text-center whitespace-nowrap space-x-2">
                             <Button onClick={() => openEditModal(u)} intent="secondary" size="sm" disabled={u.is_admin}>Edit</Button>
-                            <Button onClick={() => openDeleteModal(u)} intent="destructive" size="sm" disabled={u.id === user.id}>Delete</Button>
+                            <Button 
+                                onClick={() => handleToggleUserStatus(u)} 
+                                intent={u.is_active ? "warning" : "success"} 
+                                size="sm"
+                                disabled={u.id === user.id || u.is_admin}
+                                title={u.id === user.id || u.is_admin ? "Cannot change status of own admin account" : (u.is_active ? "Pause User" : "Unpause User")}
+                            >
+                                {u.is_active ? 'Pause' : 'Unpause'}
+                            </Button>
+                            <Button onClick={() => openDeleteModal(u)} intent="destructive" size="sm" disabled={u.id === user.id || u.is_admin}>Delete</Button>
                         </td>
                         </tr>
                     ))}
@@ -225,7 +254,10 @@ export default function AdminPage() {
         <ConfirmationModal
             isOpen={modalState.isOpen}
             onClose={() => setModalState({ ...modalState, isOpen: false })}
-            onConfirm={modalState.onConfirm}
+            onConfirm={() => {
+                modalState.onConfirm();
+                setModalState({ ...modalState, isOpen: false });
+            }}
             title={modalState.title}
             confirmButtonText={modalState.confirmText}
             confirmButtonVariant={modalState.variant}
