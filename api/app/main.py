@@ -27,7 +27,7 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.9.5",
+    version="0.9.6",
     description="API para monitorizar transferencias de tokens ERC-20, con seguridad mejorada y notificaciones por email/telegram."
 )
 
@@ -70,7 +70,7 @@ app.include_router(contact_router, prefix="/api", tags=["Contact"])
 # --- Router de Administrador Unificado ---
 admin_router = APIRouter(prefix="/admin", tags=["Admin"])
 
-# Rutas de Planes
+# --- Rutas de Planes ---
 @admin_router.post("/plans/", response_model=schemas.PlanRead, status_code=status.HTTP_201_CREATED)
 def create_new_plan(
     plan_data: schemas.PlanCreate,
@@ -88,7 +88,31 @@ def get_all_plans(
 ):
     return crud.get_plans(db=db, skip=skip, limit=limit)
 
-# Rutas de Usuarios (movidas desde auth.py)
+@admin_router.put("/plans/{plan_id}", response_model=schemas.PlanRead)
+def update_existing_plan(
+    plan_id: int,
+    plan_data: schemas.PlanUpdatePayload,
+    db: Session = Depends(get_db),
+    admin_user: models.User = Depends(auth.get_current_admin_user)
+):
+    updated_plan = crud.update_plan(db, plan_id, plan_data)
+    if not updated_plan:
+        raise HTTPException(status_code=404, detail=f"Plan with id {plan_id} not found")
+    return updated_plan
+
+@admin_router.delete("/plans/{plan_id}", status_code=status.HTTP_200_OK)
+def delete_existing_plan(
+    plan_id: int,
+    db: Session = Depends(get_db),
+    admin_user: models.User = Depends(auth.get_current_admin_user)
+):
+    deleted_plan = crud.delete_plan(db, plan_id)
+    if not deleted_plan:
+        raise HTTPException(status_code=404, detail=f"Plan with id {plan_id} not found")
+    return {"detail": f"Plan '{deleted_plan.name}' deleted successfully."}
+
+
+# --- Rutas de Usuarios ---
 @admin_router.get("/users", response_model=List[schemas.UserRead])
 def read_all_users(
     skip: int = 0, 
@@ -121,10 +145,6 @@ def update_user_as_admin(
     updated_user = crud.update_user_admin(db, user_id=user_id, user_update_data=user_update)
     if not updated_user:
         raise HTTPException(status_code=status.HTTP_404, detail=f"User with id {user_id} not found")
-    
-    # Comprobamos si el límite de watchers fue uno de los campos actualizados
-    if user_update.watcher_limit is not None:
-        email_utils.send_watcher_limit_update_email(updated_user.email, updated_user.watcher_limit)
         
     return updated_user
 
@@ -132,11 +152,10 @@ def update_user_as_admin(
 app.include_router(admin_router)
 
 
-# --- Resto de las rutas de la aplicación ---
+# --- Resto de las rutas de la aplicación (sin cambios) ---
 
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher) -> schemas.WatcherRead:
     return schemas.WatcherRead.from_orm(db_watcher)
-
 
 @app.get("/health", tags=["System"])
 def health_check():
@@ -145,7 +164,6 @@ def health_check():
 @app.get("/", tags=["System"], include_in_schema=False)
 def api_root_demo():
     return {"message": "🎉 Welcome to TokenWatcher API! Visit /docs for API documentation."}
-
 
 @app.get("/tokens/info/{contract_address}", response_model=schemas.TokenInfo, tags=["Tokens"])
 @limiter.limit("30/minute")
@@ -165,7 +183,6 @@ def get_token_info(request: Request, contract_address: str, current_user: models
         suggested_threshold=suggested_threshold,
         minimum_threshold=minimum_threshold
     )
-
 
 @app.post("/watchers/", response_model=schemas.WatcherRead, status_code=status.HTTP_201_CREATED, tags=["Watchers"])
 def create_new_watcher_for_current_user(
