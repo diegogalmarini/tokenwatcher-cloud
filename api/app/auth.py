@@ -152,30 +152,6 @@ def get_current_admin_user(current_user: models.User = Depends(get_current_user)
         )
     return current_user
 
-@router.get("/admin/users", response_model=List[schemas.UserRead], tags=["Admin"])
-def read_all_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), admin_user: models.User = Depends(get_current_admin_user)):
-    users = crud.get_users(db, skip=skip, limit=limit)
-    return users
-
-@router.delete("/admin/users/{user_id}", status_code=status.HTTP_200_OK, tags=["Admin"])
-def delete_user(user_id: int, db: Session = Depends(get_db), admin_user: models.User = Depends(get_current_admin_user)):
-    deleted_user = crud.delete_user_by_id(db=db, user_id=user_id)
-    if not deleted_user:
-        raise HTTPException(status_code=404, detail=f"User with id {user_id} not found")
-    
-    return {"detail": f"User {deleted_user.email} and all associated data deleted successfully."}
-
-@router.patch("/admin/users/{user_id}", response_model=schemas.UserRead, tags=["Admin"])
-def update_user_as_admin(user_id: int, user_update: schemas.UserUpdateAdmin, db: Session = Depends(get_db), admin_user: models.User = Depends(get_current_admin_user)):
-    updated_user = crud.update_user_admin(db, user_id=user_id, user_update_data=user_update)
-    if not updated_user:
-        raise HTTPException(status_code=status.HTTP_404, detail=f"User with id {user_id} not found")
-    
-    if user_update.watcher_limit is not None:
-        send_watcher_limit_update_email(updated_user.email, updated_user.watcher_limit)
-        
-    return updated_user
-
 @router.post("/forgot-password", response_model=schemas.ForgotPasswordResponse, status_code=status.HTTP_200_OK, tags=["Authentication"])
 async def forgot_password(payload: schemas.ForgotPasswordRequest = Body(...), db: Session = Depends(get_db)):
     user = crud.get_user_by_email(db, email=payload.email)
