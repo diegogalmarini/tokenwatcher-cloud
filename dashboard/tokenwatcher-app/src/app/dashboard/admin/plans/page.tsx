@@ -1,205 +1,141 @@
-// dashboard/tokenwatcher-app/src/app/dashboard/admin/page.tsx
+// dashboard/tokenwatcher-app/src/app/dashboard/admin/plans/page.tsx
 "use client";
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
-import ConfirmationModal from '@/components/common/ConfirmationModal';
+import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
 import Button from '@/components/ui/button';
-import { usePlans, Plan } from '@/lib/usePlans';
-import EditUserModal from '@/components/admin/users/EditUserModal'; // Importamos el nuevo modal
+import PlansTable from '@/components/admin/plans/PlansTable';
+import PlanFormModal from '@/components/admin/plans/PlanFormModal';
+import ConfirmationModal from '@/components/common/ConfirmationModal';
+import { usePlans, Plan, PlanCreatePayload, PlanUpdatePayload } from '@/lib/usePlans';
 
-// Interfaz para el objeto de usuario que recibimos de la API de admin
-interface AdminUserView {
-  id: number;
-  email: string;
-  is_active: boolean;
-  is_admin: boolean;
-  created_at: string;
-  plan: string;
-  watcher_count: number;
-  watcher_limit: number;
-}
+function AdminTabs() {
+    const pathname = usePathname();
+    const tabs = [
+        { name: 'User Management', href: '/dashboard/admin', current: pathname === '/dashboard/admin' },
+        { name: 'Plan Management', href: '/dashboard/admin/plans', current: pathname === '/dashboard/admin/plans' },
+    ];
 
-// Interfaz para los datos que enviaremos para actualizar un usuario
-interface UserUpdatePayload {
-    watcher_limit?: number;
-    is_active?: boolean;
-    plan?: string;
-}
-
-export default function AdminPage() {
-  const { user, token, isLoading: isAuthLoading } = useAuth();
-  const router = useRouter();
-  
-  const [users, setUsers] = useState<AdminUserView[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const { plans, fetchPlans } = usePlans();
-  
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<AdminUserView | null>(null);
-
-  const [modalState, setModalState] = useState({
-    isOpen: false,
-    title: '',
-    message: '',
-    onConfirm: () => {},
-    confirmText: 'Confirm',
-    variant: 'primary' as 'primary' | 'danger',
-  });
-
-  // Proteger la ruta
-  useEffect(() => {
-    if (!isAuthLoading && !user?.is_admin) {
-      router.push('/dashboard');
-    }
-  }, [user, isAuthLoading, router]);
-
-  const fetchUsers = useCallback(async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/admin/users`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to fetch users.');
-      const data: AdminUserView[] = await response.json();
-      setUsers(data);
-    } catch (err: any) {
-      setError(err.message || 'An error occurred.');
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    if (user?.is_admin) {
-      fetchUsers();
-      fetchPlans(); // También cargamos los planes para el modal
-    }
-  }, [user, fetchUsers, fetchPlans]);
-
-  const handleUpdateUser = async (userId: number, payload: UserUpdatePayload) => {
-    if (!token) return;
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/admin/users/${userId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to update user.');
-      }
-      fetchUsers();
-      setIsEditModalOpen(false); // Cierra el modal de edición al guardar
-    } catch (err: any) {
-      alert(`Error updating user: ${err.message}`);
-    }
-  };
-
-  const handleDeleteUser = async (userId: number) => {
-    if (!token) return;
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/admin/users/${userId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to delete user.');
-      setUsers(currentUsers => currentUsers.filter(u => u.id !== userId));
-    } catch (err: any) {
-      alert(`Error deleting user: ${err.message}`);
-    }
-  };
-
-  const openDeleteModal = (userToDelete: AdminUserView) => {
-    setModalState({
-      isOpen: true,
-      title: 'Delete User',
-      message: `Are you sure you want to delete the user ${userToDelete.email}? This action is irreversible and will delete all their associated watchers and events.`,
-      confirmText: 'Yes, Delete',
-      variant: 'danger',
-      onConfirm: () => handleDeleteUser(userToDelete.id),
-    });
-  };
-  
-  const openEditModal = (userToEdit: AdminUserView) => {
-      setEditingUser(userToEdit);
-      setIsEditModalOpen(true);
-  };
-
-  if (isAuthLoading || !user?.is_admin) {
-    return <div className="text-center p-10"><p>Loading or unauthorized...</p></div>;
-  }
-
-  return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      <h1 className="text-2xl font-bold mb-6">User Management</h1>
-      
-      {loading && <p>Loading users...</p>}
-      {error && <p className="text-red-500">{error}</p>}
-      
-      {!loading && !error && (
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white dark:bg-gray-800 rounded-lg shadow">
-             <thead className="w-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 uppercase text-sm leading-normal">
-              <tr>
-                <th className="py-3 px-6 text-left">ID</th>
-                <th className="py-3 px-6 text-left">Email</th>
-                <th className="py-3 px-6 text-center">Plan</th>
-                <th className="py-3 px-6 text-center">Usage</th>
-                <th className="py-3 px-6 text-center">Active</th>
-                <th className="py-3 px-6 text-center">Admin</th>
-                <th className="py-3 px-6 text-left">Created At</th>
-                <th className="py-3 px-6 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="text-gray-900 dark:text-gray-100 text-sm font-light">
-              {users.map((u) => (
-                <tr key={u.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                  <td className="py-3 px-6 text-left whitespace-nowrap">{u.id}</td>
-                  <td className="py-3 px-6 text-left">{u.email}</td>
-                  <td className="py-3 px-6 text-center">{u.plan}</td>
-                  <td className="py-3 px-6 text-center">{`${u.watcher_count} / ${u.watcher_limit}`}</td>
-                  <td className="py-3 px-6 text-center">{u.is_active ? '✅' : '❌'}</td>
-                  <td className="py-3 px-6 text-center">{u.is_admin ? '👑' : ''}</td>
-                  <td className="py-3 px-6 text-left">{new Date(u.created_at).toLocaleString()}</td>
-                  <td className="py-3 px-6 text-center whitespace-nowrap space-x-2">
-                    <Button onClick={() => openEditModal(u)} intent="secondary" size="sm" disabled={u.is_admin}>Edit</Button>
-                    <Button onClick={() => openDeleteModal(u)} intent="destructive" size="sm" disabled={u.id === user.id}>Delete</Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    return (
+        <div className="mb-6 border-b border-gray-200 dark:border-neutral-700">
+            <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                {tabs.map((tab) => (
+                    <Link
+                        key={tab.name}
+                        href={tab.href}
+                        className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${
+                            tab.current
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 dark:hover:border-gray-600'
+                        }`}
+                    >
+                        {tab.name}
+                    </Link>
+                ))}
+            </nav>
         </div>
-      )}
+    );
+}
 
-      {editingUser && (
-        <EditUserModal
-            isOpen={isEditModalOpen}
-            onClose={() => setIsEditModalOpen(false)}
-            user={editingUser}
-            plans={plans}
-            onSave={handleUpdateUser}
-        />
-      )}
+export default function AdminPlansPage() {
+    const { user, isLoading: isAuthLoading } = useAuth();
+    const router = useRouter();
 
-      <ConfirmationModal
-        isOpen={modalState.isOpen}
-        onClose={() => setModalState({ ...modalState, isOpen: false })}
-        onConfirm={modalState.onConfirm}
-        title={modalState.title}
-        confirmButtonText={modalState.confirmText}
-        confirmButtonVariant={modalState.variant}
-      >
-        <p>{modalState.message}</p>
-      </ConfirmationModal>
-    </div>
-  );
+    const { plans, loading, error, fetchPlans, createPlan, updatePlan, deletePlan } = usePlans();
+    
+    const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+    const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [deletingPlanId, setDeletingPlanId] = useState<number | null>(null);
+    
+    // Proteger la ruta
+    useEffect(() => {
+        if (!isAuthLoading && !user?.is_admin) {
+            router.push('/dashboard');
+        }
+    }, [user, isAuthLoading, router]);
+
+    useEffect(() => {
+        if (user?.is_admin) {
+            fetchPlans();
+        }
+    }, [user, fetchPlans]);
+    
+    const openPlanModal = (plan: Plan | null) => {
+        setEditingPlan(plan);
+        setIsPlanModalOpen(true);
+    };
+
+    const openDeleteModal = (planId: number) => {
+        setDeletingPlanId(planId);
+        setIsDeleteModalOpen(true);
+    };
+    
+    const handleSavePlan = async (data: PlanCreatePayload | PlanUpdatePayload, id?: number) => {
+        if (id) {
+            await updatePlan(id, data as PlanUpdatePayload);
+        } else {
+            await createPlan(data as PlanCreatePayload);
+        }
+        fetchPlans(); // Re-fetch plans to show the latest data
+    };
+    
+    const handleDeletePlan = async () => {
+        if (deletingPlanId) {
+            await deletePlan(deletingPlanId);
+            setIsDeleteModalOpen(false);
+            setDeletingPlanId(null);
+            fetchPlans(); // Re-fetch plans
+        }
+    };
+
+    if (isAuthLoading || !user?.is_admin) {
+        return <div className="text-center p-10"><p>Loading or unauthorized...</p></div>;
+    }
+
+    return (
+        <div className="p-4 sm:p-6 lg:p-8">
+            <h1 className="text-2xl font-bold mb-4">Admin Panel</h1>
+            <AdminTabs />
+
+            <div className="mt-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-semibold">Plan Management</h2>
+                    <Button intent="default" onClick={() => openPlanModal(null)}>
+                        + New Plan
+                    </Button>
+                </div>
+
+                {loading && <p>Loading plans...</p>}
+                {error && <p className="text-red-500 bg-red-100 p-3 rounded-md dark:bg-red-900/50">{error}</p>}
+                
+                {!loading && !error && (
+                    <PlansTable plans={plans} onEdit={openPlanModal} onDelete={openDeleteModal} />
+                )}
+            </div>
+
+            {isPlanModalOpen && (
+                <PlanFormModal
+                    isOpen={isPlanModalOpen}
+                    onClose={() => setIsPlanModalOpen(false)}
+                    onSave={handleSavePlan}
+                    initialData={editingPlan}
+                />
+            )}
+
+            <ConfirmationModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={handleDeletePlan}
+                title="Delete Plan"
+                confirmButtonText="Yes, Delete"
+                confirmButtonVariant="danger"
+            >
+                <p>Are you sure you want to delete this plan? This action cannot be undone.</p>
+            </ConfirmationModal>
+        </div>
+    );
 }
