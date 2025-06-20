@@ -16,7 +16,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship, Mapped, mapped_column, Session
 from sqlalchemy.sql import func
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
 from .database import Base, engine
@@ -42,6 +42,7 @@ class Subscription(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, default="inactive")
     stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True, index=True)
     current_period_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    watcher_limit_override: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     
     user: Mapped["User"] = relationship("User", back_populates="subscription")
     plan: Mapped["Plan"] = relationship("Plan")
@@ -81,8 +82,11 @@ class User(Base):
     @property
     def watcher_limit(self) -> int:
         if self.subscription and self.subscription.status == 'active':
+            if self.subscription.watcher_limit_override is not None:
+                return self.subscription.watcher_limit_override
             return self.subscription.plan.watcher_limit
         
+        # Fallback for Free plan or users without active subscription
         free_plan_limit = settings.DEFAULT_WATCHER_LIMIT
         try:
             with Session(engine) as session:
