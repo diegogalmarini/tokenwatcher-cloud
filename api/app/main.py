@@ -67,8 +67,10 @@ def submit_contact_form(request: Request, form_data: schemas.ContactFormRequest)
 
 app.include_router(contact_router, prefix="/api", tags=["Contact"])
 
+# --- Router de Administrador Unificado ---
 admin_router = APIRouter(prefix="/admin", tags=["Admin"])
 
+# Rutas de Planes
 @admin_router.post("/plans/", response_model=schemas.PlanRead, status_code=status.HTTP_201_CREATED)
 def create_new_plan(
     plan_data: schemas.PlanCreate,
@@ -86,8 +88,51 @@ def get_all_plans(
 ):
     return crud.get_plans(db=db, skip=skip, limit=limit)
 
+# Rutas de Usuarios (movidas desde auth.py)
+@admin_router.get("/users", response_model=List[schemas.UserRead])
+def read_all_users(
+    skip: int = 0, 
+    limit: int = 100, 
+    db: Session = Depends(get_db), 
+    admin_user: models.User = Depends(auth.get_current_admin_user)
+):
+    users = crud.get_users(db, skip=skip, limit=limit)
+    return users
+
+@admin_router.delete("/users/{user_id}", status_code=status.HTTP_200_OK)
+def delete_user(
+    user_id: int, 
+    db: Session = Depends(get_db), 
+    admin_user: models.User = Depends(auth.get_current_admin_user)
+):
+    deleted_user = crud.delete_user_by_id(db=db, user_id=user_id)
+    if not deleted_user:
+        raise HTTPException(status_code=404, detail=f"User with id {user_id} not found")
+    
+    return {"detail": f"User {deleted_user.email} and all associated data deleted successfully."}
+
+@admin_router.patch("/users/{user_id}", response_model=schemas.UserRead)
+def update_user_as_admin(
+    user_id: int, 
+    user_update: schemas.UserUpdateAdmin, 
+    db: Session = Depends(get_db), 
+    admin_user: models.User = Depends(auth.get_current_admin_user)
+):
+    updated_user = crud.update_user_admin(db, user_id=user_id, user_update_data=user_update)
+    if not updated_user:
+        raise HTTPException(status_code=status.HTTP_404, detail=f"User with id {user_id} not found")
+    
+    # Comprobamos si el límite de watchers fue uno de los campos actualizados
+    if user_update.watcher_limit is not None:
+        email_utils.send_watcher_limit_update_email(updated_user.email, updated_user.watcher_limit)
+        
+    return updated_user
+
+# Incluir el router de administrador unificado en la app
 app.include_router(admin_router)
 
+
+# --- Resto de las rutas de la aplicación ---
 
 def _populate_watcher_read_from_db_watcher(db_watcher: models.Watcher) -> schemas.WatcherRead:
     return schemas.WatcherRead.from_orm(db_watcher)
@@ -366,24 +411,3 @@ def read_token_total_volume(request: Request, contract_address: str, db: Session
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid contract address format.")
     volume = crud.get_volume(db, contract_address=contract_address)
     return schemas.TokenRead(contract=contract_address, volume=volume)
-
-admin_router = APIRouter(prefix="/admin", tags=["Admin"])
-
-@admin_router.post("/plans/", response_model=schemas.PlanRead, status_code=status.HTTP_201_CREATED)
-def create_new_plan(
-    plan_data: schemas.PlanCreate,
-    db: Session = Depends(get_db),
-    admin_user: models.User = Depends(auth.get_current_admin_user)
-):
-    return crud.create_plan(db=db, plan=plan_data)
-
-@admin_router.get("/plans/", response_model=List[schemas.PlanRead])
-def get_all_plans(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
-    admin_user: models.User = Depends(auth.get_current_admin_user)
-):
-    return crud.get_plans(db=db, skip=skip, limit=limit)
-
-app.include_router(admin_router)
