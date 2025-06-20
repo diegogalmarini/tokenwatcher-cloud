@@ -1,5 +1,10 @@
 # api/app/main.py
 
+# ==============================================================================
+#  PASO 1: SUBIR ESTE ARCHIVO CON ESTE COMENTARIO PARA FORZAR EL REDESPLIEGUE.
+#  PASO 2: UNA VEZ QUE LA APP FUNCIONE, BORRAR ESTE COMENTARIO Y VOLVER A SUBIR.
+# ==============================================================================
+
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
