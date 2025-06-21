@@ -70,6 +70,7 @@ export default function BillingPage() {
         setModalState(prev => ({ ...prev, isConfirming: true }));
         setError(null);
 
+        let success = false;
         try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/me/plan`, {
                 method: 'PATCH',
@@ -86,13 +87,14 @@ export default function BillingPage() {
             }
             
             await refetchUser();
+            success = true; // Marcamos que la operación fue un éxito
             
         } catch (err: any) {
             setError(err.message);
-        } finally {
-            // Cierra el modal solo después de que todo el proceso (éxito o error) haya terminado.
-            setModalState({ isOpen: false, isConfirming: false, title: '', message: '', planToChange: undefined });
         }
+        
+        // Cerramos el modal solo después de que toda la lógica haya terminado.
+        setModalState({ isOpen: false, isConfirming: false, title: '', message: '', planToChange: undefined });
     };
 
     if (isLoading || loadingPlans || !user) {
