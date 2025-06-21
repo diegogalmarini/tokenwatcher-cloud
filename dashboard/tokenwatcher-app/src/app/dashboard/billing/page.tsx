@@ -70,7 +70,6 @@ export default function BillingPage() {
         setModalState(prev => ({ ...prev, isConfirming: true }));
         setError(null);
 
-        let success = false;
         try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/me/plan`, {
                 method: 'PATCH',
@@ -86,15 +85,18 @@ export default function BillingPage() {
                 throw new Error(errorData.detail || "Failed to update plan.");
             }
             
+            // La operación de la API fue un éxito, ahora refrescamos los datos del usuario.
             await refetchUser();
-            success = true; // Marcamos que la operación fue un éxito
             
+            // Solo después de que todo haya ido bien, cerramos el modal.
+            setModalState({ isOpen: false, isConfirming: false, title: '', message: '', planToChange: undefined });
+
         } catch (err: any) {
+            // Si hay un error, lo mostramos y dejamos el modal abierto (o lo cerramos, según prefiramos).
+            // En este caso, lo cerramos para que el usuario vea el error en la página.
             setError(err.message);
+            setModalState({ isOpen: false, isConfirming: false, title: '', message: '', planToChange: undefined });
         }
-        
-        // Cerramos el modal solo después de que toda la lógica haya terminado.
-        setModalState({ isOpen: false, isConfirming: false, title: '', message: '', planToChange: undefined });
     };
 
     if (isLoading || loadingPlans || !user) {
@@ -165,7 +167,7 @@ export default function BillingPage() {
             
             <ConfirmationModal
                 isOpen={modalState.isOpen}
-                onClose={() => setModalState({ ...modalState, isOpen: false })}
+                onClose={() => setModalState({ ...modalState, isOpen: false, isConfirming: false })}
                 onConfirm={handleConfirmPlanChange}
                 isConfirming={modalState.isConfirming}
                 title={modalState.title}
