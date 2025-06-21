@@ -12,17 +12,20 @@ export default function BillingPage() {
     const { user, token, isLoading, refetchUser } = useAuth();
     const [plans, setPlans] = useState<Plan[]>([]);
     const [loadingPlans, setLoadingPlans] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const router = useRouter();
 
     const [modalState, setModalState] = useState({
         isOpen: false,
+        isConfirming: false,
         title: '',
         message: '',
-        onConfirm: () => {},
+        onConfirm: async () => {},
     });
 
     const fetchActivePlans = useCallback(async () => {
         setLoadingPlans(true);
+        setError(null);
         try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/plans/`);
             if (!response.ok) {
@@ -30,8 +33,8 @@ export default function BillingPage() {
             }
             const data = await response.json();
             setPlans(data);
-        } catch (error) {
-            console.error(error);
+        } catch (err: any) {
+            setError(err.message);
         } finally {
             setLoadingPlans(false);
         }
@@ -48,6 +51,9 @@ export default function BillingPage() {
 
     const handlePlanChange = async (newPlanId: number) => {
         if (!token || !user) return;
+        
+        setModalState(prev => ({ ...prev, isConfirming: true }));
+        setError(null);
 
         try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/me/plan`, {
@@ -64,16 +70,20 @@ export default function BillingPage() {
                 throw new Error(errorData.detail || "Failed to update plan.");
             }
             
-            await refetchUser();
+            await refetchUser(); // Refresca los datos del usuario
+            setModalState({ isOpen: false, isConfirming: false, title: '', message: '', onConfirm: async () => {} }); // Cierra y resetea el modal
 
-        } catch (error: any) {
-            alert(`Error: ${error.message}`);
+        } catch (err: any) {
+            setError(err.message);
+            setModalState(prev => ({ ...prev, isConfirming: false })); // Permite intentar de nuevo
         }
     };
     
     const openConfirmationModal = (plan: Plan) => {
+        setError(null); // Limpia errores anteriores
         setModalState({
             isOpen: true,
+            isConfirming: false,
             title: `Confirm Plan Change`,
             message: `Are you sure you want to change to the ${plan.name} plan?`,
             onConfirm: () => handlePlanChange(plan.id),
@@ -121,6 +131,7 @@ export default function BillingPage() {
     return (
         <div className="space-y-8">
             <h1 className="text-3xl font-bold tracking-tight">Billing & Plan</h1>
+            {error && <p className="text-red-500 bg-red-100 p-3 rounded-md dark:bg-red-900/50 mt-4">{error}</p>}
             <div className="bg-white dark:bg-neutral-800/50 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700">
                  <h2 className="text-lg font-semibold mb-4">Current Subscription</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -148,10 +159,8 @@ export default function BillingPage() {
             <ConfirmationModal
                 isOpen={modalState.isOpen}
                 onClose={() => setModalState({ ...modalState, isOpen: false })}
-                onConfirm={() => {
-                    modalState.onConfirm();
-                    setModalState({ ...modalState, isOpen: false });
-                }}
+                onConfirm={modalState.onConfirm}
+                isConfirming={modalState.isConfirming}
                 title={modalState.title}
                 confirmButtonText="Confirm"
                 confirmButtonVariant="primary"
