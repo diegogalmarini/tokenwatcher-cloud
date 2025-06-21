@@ -90,6 +90,7 @@ export default function BillingPage() {
         } catch (err: any) {
             setError(err.message);
         } finally {
+            // Cierra el modal solo después de que todo el proceso (éxito o error) haya terminado.
             setModalState({ isOpen: false, isConfirming: false, title: '', message: '', planToChange: undefined });
         }
     };
