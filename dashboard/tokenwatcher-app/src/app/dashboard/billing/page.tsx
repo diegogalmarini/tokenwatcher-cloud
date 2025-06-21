@@ -9,6 +9,8 @@ import { useRouter } from 'next/navigation';
 import ConfirmationModal from '@/components/common/ConfirmationModal';
 
 export default function BillingPage() {
+    console.log("--- [BillingPage] Component Render ---");
+
     const { user, token, isLoading, refetchUser } = useAuth();
     const [plans, setPlans] = useState<Plan[]>([]);
     const [loadingPlans, setLoadingPlans] = useState(true);
@@ -30,30 +32,39 @@ export default function BillingPage() {
     });
 
     const fetchActivePlans = useCallback(async () => {
+        console.log("[fetchActivePlans] Starting to fetch active plans...");
         setLoadingPlans(true);
         setError(null);
         try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/plans/`);
+            console.log("[fetchActivePlans] API response received:", response.status);
             if (!response.ok) throw new Error("Could not fetch available plans.");
             const data = await response.json();
+            console.log("[fetchActivePlans] Plans data:", data);
             setPlans(data);
         } catch (err: any) {
+            console.error("[fetchActivePlans] Error:", err);
             setError(err.message);
         } finally {
+            console.log("[fetchActivePlans] Finished fetching.");
             setLoadingPlans(false);
         }
     }, []);
 
     useEffect(() => {
+        console.log("[useEffect] Running effect to check user and fetch plans.");
         if (!isLoading && !user) {
+            console.log("[useEffect] User not found, redirecting to login.");
             router.push('/login');
         }
         if (user) {
+            console.log("[useEffect] User found, calling fetchActivePlans.");
             fetchActivePlans();
         }
     }, [user, isLoading, router, fetchActivePlans]);
 
     const openConfirmationModal = (plan: Plan) => {
+        console.log("[openConfirmationModal] Opening modal for plan:", plan.name);
         setError(null);
         setModalState({
             isOpen: true,
@@ -65,37 +76,42 @@ export default function BillingPage() {
     };
 
     const handleConfirmPlanChange = async () => {
-        if (!modalState.planToChange || !token || !user) return;
+        console.log("--- [handleConfirmPlanChange] PROCESS START ---");
+        if (!modalState.planToChange || !token || !user) {
+            console.error("[handleConfirmPlanChange] Aborting: Missing data.", { plan: modalState.planToChange, token, user });
+            return;
+        }
 
+        console.log("[handleConfirmPlanChange] 1. Setting state to isConfirming: true");
         setModalState(prev => ({ ...prev, isConfirming: true }));
         setError(null);
 
         try {
+            console.log("[handleConfirmPlanChange] 2. Sending PATCH request to API for plan:", modalState.planToChange.id);
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/me/plan`, {
                 method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ plan_id: modalState.planToChange.id }),
             });
+            console.log("[handleConfirmPlanChange] 3. API response status:", response.status);
 
             if (!response.ok) {
                 const errorData = await response.json();
+                console.error("[handleConfirmPlanChange] API Error:", errorData);
                 throw new Error(errorData.detail || "Failed to update plan.");
             }
             
-            // La operación de la API fue un éxito, ahora refrescamos los datos del usuario.
+            console.log("[handleConfirmPlanChange] 4. API call successful. Calling refetchUser().");
             await refetchUser();
+            console.log("[handleConfirmPlanChange] 5. refetchUser() completed.");
             
-            // Solo después de que todo haya ido bien, cerramos el modal.
-            setModalState({ isOpen: false, isConfirming: false, title: '', message: '', planToChange: undefined });
-
         } catch (err: any) {
-            // Si hay un error, lo mostramos y dejamos el modal abierto (o lo cerramos, según prefiramos).
-            // En este caso, lo cerramos para que el usuario vea el error en la página.
+            console.error("[handleConfirmPlanChange] 6. An error occurred in the try block:", err);
             setError(err.message);
+        } finally {
+            console.log("[handleConfirmPlanChange] 7. FINALLY block. Closing modal.");
             setModalState({ isOpen: false, isConfirming: false, title: '', message: '', planToChange: undefined });
+            console.log("--- [handleConfirmPlanChange] PROCESS END ---");
         }
     };
 
@@ -167,7 +183,7 @@ export default function BillingPage() {
             
             <ConfirmationModal
                 isOpen={modalState.isOpen}
-                onClose={() => setModalState({ ...modalState, isOpen: false, isConfirming: false })}
+                onClose={() => setModalState({ ...modalState, isOpen: false })}
                 onConfirm={handleConfirmPlanChange}
                 isConfirming={modalState.isConfirming}
                 title={modalState.title}
