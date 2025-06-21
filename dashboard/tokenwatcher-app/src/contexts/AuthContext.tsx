@@ -16,6 +16,9 @@ interface User {
   email: string;
   is_active: boolean;
   is_admin: boolean;
+  plan: string;
+  watcher_count: number;
+  watcher_limit: number;
 }
 
 interface ChangePasswordData {
@@ -36,6 +39,7 @@ interface AuthContextType {
   logout: () => void;
   changePassword: (data: ChangePasswordData) => Promise<void>;
   deleteAccount: (data: DeleteAccountData) => Promise<void>;
+  refetchUser: () => Promise<void>; // <-- AÑADIDO
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -85,6 +89,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     },
     [clearAuthState]
   );
+  
+  const refetchUser = useCallback(async () => {
+    const currentToken = localStorage.getItem("authToken");
+    if (currentToken) {
+      await fetchUserProfile(currentToken);
+    }
+  }, [fetchUserProfile]);
+
 
   useEffect(() => {
     const storedToken = localStorage.getItem("authToken");
@@ -192,6 +204,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     logout,
     changePassword,
     deleteAccount,
+    refetchUser, // <-- AÑADIDO
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
