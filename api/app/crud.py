@@ -69,31 +69,34 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
     update_data = user_update_data.model_dump(exclude_unset=True)
     
     plan_changed = False
-    limit_manually_changed = False
+    limit_manually_set = False
     new_plan_name_for_email = None
 
+    # Primero, gestiona el cambio de plan, ya que resetea el límite de watchers.
     if 'plan' in update_data and update_data['plan'] is not None:
         if not db_user.subscription or db_user.subscription.plan.name != update_data['plan']:
+            new_plan = get_plan_by_name(db, name=update_data['plan'])
+            if not new_plan:
+                raise HTTPException(status_code=404, detail=f"Plan '{update_data['plan']}' not found.")
+            
+            new_plan_name_for_email = new_plan.name
             plan_changed = True
 
-    if plan_changed:
-        new_plan = get_plan_by_name(db, name=update_data['plan'])
-        if not new_plan:
-            raise HTTPException(status_code=404, detail=f"Plan '{update_data['plan']}' not found.")
-        
-        new_plan_name_for_email = new_plan.name
-        if db_user.subscription:
-            db_user.subscription.plan_id = new_plan.id
-            db_user.subscription.watcher_limit_override = None 
-        else:
-            new_subscription = models.Subscription(user_id=db_user.id, plan_id=new_plan.id, status="active")
-            db.add(new_subscription)
-    
-    elif 'watcher_limit' in update_data:
+            if db_user.subscription:
+                db_user.subscription.plan_id = new_plan.id
+                db_user.subscription.watcher_limit_override = None
+            else:
+                new_subscription = models.Subscription(user_id=db_user.id, plan_id=new_plan.id, status="active")
+                db.add(new_subscription)
+
+    # Luego, gestiona un posible override manual del límite.
+    # Esto permite cambiar el plan Y establecer un límite personalizado en la misma petición.
+    if 'watcher_limit' in update_data:
         if db_user.subscription:
             db_user.subscription.watcher_limit_override = update_data['watcher_limit']
-            limit_manually_changed = True
+            limit_manually_set = True
     
+    # Finalmente, gestiona el cambio de estado.
     if 'is_active' in update_data and update_data['is_active'] is not None:
         db_user.is_active = update_data['is_active']
 
@@ -104,10 +107,14 @@ def update_user_admin(db: Session, user_id: int, user_update_data: schemas.UserU
       db.refresh(db_user.subscription)
       db.refresh(db_user.subscription.plan)
 
+    # Envía notificaciones después de que los cambios se hayan confirmado.
     if plan_changed and new_plan_name_for_email:
         email_utils.send_plan_change_email(db_user.email, new_plan_name_for_email)
-    
-    if limit_manually_changed:
+        # Si se estableció un límite manual ADEMÁS del cambio de plan, notifícalo también.
+        if limit_manually_set:
+             email_utils.send_watcher_limit_update_email(db_user.email, db_user.watcher_limit)
+    elif limit_manually_set:
+        # Si SOLO se cambió el límite, envía solo esa notificación.
         email_utils.send_watcher_limit_update_email(db_user.email, db_user.watcher_limit)
         
     return db_user
@@ -123,7 +130,7 @@ def update_user_plan(db: Session, user: models.User, new_plan_id: int) -> models
     if user.subscription:
         if user.subscription.plan_id != new_plan.id:
             user.subscription.plan_id = new_plan.id
-            user.subscription.watcher_limit_override = None # Reset override on any plan change
+            user.subscription.watcher_limit_override = None 
             email_utils.send_plan_change_email(user.email, new_plan.name)
     else:
         new_subscription = models.Subscription(user_id=user.id, plan_id=new_plan.id, status="active")
@@ -137,7 +144,6 @@ def update_user_plan(db: Session, user: models.User, new_plan_id: int) -> models
         db.refresh(user.subscription.plan)
         
     return user
-
 
 # --- Watcher CRUD ---
 def count_watchers_for_owner(db: Session, owner_id: int) -> int:
