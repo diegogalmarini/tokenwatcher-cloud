@@ -15,12 +15,18 @@ export default function BillingPage() {
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
 
-    const [modalState, setModalState] = useState({
+    const [modalState, setModalState] = useState<{
+        isOpen: boolean;
+        isConfirming: boolean;
+        title: string;
+        message: string;
+        planToChange?: Plan;
+    }>({
         isOpen: false,
         isConfirming: false,
         title: '',
         message: '',
-        onConfirm: async () => {},
+        planToChange: undefined,
     });
 
     const fetchActivePlans = useCallback(async () => {
@@ -28,9 +34,7 @@ export default function BillingPage() {
         setError(null);
         try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/plans/`);
-            if (!response.ok) {
-                throw new Error("Could not fetch available plans.");
-            }
+            if (!response.ok) throw new Error("Could not fetch available plans.");
             const data = await response.json();
             setPlans(data);
         } catch (err: any) {
@@ -49,9 +53,20 @@ export default function BillingPage() {
         }
     }, [user, isLoading, router, fetchActivePlans]);
 
-    const handlePlanChange = async (newPlanId: number) => {
-        if (!token || !user) return;
-        
+    const openConfirmationModal = (plan: Plan) => {
+        setError(null);
+        setModalState({
+            isOpen: true,
+            isConfirming: false,
+            title: `Confirm Plan Change`,
+            message: `Are you sure you want to change to the ${plan.name} plan?`,
+            planToChange: plan,
+        });
+    };
+
+    const handleConfirmPlanChange = async () => {
+        if (!modalState.planToChange || !token || !user) return;
+
         setModalState(prev => ({ ...prev, isConfirming: true }));
         setError(null);
 
@@ -62,7 +77,7 @@ export default function BillingPage() {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ plan_id: newPlanId }),
+                body: JSON.stringify({ plan_id: modalState.planToChange.id }),
             });
 
             if (!response.ok) {
@@ -70,28 +85,17 @@ export default function BillingPage() {
                 throw new Error(errorData.detail || "Failed to update plan.");
             }
             
-            await refetchUser(); // Refresca los datos del usuario
-            setModalState({ isOpen: false, isConfirming: false, title: '', message: '', onConfirm: async () => {} }); // Cierra y resetea el modal
-
+            await refetchUser();
+            
         } catch (err: any) {
             setError(err.message);
-            setModalState(prev => ({ ...prev, isConfirming: false })); // Permite intentar de nuevo
+        } finally {
+            setModalState({ isOpen: false, isConfirming: false, title: '', message: '', planToChange: undefined });
         }
-    };
-    
-    const openConfirmationModal = (plan: Plan) => {
-        setError(null); // Limpia errores anteriores
-        setModalState({
-            isOpen: true,
-            isConfirming: false,
-            title: `Confirm Plan Change`,
-            message: `Are you sure you want to change to the ${plan.name} plan?`,
-            onConfirm: () => handlePlanChange(plan.id),
-        });
     };
 
     if (isLoading || loadingPlans || !user) {
-        return <div className="p-8 text-center">Loading your plan details...</div>;
+        return <div className="p-8 text-center">Loading...</div>;
     }
 
     const currentPlanDetails = plans.find(p => p.name === user.plan) || { price_monthly: 0, watcher_limit: user.watcher_limit };
@@ -131,7 +135,7 @@ export default function BillingPage() {
     return (
         <div className="space-y-8">
             <h1 className="text-3xl font-bold tracking-tight">Billing & Plan</h1>
-            {error && <p className="text-red-500 bg-red-100 p-3 rounded-md dark:bg-red-900/50 mt-4">{error}</p>}
+            {error && <div className="p-3 my-4 text-sm text-red-700 bg-red-100 rounded-lg dark:bg-red-900/50 dark:text-red-300" role="alert">{error}</div>}
             <div className="bg-white dark:bg-neutral-800/50 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-neutral-700">
                  <h2 className="text-lg font-semibold mb-4">Current Subscription</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -159,10 +163,10 @@ export default function BillingPage() {
             <ConfirmationModal
                 isOpen={modalState.isOpen}
                 onClose={() => setModalState({ ...modalState, isOpen: false })}
-                onConfirm={modalState.onConfirm}
+                onConfirm={handleConfirmPlanChange}
                 isConfirming={modalState.isConfirming}
                 title={modalState.title}
-                confirmButtonText="Confirm"
+                confirmButtonText={modalState.isConfirming ? "Updating..." : "Confirm"}
                 confirmButtonVariant="primary"
             >
                 <p>{modalState.message}</p>
