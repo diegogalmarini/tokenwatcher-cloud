@@ -24,7 +24,6 @@ export default function BillingPage() {
     const fetchActivePlans = useCallback(async () => {
         setLoadingPlans(true);
         try {
-            // Llamamos a la nueva ruta pública que solo trae planes activos
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/plans/`);
             if (!response.ok) {
                 throw new Error("Could not fetch available plans.");
@@ -51,7 +50,6 @@ export default function BillingPage() {
         if (!token || !user) return;
 
         try {
-            // Esta ruta permite al usuario cambiar su PROPIO plan
             const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/me/plan`, {
                 method: 'PATCH',
                 headers: {
@@ -70,8 +68,6 @@ export default function BillingPage() {
 
         } catch (error: any) {
             alert(`Error: ${error.message}`);
-        } finally {
-            setModalState({ ...modalState, isOpen: false });
         }
     };
     
@@ -88,11 +84,11 @@ export default function BillingPage() {
         return <div className="p-8 text-center">Loading your plan details...</div>;
     }
 
-    const currentPlan = plans.find(p => p.name === user.plan) || { price_monthly: 0 };
+    const currentPlanDetails = plans.find(p => p.name === user.plan) || { price_monthly: 0, watcher_limit: user.watcher_limit };
 
     const PlanCard = ({ plan }: { plan: Plan }) => {
         const isCurrent = plan.name === user.plan;
-        const isUpgrade = plan.price_monthly > currentPlan.price_monthly;
+        const isUpgrade = plan.price_monthly > currentPlanDetails.price_monthly;
         const buttonText = isCurrent ? "Current Plan" : (isUpgrade ? "Upgrade" : "Downgrade");
 
         return (
@@ -101,8 +97,14 @@ export default function BillingPage() {
                 <p className="text-gray-500 dark:text-gray-400 mt-1 h-10">{plan.description}</p>
                 <p className="text-3xl font-bold my-4">${plan.price_monthly / 100}/mo</p>
                 <ul className="space-y-2 text-gray-600 dark:text-gray-300 flex-grow">
-                    <li className="flex items-center">✔ {plan.watcher_limit} Watchers</li>
-                    <li className="flex items-center">✔ Email Alerts</li>
+                    <li className="flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                        {plan.watcher_limit} Watchers
+                    </li>
+                    <li className="flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                        Email Alerts
+                    </li>
                 </ul>
                 <Button 
                     className="w-full mt-6" 
@@ -142,7 +144,20 @@ export default function BillingPage() {
                      {plans.map(plan => <PlanCard key={plan.id} plan={plan} />)}
                 </div>
             </div>
-            <ConfirmationModal {...modalState} onClose={() => setModalState({ ...modalState, isOpen: false })} confirmButtonText="Confirm" confirmButtonVariant='primary' />
+            
+            <ConfirmationModal
+                isOpen={modalState.isOpen}
+                onClose={() => setModalState({ ...modalState, isOpen: false })}
+                onConfirm={() => {
+                    modalState.onConfirm();
+                    setModalState({ ...modalState, isOpen: false });
+                }}
+                title={modalState.title}
+                confirmButtonText="Confirm"
+                confirmButtonVariant="primary"
+            >
+                <p>{modalState.message}</p>
+            </ConfirmationModal>
         </div>
     );
 }
