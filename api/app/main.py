@@ -27,7 +27,7 @@ except Exception as e:
 
 app = FastAPI(
     title="TokenWatcher API",
-    version="0.9.8",
+    version="0.9.9",
     description="API para monitorizar transferencias de tokens ERC-20, con seguridad mejorada y notificaciones por email/telegram."
 )
 
@@ -67,6 +67,19 @@ def submit_contact_form(request: Request, form_data: schemas.ContactFormRequest)
 
 app.include_router(contact_router, prefix="/api", tags=["Contact"])
 
+
+# --- RUTA PÚBLICA PARA OBTENER PLANES ACTIVOS ---
+@app.get("/api/plans/", response_model=List[schemas.PlanRead], tags=["Plans"])
+def get_public_active_plans(
+    db: Session = Depends(get_db)
+):
+    """
+    Public endpoint for any visitor or user to see available, active subscription plans.
+    No authentication required.
+    """
+    return crud.get_active_plans(db=db)
+
+
 # --- RUTA PARA QUE EL USUARIO CAMBIE SU PROPIO PLAN ---
 @app.patch("/users/me/plan", response_model=schemas.UserRead, tags=["User Management"])
 def change_current_user_plan(
@@ -80,7 +93,7 @@ def change_current_user_plan(
 # --- Router de Administrador Unificado ---
 admin_router = APIRouter(prefix="/admin", tags=["Admin"])
 
-# --- Rutas de Planes ---
+# --- Rutas de Planes (PARA ADMIN) ---
 @admin_router.post("/plans/", response_model=schemas.PlanRead, status_code=status.HTTP_201_CREATED)
 def create_new_plan(
     plan_data: schemas.PlanCreate,
@@ -90,7 +103,7 @@ def create_new_plan(
     return crud.create_plan(db=db, plan=plan_data)
 
 @admin_router.get("/plans/", response_model=List[schemas.PlanRead])
-def get_all_plans(
+def get_all_plans_for_admin(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
