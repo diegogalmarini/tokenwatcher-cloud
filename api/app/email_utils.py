@@ -12,7 +12,7 @@ def _create_styled_html_content(title: str, body_html: str) -> str:
     """
     Creates a styled HTML container for the email content.
     """
-    logo_url = "https://www.tokenwatcher.app/TokenWatcherB.svg" # URL del logo
+    logo_url = "https://www.tokenwatcher.app/TokenWatcherB.png" # URL del logo
     return f"""
     <!DOCTYPE html>
     <html>
