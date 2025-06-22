@@ -1,0 +1,6 @@
+# Permitir a todos los bots rastrear todo el sitio
+User-agent: *
+Allow: /
+
+# Ubicación del sitemap (opcional pero recomendado)
+Sitemap: https://www.tokenwatcher.app/sitemap.xml
