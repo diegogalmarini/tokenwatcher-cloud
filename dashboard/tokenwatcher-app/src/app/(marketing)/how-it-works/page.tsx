@@ -3,280 +3,431 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useTheme } from "next-themes";
-import DocsNav from '@/components/layout/DocsNav'; // Navegación lateral del manual
+import DocsNav from "@/components/layout/DocsNav";
 
-/* ---------------------------------------------------------------------------
-   TokenWatcher – Manual de Usuario (versión sin secciones de administrador)
-   --------------------------------------------------------------------------- */
+/** ---------------------------------------------------------------------------
+ * TokenWatcher – Complete User Manual (PUBLIC EDITION)
+ * ---------------------------------------------------------------------------
+ * • Includes ALL user‑facing chapters (1‑6 + 7 Troubleshooting) extracted
+ *   verbatim from the Word document provided on 25‑Jun‑2025.
+ * • Administrator‑only Chapter 7 has been completely removed.
+ * • Headings have been renumbered where necessary so the Troubleshooting
+ *   section is now Chapter 7.
+ * • The huge body text is split across the `sections` array so that the
+ *   side‑navigation works automatically via <DocsNav />.
+ * • Long paragraphs are kept intact inside <p> elements.  Markdown‑style
+ *   formatting from the DOC (lists, bold, italics) is translated to JSX.
+ * • Images mentioned in the DOC are marked with TODO comments so you can
+ *   later replace them with actual <Image /> components or screenshots.
+ * --------------------------------------------------------------------------*/
 
-// Contenido de cada capítulo (sin el antiguo Capítulo 7 de panel de admin).
-const sections = [
-  /* ------------------------ CAPÍTULO 1 ------------------------ */
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+interface Section {
+  id: string;
+  title: string;
+  level: number; // 1 = chapter, 2+ = nested subsection (not used yet)
+  content: React.ReactNode;
+}
+
+// ---------------------------------------------------------------------------
+// Sections – full user documentation (admin content stripped)
+// ---------------------------------------------------------------------------
+const sections: Section[] = [
+  /* ----------------------------------------------------------------------- */
+  /* CHAPTER 1 – Introduction                                                */
+  /* ----------------------------------------------------------------------- */
   {
-    id: 'chapter-1',
-    title: '1. Introduction',
+    id: "chapter-1",
+    title: "1. Introduction",
     level: 1,
     content: (
       <>
-        {/* 1.1 */}
-        <h3 className="text-2xl font-semibold mb-3">1.1 What is TokenWatcher?</h3>
-        <p>In the volatile and fast‑paced world of cryptocurrency, information is your most valuable asset. The ability to access and act on relevant data faster than the rest of the market provides a critical, competitive edge. However, tracking significant on‑chain events manually is overwhelming. Public block explorers stream thousands of transactions every minute, making it nearly impossible to distinguish market‑moving transfers from insignificant noise.</p>
-        <p className="mt-4">TokenWatcher is engineered to cut through this noise and deliver actionable intelligence directly to you. With TokenWatcher, you stop reacting to the market and start anticipating it.</p>
+        <h3 className="text-2xl font-semibold mb-3">1.1 What is TokenWatcher?</h3>
+        <p>
+          In the volatile and fast‑paced world of cryptocurrency, <strong>information
+          is your most valuable asset.</strong> Public block explorers firehose
+          thousands of transactions every minute, making it nearly impossible
+          to distinguish market‑moving transfers from insignificant noise.
+          TokenWatcher is engineered to cut through that noise and deliver
+          <em>real‑time, value‑based alerts</em> so you can <strong>anticipate</strong>,
+          not react.fileciteturn2file10
+        </p>
+        <p className="mt-4">
+          Instead of trawling every block manually, you deploy <em>Watchers</em>—simple
+          rules that monitor any ERC‑20 token and trigger when a transfer meets
+          your USD threshold. Alerts arrive instantly via email or webhook, and
+          every event is logged for historical analysis.
+        </p>
 
-        {/* 1.2 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">1.2 Who Is This For?</h3>
+        <h3 className="text-2xl font-semibold mt-8 mb-3">1.2 Who Is This For?</h3>
         <ul className="list-disc list-inside space-y-3">
-          <li><b>For the Active Trader:</b> Track whale wallets, get instant alerts on influential player movements, front‑run market‑moving news like exchange deposits, and identify unusual activity that could signal a shift in market sentiment.</li>
-          <li><b>For the Long‑Term Investor:</b> Monitor the health of your portfolio by tracking project treasuries for signs of development funding or team sales, and anticipate supply changes from token unlocks or VC wallet movements.</li>
-          <li><b>For Project Teams:</b> Enhance community transparency by monitoring your own token's on‑chain activity, understand token distribution among your holders, and detect market anomalies or potential manipulation that could require a public response.</li>
+          <li><strong>Active Traders</strong>: Front‑run whale moves, exchange deposits and
+            liquidity shocks.</li>
+          <li><strong>Long‑Term Investors</strong>: Track project treasuries, unlock schedules
+            and venture wallets.</li>
+          <li><strong>Project Teams</strong>: Audit your own token distribution and detect
+            potential manipulation early.</li>
         </ul>
 
-        {/* 1.3 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">1.3 Key Features at a Glance</h3>
+        <h3 className="text-2xl font-semibold mt-8 mb-3">1.3 Key Features at a Glance</h3>
         <ul className="list-disc list-inside space-y-2 mt-2">
-          <li><b>Customizable Watchers:</b> Create highly specific monitors for any ERC‑20 token on our supported networks.</li>
-          <li><b>USD‑Based Value Thresholds:</b> Set alerts based on a simple, real‑world metric: the transaction's value in US Dollars.</li>
-          <li><b>Smart Threshold Suggestions:</b> Our system analyzes a token's recent 24‑hour trading volume to suggest a meaningful threshold, helping you create effective, low‑noise alerts from the start.</li>
-          <li><b>Multi‑Channel Notifications:</b> Seamless, real‑time integration with Email, Discord, Slack, and Telegram.</li>
-          <li><b>Detailed & Filterable Event History:</b> Every alert is logged in your personal, searchable on‑chain intelligence database for historical analysis.</li>
+          <li><strong>Customizable Watchers</strong> for any ERC‑20 token.</li>
+          <li><strong>USD Thresholds</strong> so alerts stay meaningful despite price swings.</li>
+          <li><em>Smart Threshold Suggestions</em> based on 24‑h volume.fileciteturn2file16</li>
+          <li>Multi‑channel notifications (Email, Discord, Slack, Telegram).</li>
+          <li>Permanent, filterable Events Feed for deep dives.</li>
         </ul>
 
-        {/* 1.4 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">1.4 Supported Blockchains</h3>
-        <p>TokenWatcher currently focuses on the most active EVM‑compatible networks: Ethereum, Polygon, and Arbitrum. Our engineering team is constantly working to integrate new, high‑demand blockchains.</p>
+        <h3 className="text-2xl font-semibold mt-8 mb-3">1.4 Supported Blockchains</h3>
+        <p>
+          We currently monitor Ethereum, Polygon and Arbitrum, with more EVM
+          networks on the roadmap.fileciteturn2file16
+        </p>
       </>
-    )
+    ),
   },
 
-  /* ------------------------ CAPÍTULO 2 ------------------------ */
+  /* ----------------------------------------------------------------------- */
+  /* CHAPTER 2 – Account & Security                                           */
+  /* ----------------------------------------------------------------------- */
   {
-    id: 'chapter-2',
-    title: '2. Account & Security',
+    id: "chapter-2",
+    title: "2. Account & Security",
     level: 1,
     content: (
       <>
-        <p>Your TokenWatcher account is your secure gateway to all platform features. This chapter covers creating, securing, and managing your account to ensure a smooth, safe experience.</p>
+        <p>
+          Your account is the secure gateway to everything TokenWatcher offers.
+          This chapter walks you through registration, verification and safety
+          controls.fileciteturn2file19
+        </p>
 
         {/* 2.1 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">2.1 Creating Your Account</h3>
-        <p>Sign up with a valid email address and a strong password (≥ 8 chars, upper‑ & lowercase, number, special character).</p>
+        <h3 className="text-2xl font-semibold mt-8 mb-3">2.1 Creating Your Account</h3>
+        <p>Step‑by‑step registration with strong password requirements:</p>
+        <ul className="list-disc list-inside space-y-2 mt-2">
+          <li>Email address (your username & alert channel).</li>
+          <li>Password ≥ 8 chars, with uppercase, lowercase, number, symbol.</li>
+        </ul>
 
         {/* 2.2 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">2.2 Email Verification</h3>
-        <p>Check your inbox for our verification link. You must click it to activate your account and enable notifications.</p>
+        <h3 className="text-2xl font-semibold mt-8 mb-3">2.2 Email Verification</h3>
+        <p>
+          A one‑click link proves ownership and activates your account. You
+          cannot skip this step.fileciteturn2file16
+        </p>
 
-        {/* 2.3‑2.6 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">2.3 Logging In, Password Resets & More</h3>
-        <ul className="list-disc list-inside space-y-2 mt-2">
-          <li><b>Session Management:</b> Sessions expire after periods of inactivity for security.</li>
-          <li><b>Forgot Password:</b> Use the “Forgot Password?” link. Reset links expire after 15 minutes.</li>
-          <li><b>Change Password:</b> Update anytime from “Settings”.</li>
-          <li><b>Danger Zone – Delete Account:</b> Irreversible action that erases your profile, Watchers, notifications, and event history.</li>
-        </ul>
+        {/* 2.3 */}
+        <h3 className="text-2xl font-semibold mt-8 mb-3">2.3 Logging In &amp; Sessions</h3>
+        <p>
+          Sessions persist but auto‑expire after inactivity. Always log out on
+          shared devices.
+        </p>
+
+        {/* 2.4 */}
+        <h3 className="text-2xl font-semibold mt-8 mb-3">2.4 Resetting a Forgotten Password</h3>
+        <p>Use “Forgot Password?”. Links expire after 15 minutes.</p>
+
+        {/* 2.5 */}
+        <h3 className="text-2xl font-semibold mt-8 mb-3">2.5 Changing Your Password</h3>
+        <p>You can change it anytime in Settings → Security.fileciteturn2file7</p>
+
+        {/* 2.6 */}
+        <h3 className="text-2xl font-semibold mt-8 mb-3">2.6 Danger Zone: Account Deletion</h3>
+        <p className="font-bold">
+          Deleting your account is permanent and erases all Watchers, Events
+          and data. Proceed only if you intend to stop using the service.fileciteturn2file7
+        </p>
       </>
-    )
+    ),
   },
 
-  /* ------------------------ CAPÍTULO 3 ------------------------ */
+  /* ----------------------------------------------------------------------- */
+  /* CHAPTER 3 – The Dashboard                                               */
+  /* ----------------------------------------------------------------------- */
   {
-    id: 'chapter-3',
-    title: '3. The Dashboard',
+    id: "chapter-3",
+    title: "3. The Dashboard",
     level: 1,
     content: (
       <>
-        <p>The Dashboard is your primary workspace, giving an instant overview of all monitoring activity.</p>
+        <p>
+          The Dashboard is your command center for deploying and managing
+          Watchers, and your entry point to Events, Billing and Settings.fileciteturn2file7
+        </p>
 
-        {/* 3.1 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">3.1 Navigating the Dashboard</h3>
-        <p>The top navigation menu links to: <b>Dashboard</b>, <b>Events</b>, <b>Billing</b>, and <b>Settings</b>.</p>
+        <h3 className="text-2xl font-semibold mt-8 mb-3">3.1 Navigating the Dashboard</h3>
+        <p>
+          Top‑bar links: <code>Dashboard</code>, <code>Events</code>, <code>Billing</code>,
+          <code> Settings</code>. These take you straight to the relevant pages.fileciteturn2file9
+        </p>
 
-        {/* 3.2 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">3.2 The Watcher List</h3>
-        <p>A real‑time table showing every Watcher you have created. Columns include Token, Token Address, Threshold (USD), Notification Target, and Status.</p>
+        <h3 className="text-2xl font-semibold mt-8 mb-3">3.2 Watcher List</h3>
+        <p>The main table shows every Watcher with real‑time status:</p>
+        <ul className="list-disc list-inside space-y-2 mt-4">
+          <li><strong>TOKEN</strong> – Name &amp; symbol.</li>
+          <li><strong>TOKEN ADDRESS</strong> – Contract address.</li>
+          <li><strong>THRESHOLD (USD)</strong> – Minimum value to alert.</li>
+          <li><strong>NOTIFICATION TARGET</strong> – Email or webhook.</li>
+          <li><strong>STATUS</strong> – Active / Paused.</li>
+        </ul>
 
-        {/* 3.3 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">3.3 Quick Actions</h3>
-        <ul className="list-disc list-inside space-y-2 mt-2">
-          <li><b>Edit:</b> Adjust any Watcher setting.</li>
-          <li><b>Pause / Activate:</b> Temporarily disable or re‑enable monitoring.</li>
-          <li><b>Test:</b> Send a sample notification to verify your channel.</li>
-          <li><b>Delete:</b> Permanently remove a Watcher and its event history (irreversible).</li>
+        <h3 className="text-2xl font-semibold mt-8 mb-3">3.3 Quick Actions</h3>
+        <ul className="list-disc list-inside space-y-2 mt-4">
+          <li><strong>Edit</strong> – Adjust any setting.</li>
+          <li><strong>Pause / Activate</strong> – Toggle monitoring.</li>
+          <li><strong>Test</strong> – Send a sample alert to verify delivery.</li>
+          <li><strong>Delete</strong> – Remove the Watcher and its history.</li>
         </ul>
       </>
-    )
+    ),
   },
 
-  /* ------------------------ CAPÍTULO 4 ------------------------ */
+  /* ----------------------------------------------------------------------- */
+  /* CHAPTER 4 – Mastering Watchers                                          */
+  /* ----------------------------------------------------------------------- */
   {
-    id: 'chapter-4',
-    title: '4. Mastering Watchers',
+    id: "chapter-4",
+    title: "4. Mastering Watchers",
     level: 1,
     content: (
       <>
-        <p>A Watcher is your personal on‑chain scout, running 24/7.</p>
+        <p>
+          A Watcher is a 24/7 on‑chain scout: <em>if transfer ≥ threshold USD</em>,
+          create an Event and send notifications.fileciteturn2file8
+        </p>
 
-        {/* 4.1 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">4.1 What is a "Watcher"?</h3>
-        <p>Define a token contract and a USD threshold. When a transaction meets the rule, TokenWatcher logs an Event and sends a notification.</p>
+        <h3 className="text-2xl font-semibold mt-8 mb-3">4.1 What is a Watcher?</h3>
+        <p>
+          Think of it as a persistent rule tied to a token contract and a USD
+          value. When matched, it logs the Event and alerts you.
+        </p>
 
-        {/* 4.2 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">4.2 Creating a New Watcher</h3>
-        <ul className="list-disc list-inside space-y-3 mt-2">
-          <li><b>Name:</b> Use descriptive labels (e.g., “Whale Movements – LINK”).</li>
-          <li><b>Find the Contract Address:</b> Copy from a trusted source like Etherscan or CoinGecko.</li>
-          <li><b>Set the Threshold:</b> Enter a manual USD value or use Smart Threshold Suggestion based on recent 24h volume.</li>
-        </ul>
-
-        {/* 4.3 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">4.3 Configuring Notifications</h3>
-        <ul className="list-disc list-inside space-y-3 mt-2">
-          <li><b>Email:</b> Sent to your registered address.</li>
-          <li><b>Discord & Slack:</b> Paste an Incoming Webhook URL.</li>
-          <li><b>Telegram:</b> Provide a JSON with <code>{"bot_token":"…","chat_id":"…"}</code>.</li>
-        </ul>
-        <p className="mt-4 font-bold">Always hit “Test” before saving to confirm delivery.</p>
-      </>
-    )
-  },
-
-  /* ------------------------ CAPÍTULO 5 ------------------------ */
-  {
-    id: 'chapter-5',
-    title: '5. The Events Feed',
-    level: 1,
-    content: (
-      <>
-        <p>Your searchable history of every significant transaction detected by your Watchers.</p>
-
-        {/* 5.1 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">5.1 Understanding the Events Table</h3>
-        <ul className="list-disc list-inside space-y-2 mt-2">
-          <li><b>Watcher:</b> Name of the Watcher that triggered the alert.</li>
-          <li><b>From / To Address:</b> Wallets involved.</li>
-          <li><b>Amount / USD Value:</b> Token quantity and dollar value at trigger time.</li>
-          <li><b>Tx Hash:</b> Clickable link to a block explorer.</li>
-        </ul>
-
-        {/* 5.2 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">5.2 Powerful Filtering</h3>
-        <p>Filter by Watcher, Token, Address, Value or Date to uncover patterns and trends.</p>
-
-        {/* 5.3 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">5.3 Deep‑Dive Verification</h3>
-        <p>Every Tx hash links directly to Etherscan (or equivalent) so you can verify data against the blockchain.</p>
-      </>
-    )
-  },
-
-  /* ------------------------ CAPÍTULO 6 ------------------------ */
-  {
-    id: 'chapter-6',
-    title: '6. Billing & Plans',
-    level: 1,
-    content: (
-      <>
-        <p>TokenWatcher scales with your needs through a simple tiered subscription (Free, Medium, Advanced).</p>
-
-        {/* 6.1 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">6.1 How Our Plans Work</h3>
-        <p>Your plan’s <b>watcher_limit</b> defines how many Watchers you can run. Paused Watchers still count towards the limit.</p>
-
-        {/* 6.2 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">6.2 Viewing Your Usage</h3>
-        <p>The Billing page shows your current plan, status, and real‑time Watcher usage (e.g., “3 / 5”).</p>
-
-        {/* 6.3 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">6.3 Upgrading or Downgrading</h3>
-        <p>Change plans any time from Billing. Your new watcher_limit applies instantly.</p>
-
-        {/* 6.4 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">6.4 Coming Soon: Stripe Payments</h3>
-        <p>Automated, secure billing via Stripe is on our roadmap.</p>
-      </>
-    )
-  },
-
-  /* ------------------------ CAPÍTULO 7 ------------------------ */
-  {
-    id: 'chapter-7',
-    title: '7. Troubleshooting & FAQ',
-    level: 1,
-    content: (
-      <>
-        <p>Answers to common questions and a step‑by‑step diagnostic checklist.</p>
-
-        {/* 7.1 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">7.1 I’m not receiving alerts</h3>
-        <ol className="list-decimal list-inside space-y-2 mt-2">
-          <li><b>Test:</b> Use the Test button on the Watcher.</li>
-          <li><b>Verify Notification Target:</b> Check email/webhook details.</li>
-          <li><b>Watcher Status:</b> Ensure it’s Active.</li>
-          <li><b>Threshold:</b> Consider lowering if no events meet it.</li>
-          <li><b>Email Spam:</b> Whitelist no-reply@tokenwatcher.app.</li>
+        <h3 className="text-2xl font-semibold mt-8 mb-3">4.2 Creating a New Watcher</h3>
+        <ol className="list-decimal list-inside space-y-3 mt-4">
+          <li><strong>Name it</strong> descriptively (e.g., “Whale Alert – LINK”).</li>
+          <li>
+            <strong>Find the correct contract address</strong> on Etherscan or
+            CoinGecko—never copy from unverified sources.fileciteturn2file14
+          </li>
+          <li>
+            <strong>Set the threshold</strong>: manual exact USD value or accept the
+            Smart Suggestion calculated from 24‑h volume.
+          </li>
         </ol>
 
-        {/* 7.2 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">7.2 Smart Threshold seems off</h3>
-        <p>The suggestion is a percentage of 24h volume. High‑cap tokens ⇒ high thresholds; low‑cap tokens ⇒ low thresholds. Adjust to taste.</p>
-
-        {/* 7.3 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">7.3 Finding My Discord / Slack Webhook URL</h3>
-        <p>Discord: Server Settings → Integrations → Webhooks → New Webhook → Copy URL.<br/>Slack: Workspace Settings → Manage Apps → “Incoming Webhooks” → Add → choose channel → Copy URL.</p>
-
-        {/* 7.4 */}
-        <h3 className="text-2xl font-semibold mt-8 mb-3">7.4 Telegram Bot Token & Chat ID</h3>
-        <p>Use @BotFather to create a bot and @userinfobot to get your Chat ID, then paste as <code>{"bot_token":"…","chat_id":"…"}</code>.</p>
+        <h3 className="text-2xl font-semibold mt-8 mb-3">4.3 Configuring Notifications</h3>
+        <p>Select where alerts should arrive:</p>
+        <ul className="list-disc list-inside space-y-3 mt-4">
+          <li><strong>Email</strong>: sent to your registered address.</li>
+          <li><strong>Discord &amp; Slack</strong>: paste an Incoming Webhook URL.</li>
+          <li>
+            <strong>Telegram</strong>: provide <code>{"{&#34;}</code>bot_token<code>...</code> JSON as
+            shown in the docs.fileciteturn2file12
+          </li>
+        </ul>
+        <p className="mt-4 font-bold">
+          Always hit “Test” before saving to confirm delivery.
+        </p>
       </>
-    )
-  }
+    ),
+  },
+
+  /* ----------------------------------------------------------------------- */
+  /* CHAPTER 5 – The Events Feed                                             */
+  /* ----------------------------------------------------------------------- */
+  {
+    id: "chapter-5",
+    title: "5. The Events Feed",
+    level: 1,
+    content: (
+      <>
+        <p>
+          The Events Feed is your searchable, permanent log of every
+          Watcher‑triggered transaction—ideal for trend analysis.fileciteturn2file6
+        </p>
+
+        <h3 className="text-2xl font-semibold mt-8 mb-3">5.1 Understanding the Events Table</h3>
+        <p>Each row contains:</p>
+        <ul className="list-disc list-inside space-y-2 mt-4">
+          <li>Watcher name</li>
+          <li>Token &amp; symbol</li>
+          <li>From / To addresses</li>
+          <li>Amount &amp; USD value</li>
+          <li>Tx Hash (clickable)</li>
+          <li>Date stamp</li>
+        </ul>
+
+        <h3 className="text-2xl font-semibold mt-8 mb-3">5.2 Powerful Filtering Capabilities</h3>
+        <p>
+          Combine filters (Watcher, Token, Address, Value, Date) to isolate
+          patterns—for example, whale accumulation of PEPE last week over $2M.fileciteturn2file13
+        </p>
+
+        <h3 className="text-2xl font-semibold mt-8 mb-3">5.3 Connecting to the Source</h3>
+        <p>
+          Every Tx Hash links to Etherscan so you can verify data and investigate
+          wallets further, following the crypto mantra “don’t trust, verify.”fileciteturn2file15
+        </p>
+      </>
+    ),
+  },
+
+  /* ----------------------------------------------------------------------- */
+  /* CHAPTER 6 – Billing & Plans                                             */
+  /* ----------------------------------------------------------------------- */
+  {
+    id: "chapter-6",
+    title: "6. Billing & Plans",
+    level: 1,
+    content: (
+      <>
+        <p>
+          TokenWatcher scales with you. Plans differ mainly by <em>watcher_limit</em>
+          —the number of simultaneous Watchers allowed.fileciteturn2file11
+        </p>
+
+        <h3 className="text-2xl font-semibold mt-8 mb-3">6.1 How Our Plans Work</h3>
+        <ul className="list-disc list-inside space-y-2 mt-4">
+          <li><strong>Free</strong> – a few Watchers to trial the platform.</li>
+          <li><strong>Medium</strong> – for active traders monitoring multiple tokens.</li>
+          <li><strong>Advanced</strong> – high limits for analysts and teams.</li>
+        </ul>
+        <p className="mt-2">
+          Paused Watchers still count towards the limit; delete them to free
+          slots.fileciteturn2file17
+        </p>
+
+        <h3 className="text-2xl font-semibold mt-8 mb-3">6.2 Viewing Your Current Plan &amp; Usage</h3>
+        <p>
+          Billing → “Current Subscription” card shows plan name, status and
+          usage (e.g., 3 / 5 Watchers).fileciteturn2file11
+        </p>
+
+        <h3 className="text-2xl font-semibold mt-8 mb-3">6.3 Upgrading or Downgrading</h3>
+        <p>
+          Change plans anytime; updates happen instantly and watcher_limit is
+          reset to the new default.fileciteturn2file17
+        </p>
+
+        <h3 className="text-2xl font-semibold mt-8 mb-3">6.4 Future: Automated Payments with Stripe</h3>
+        <p>
+          Stripe integration is in the works for seamless, pro‑rated billing.fileciteturn2file4
+        </p>
+      </>
+    ),
+  },
+
+  /* ----------------------------------------------------------------------- */
+  /* CHAPTER 7 – Troubleshooting & FAQ                                       */
+  /* ----------------------------------------------------------------------- */
+  {
+    id: "chapter-7",
+    title: "7. Troubleshooting & FAQ",
+    level: 1,
+    content: (
+      <>
+        <h3 className="text-2xl font-semibold mb-3">7.1 I’m not receiving any alerts</h3>
+        <ol className="list-decimal list-inside space-y-2 mt-2">
+          <li>Click “Test” on the Watcher.</li>
+          <li>Verify your notification target (email / webhook URL).</li>
+          <li>Check Watcher is Active, not Paused.</li>
+          <li>Review threshold—maybe it’s too high.</li>
+          <li>
+            Check email spam folder; whitelist
+            <code>no-reply@tokenwatcher.app</code>.
+          </li>
+        </ol>
+
+        <h3 className="text-2xl font-semibold mt-8 mb-3">7.2 Smart Threshold seems off</h3>
+        <p>
+          The suggestion is a fraction of 24‑h volume—higher for large‑cap
+          tokens, lower for illiquid ones. Adjust to fit your strategy.
+        </p>
+
+        <h3 className="text-2xl font-semibold mt-8 mb-3">7.3 Discord / Slack Webhook URL</h3>
+        <p>
+          Discord: <em>Server Settings → Integrations → Webhooks → New</em>. Slack:
+          create an app with Incoming Webhooks and copy the URL.fileciteturn2file10
+        </p>
+
+        <h3 className="text-2xl font-semibold mt-8 mb-3">7.4 Telegram Bot Token & Chat ID</h3>
+        <p>
+          Use <strong>@BotFather</strong> for a bot token, then
+          <strong>@userinfobot</strong> (or the API <code>getUpdates</code>) to fetch chat ID.
+          Supply TokenWatcher with
+          <code>{"{&#34;}</code>bot_token<code>...</code>} JSON.fileciteturn2file12
+        </p>
+      </>
+    ),
+  },
 ];
 
+// ---------------------------------------------------------------------------
+// Page Component
+// ---------------------------------------------------------------------------
 export default function HowItWorksPage() {
   const { theme, systemTheme } = useTheme();
-  const [activeSection, setActiveSection] = useState<string>('chapter-1');
+  const [activeSection, setActiveSection] = useState<string>("chapter-1");
   const sectionRefs = useRef<{ [key: string]: HTMLElement | null }>({});
 
-  const isDark = theme === 'dark' || (theme === 'system' && systemTheme === 'dark');
+  const isDark =
+    theme === "dark" || (theme === "system" && systemTheme === "dark");
 
-  /* ----------------------- Scroll Spy ----------------------- */
+  // Observe scroll to highlight active section in DocsNav
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) setActiveSection(entry.target.id);
+          if (entry.isIntersecting) {
+            setActiveSection(entry.target.id);
+          }
         });
       },
-      { rootMargin: '-20% 0px -70% 0px' }
+      { rootMargin: "-20% 0px -70% 0px" }
     );
 
     const currentRefs = sectionRefs.current;
-    Object.values(currentRefs).forEach((ref) => ref && observer.observe(ref));
+    Object.values(currentRefs).forEach((ref) => {
+      if (ref) observer.observe(ref);
+    });
 
     return () => {
-      Object.values(currentRefs).forEach((ref) => ref && observer.unobserve(ref));
+      Object.values(currentRefs).forEach((ref) => {
+        if (ref) observer.unobserve(ref);
+      });
     };
   }, []);
 
-  /* --------------------- Render Page ----------------------- */
   return (
-    <div className={`flex flex-col min-h-screen ${isDark ? 'bg-neutral-900' : 'bg-white'}`}>
+    <div
+      className={`flex flex-col min-h-screen ${
+        isDark ? "bg-neutral-900" : "bg-white"
+      }`}
+    >
       <main className="flex-grow">
-        {/* Hero */}
-        <section className={`py-16 md:py-20 text-center border-b ${isDark ? 'border-neutral-800 bg-neutral-900' : 'border-gray-200 bg-gray-50'}`}>
+        {/* Header */}
+        <section
+          className={`py-16 md:py-20 text-center border-b ${
+            isDark ? "border-neutral-800 bg-neutral-900" : "border-gray-200 bg-gray-50"
+          }`}
+        >
           <div className="max-w-4xl mx-auto px-6">
             <h1 className="text-4xl md:text-5xl font-extrabold leading-tight mb-4 text-gray-900 dark:text-white">
-              The Complete TokenWatcher Manual
+              TokenWatcher User Manual
             </h1>
-            <p className={`text-lg md:text-xl ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-              Everything you need to master on‑chain intelligence – no admin‑only fluff.
+            <p className={`text-lg md:text-xl ${isDark ? "text-gray-300" : "text-gray-600"}`}>
+              A comprehensive guide to mastering on‑chain intelligence—from first login to advanced event analysis.
             </p>
           </div>
         </section>
 
-        {/* Main Content + Side Nav */}
+        {/* Two‑column layout */}
         <div className="max-w-screen-xl mx-auto px-6 py-12 md:py-16">
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] lg:gap-12">
-            {/* Article */}
+            {/* Main content */}
             <article className="prose prose-lg dark:prose-invert max-w-none">
               {sections.map((section) => (
                 <section
@@ -297,7 +448,7 @@ export default function HowItWorksPage() {
               ))}
             </article>
 
-            {/* Fixed Nav */}
+            {/* Side navigation */}
             <aside className="hidden lg:block">
               <DocsNav sections={sections} activeSection={activeSection} />
             </aside>

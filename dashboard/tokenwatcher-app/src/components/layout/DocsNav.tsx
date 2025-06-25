@@ -1,16 +1,16 @@
-// CAMBIO: Versión revisada y mejorada
+// CAMBIO: Versión revisada y completa de DocsNav
 // src/components/layout/DocsNav.tsx
 "use client";
 
 import React from "react";
 
-// ------------------------------------------
+// -------------------------------------------------
 // Tipos
-// ------------------------------------------
+// -------------------------------------------------
 interface Section {
   id: string;
   title: string;
-  level: number; // 1 = capítulo principal, 2+ = subsecciones
+  level: number; // 1 = capítulo principal, 2+ = subsecciones
 }
 
 interface DocsNavProps {
@@ -18,24 +18,24 @@ interface DocsNavProps {
   activeSection: string;
 }
 
-// ------------------------------------------
+// -------------------------------------------------
 // Utilidades
-// ------------------------------------------
+// -------------------------------------------------
 /**
- * Devuelve la clase de indentación adecuada según el nivel de la sección.
- *  pl‑2  -> Capítulos (nivel 1)
- *  pl‑6  -> Subcapítulos (nivel 2)
- *  pl‑10 -> Sub‑subcapítulos (nivel 3)
- *  pl‑14 -> ≤ nivel 4  (máximo)
+ * Devuelve la clase de indentación según el nivel.
+ *  nivel 1 → pl‑2
+ *  nivel 2 → pl‑6
+ *  nivel 3 → pl‑10
+ *  nivel 4+→ pl‑14
  */
 function indentClass(level: number): string {
   const map = ["pl-2", "pl-6", "pl-10", "pl-14"];
   return map[Math.min(level - 1, map.length - 1)];
 }
 
-// ------------------------------------------
+// -------------------------------------------------
 // Componente DocsNav
-// ------------------------------------------
+// -------------------------------------------------
 export default function DocsNav({ sections, activeSection }: DocsNavProps) {
   return (
     <nav
