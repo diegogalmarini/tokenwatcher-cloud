@@ -1,4 +1,3 @@
-// CAMBIO: Versión revisada y completa de DocsNav
 // src/components/layout/DocsNav.tsx
 "use client";
 
@@ -10,7 +9,7 @@ import React from "react";
 interface Section {
   id: string;
   title: string;
-  level: number; // 1 = capítulo principal, 2+ = subsecciones
+  level: number; // 1 = capítulo principal, 2+ = subsecciones
 }
 
 interface DocsNavProps {
@@ -23,10 +22,10 @@ interface DocsNavProps {
 // -------------------------------------------------
 /**
  * Devuelve la clase de indentación según el nivel.
- *  nivel 1 → pl‑2
- *  nivel 2 → pl‑6
- *  nivel 3 → pl‑10
- *  nivel 4+→ pl‑14
+ * nivel 1 → pl-2
+ * nivel 2 → pl-6
+ * nivel 3 → pl-10
+ * nivel 4+→ pl-14
  */
 function indentClass(level: number): string {
   const map = ["pl-2", "pl-6", "pl-10", "pl-14"];
