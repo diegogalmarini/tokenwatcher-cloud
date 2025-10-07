@@ -33,8 +33,8 @@ class Settings(BaseSettings):
     ALGORITHM: Literal["HS256"] = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    # --- Variables para envíos de correo con SendGrid ---
-    SENDGRID_API_KEY: str
+    # --- Variables para envíos de correo con Resend ---
+    RESEND_API_KEY: str
     MAIL_FROM: EmailStr # Usamos EmailStr para validar
 
     # --- URL base de tu Frontend (para construir links de reset/verificación) ---
