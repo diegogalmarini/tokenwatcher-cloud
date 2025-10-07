@@ -39,6 +39,7 @@ class Settings(BaseSettings):
 
     # --- URL base de tu Frontend (para construir links de reset/verificación) ---
     FRONTEND_BASE_URL: str
+    NEXT_PUBLIC_FRONTEND_BASE_URL: str
 
     # --- VARIABLES PARA EMAILS DE ADMINISTRACIÓN Y CONTACTO ---
     ADMIN_EMAIL: EmailStr
