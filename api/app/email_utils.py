@@ -3,8 +3,7 @@
 import os
 from typing import List
 from datetime import datetime
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+import resend
 from .config import settings
 from . import schemas
 
@@ -50,19 +49,21 @@ def _create_styled_html_content(title: str, body_html: str) -> str:
 
 def send_email(to_email: str, subject: str, html_content: str) -> bool:
     """
-    Generic function to send an email using SendGrid.
+    Generic function to send an email using Resend.
     """
-    message = Mail(
-        from_email=settings.MAIL_FROM,
-        to_emails=to_email,
-        subject=subject,
-        html_content=html_content
-    )
     try:
-        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
-        response = sg.send(message)
-        print(f"Email sent to {to_email}, status code: {response.status_code}")
-        return response.status_code in [200, 202]
+        resend.api_key = settings.RESEND_API_KEY
+        
+        params = {
+            "from": settings.MAIL_FROM,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content,
+        }
+        
+        response = resend.send(params)
+        print(f"Email sent to {to_email}, response: {response}")
+        return True
     except Exception as e:
         print(f"Error sending email to {to_email}: {e}")
         return False
