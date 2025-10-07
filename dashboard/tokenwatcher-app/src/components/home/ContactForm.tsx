@@ -17,7 +17,36 @@ export default function ContactForm() {
         event.preventDefault();
         setStatus('sending');
         setFeedbackMessage('');
-        // ...
+
+        try {
+            const response = await fetch('/api/contact', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name,
+                    email,
+                    message,
+                }),
+            });
+
+            if (response.ok) {
+                setStatus('success');
+                setFeedbackMessage('Thanks for your message! We\'ll get back to you soon.');
+                // Reset form
+                setName('');
+                setEmail('');
+                setMessage('');
+            } else {
+                const errorData = await response.json();
+                setStatus('error');
+                setFeedbackMessage(errorData.detail || 'Failed to send message. Please try again.');
+            }
+        } catch (error) {
+            setStatus('error');
+            setFeedbackMessage('Network error. Please check your connection and try again.');
+        }
     };
 
   return (
@@ -84,7 +113,17 @@ export default function ContactForm() {
             {status === 'sending' ? 'Sending...' : 'Send Message'}
           </Button>
         </div>
-        {/* ... (mensajes de feedback) ... */}
+        
+        {/* Feedback messages */}
+        {feedbackMessage && (
+          <div className={`mt-4 p-4 rounded-md ${
+            status === 'success' 
+              ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' 
+              : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
+          }`}>
+            <p className="text-sm">{feedbackMessage}</p>
+          </div>
+        )}
       </form>
     </div>
   );
