@@ -11,12 +11,23 @@ import React, {
 } from "react";
 import { useRouter } from "next/navigation";
 
-// --- CAMBIO AQUÍ: AÑADIMOS is_admin ---
 interface User {
   id: number;
   email: string;
   is_active: boolean;
-  is_admin: boolean; // <-- AÑADIDO
+  is_admin: boolean;
+  plan: string;
+  watcher_count: number;
+  watcher_limit: number;
+}
+
+interface ChangePasswordData {
+    current_password: string;
+    new_password: string;
+}
+
+interface DeleteAccountData {
+    password: string;
 }
 
 interface AuthContextType {
@@ -26,6 +37,9 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email_or_username: string, password_string: string) => Promise<void>;
   logout: () => void;
+  changePassword: (data: ChangePasswordData) => Promise<void>;
+  deleteAccount: (data: DeleteAccountData) => Promise<void>;
+  refetchUser: () => Promise<void>; // <-- AÑADIDO
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -51,14 +65,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Limpia estado de auth
   const clearAuthState = useCallback(() => {
     setUser(null);
     setToken(null);
     localStorage.removeItem("authToken");
   }, []);
 
-  // Trae perfil de usuario si el token es válido
   const fetchUserProfile = useCallback(
     async (currentToken: string) => {
       try {
@@ -69,7 +81,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const userData: User = await response.json();
           setUser(userData);
         } else {
-          // Token inválido → limpio estado
           clearAuthState();
         }
       } catch (err) {
@@ -78,8 +89,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     },
     [clearAuthState]
   );
+  
+  const refetchUser = useCallback(async () => {
+    const currentToken = localStorage.getItem("authToken");
+    if (currentToken) {
+      await fetchUserProfile(currentToken);
+    }
+  }, [fetchUserProfile]);
 
-  // Al montar, inicializa estado desde localStorage
+
   useEffect(() => {
     const storedToken = localStorage.getItem("authToken");
     if (storedToken) {
@@ -92,7 +110,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [fetchUserProfile]);
 
-  // Función para hacer login
   const login = async (email_or_username: string, password_string: string) => {
     setIsLoading(true);
     try {
@@ -115,7 +132,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         localStorage.setItem("authToken", newToken);
         setToken(newToken);
         await fetchUserProfile(newToken);
-        // Después de login exitoso, redirijo al Dashboard
         router.push("/dashboard");
       } else {
         const errorData = await response.json().catch(() => ({
@@ -134,12 +150,47 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  // Función para hacer logout
   const logout = () => {
     clearAuthState();
     setIsLoading(false);
-    // Redirijo a la página principal ("/"), no a /login
     router.push("/");
+  };
+  
+  const changePassword = async (data: ChangePasswordData) => {
+    if (!token) throw new Error("Not authenticated");
+    
+    const response = await fetch(`${API_URL}/auth/users/me/change-password`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Failed to update password.' }));
+        throw new Error((errorData as any).detail || 'An unknown error occurred.');
+    }
+  };
+
+  const deleteAccount = async (data: DeleteAccountData) => {
+    if (!token) throw new Error("Not authenticated");
+
+    const response = await fetch(`${API_URL}/auth/users/me`, {
+        method: 'DELETE',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Failed to delete account.' }));
+        throw new Error((errorData as any).detail || 'An unknown error occurred.');
+    }
+    logout();
   };
 
   const isAuthenticated = Boolean(token && user && user.is_active);
@@ -151,6 +202,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading,
     login,
     logout,
+    changePassword,
+    deleteAccount,
+    refetchUser, // <-- AÑADIDO
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

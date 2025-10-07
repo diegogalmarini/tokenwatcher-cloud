@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
-import Link from 'next/link'; // Importamos Link para la nueva página de contacto
+import Link from 'next/link';
 import {
   ClipboardDocumentIcon,
   ClipboardDocumentCheckIcon,
@@ -82,13 +82,12 @@ export default function Footer() {
           </ul>
         </div>
 
-        {/* === COLUMNA 3 CORREGIDA === */}
+        {/* Column 3: Legal & Contact */}
         <div className="space-y-3">
           <h3 className="text-lg font-semibold text-white mb-2">Legal & Contact</h3>
           <ul className="space-y-1.5">
             <li><Link href="/privacy" className="hover:text-white transition">Privacy Policy</Link></li>
             <li><Link href="/terms" className="hover:text-white transition">Terms of Service</Link></li>
-            {/* ENLACE A LA PÁGINA DE CONTACTO AÑADIDO */}
             <li><Link href="/contact" className="hover:text-white transition">Contact Us</Link></li>
           </ul>
           <div className="pt-2">
@@ -111,8 +110,24 @@ export default function Footer() {
         </div>
       </div>
 
-      <div className="mt-10 text-center text-xs text-neutral-400">
-        © {new Date().getFullYear()} TokenWatcher. All rights reserved.
+      {/* === SECCIÓN FINAL ACTUALIZADA CON INSIGNIA DE PRODUCT HUNT === */}
+      <div className="mt-12 pt-8 border-t border-neutral-700 flex flex-col items-center space-y-6 text-center text-xs text-neutral-400">
+        <a 
+          href="https://www.producthunt.com/products/tokenwatcher?embed=true&utm_source=badge-featured&utm_medium=badge&utm_source=badge-tokenwatcher" 
+          target="_blank" 
+          rel="noopener noreferrer"
+        >
+          <img 
+            src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=983020&theme=light&t=1750752456486" 
+            alt="TokenWatcher - Real-time alerts for the crypto transfers that matter. | Product Hunt" 
+            style={{ width: '250px', height: '54px' }} 
+            width="250" 
+            height="54" 
+          />
+        </a>
+        <span>
+          © {new Date().getFullYear()} TokenWatcher. All rights reserved.
+        </span>
       </div>
     </footer>
   );

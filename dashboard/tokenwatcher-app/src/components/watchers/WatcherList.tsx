@@ -3,9 +3,9 @@
 
 import React, { useEffect, useState } from "react";
 import Button from "@/components/ui/button";
-import WatcherFormModal from "./WatcherFormModal";
+import WatcherFormModal, { WatcherFormData } from "./WatcherFormModal";
 import WatcherTable from "./WatcherTable";
-import { useWatchers, Watcher, WatcherCreatePayload, WatcherUpdatePayload } from "@/lib/useWatchers";
+import { useWatchers, Watcher, WatcherUpdatePayload } from "@/lib/useWatchers";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function WatcherList() {
@@ -39,33 +39,23 @@ export default function WatcherList() {
     setModalOpen(true);
   };
 
-  const handleSaveWatcher = async (data: {
-    name: string;
-    token_address: string;
-    threshold: number;
-    webhook_url: string | null;
-  }) => {
+  const handleSaveWatcher = async (data: WatcherFormData) => {
     try {
       if (editing && editing.id) {
-        const payload: WatcherUpdatePayload = { ...data };
-        if (data.webhook_url === "") payload.webhook_url = null;
+        const payload: WatcherUpdatePayload = {
+          name: data.name,
+          threshold: data.threshold,
+          transport_type: data.transport_type,
+          transport_target: data.transport_target,
+          send_test_notification: data.send_test_notification,
+        };
         await updateWatcher(editing.id, payload);
       } else {
-        if (!data.webhook_url) {
-          throw new Error("Webhook URL is required for new watchers.");
-        }
-        const payload: WatcherCreatePayload = {
-            name: data.name,
-            token_address: data.token_address,
-            threshold: data.threshold,
-            webhook_url: data.webhook_url,
-        };
-        await createWatcher(payload);
+        await createWatcher(data);
       }
-      setModalOpen(false); // Cierra el modal solo en caso de éxito
+      setModalOpen(false);
     } catch (err) {
       console.error("Failed to save watcher:", err);
-      // El error se relanza para que el modal lo capture y muestre
       throw err;
     }
   };

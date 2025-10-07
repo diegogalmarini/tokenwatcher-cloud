@@ -60,6 +60,9 @@ def poll_and_notify(
     for watcher_instance in active_watchers:
         logger.info(f"  ▶️ [WATCHER_PROC] Procesando Watcher ID={watcher_instance.id}, Nombre='{watcher_instance.name}'")
 
+        # Cargar explícitamente los transportes para este watcher
+        db.refresh(watcher_instance, attribute_names=['transports'])
+
         latest_event = db.query(EventModel).filter(EventModel.watcher_id == watcher_instance.id).order_by(desc(EventModel.block_number)).first()
         start_block_for_watcher = latest_event.block_number + 1 if latest_event else settings.START_BLOCK
         logger.info(f"    🔍 [START_BLOCK] Para Watcher ID={watcher_instance.id}, comenzando desde el bloque: {start_block_for_watcher}")
@@ -69,7 +72,6 @@ def poll_and_notify(
         if not transactions:
             continue
 
-        # --- MODIFICADO: Obtenemos el precio actual UNA VEZ por watcher ---
         current_price_data = coingecko_client.get_token_market_data(watcher_instance.token_address)
         current_price = current_price_data.get("price") if current_price_data else None
         if current_price is None:
@@ -83,9 +85,7 @@ def poll_and_notify(
                 if amount_transferred >= watcher_instance.threshold:
                     logger.info(f"      ❗ [THRESHOLD_MET] Monto {amount_transferred:.4f} >= umbral {watcher_instance.threshold}. Creando evento...")
                     
-                    # --- MODIFICADO: Usamos el precio actual en lugar de buscar el histórico ---
                     usd_value = (amount_transferred * current_price) if current_price is not None else None
-                    
                     checksum_address = Web3.to_checksum_address(tx_data.get("contractAddress", watcher_instance.token_address))
 
                     event_payload_schema = schemas.TokenEventCreate(
@@ -109,21 +109,21 @@ def poll_and_notify(
             except Exception as e_tx_proc:
                 logger.exception(f"      ❌ [TX_PROCESS_ERROR] Error general al procesar tx {tx_data.get('hash', 'N/A')}: {e_tx_proc!r}")
 
+        # === BLOQUE DE NOTIFICACIÓN REFACTORIZADO ===
         if newly_created_events_for_this_watcher:
-            logger.info(f"  🔔 [NOTIFICATION_PROCESSING] {len(newly_created_events_for_this_watcher)} evento(s) para notificar (Watcher ID={watcher_instance.id}).")
-            for transport_instance in watcher_instance.transports:
-                webhook_url = transport_instance.config.get("url") if isinstance(transport_instance.config, dict) else None
-                if webhook_url:
-                    try:
-                        logger.info(f"    ▶️ [SENDING_VIA_TRANSPORT] Enviando via {transport_instance.type} (ID={transport_instance.id})")
-                        if transport_instance.type == "slack":
-                            notifier.notify_slack_blockkit(webhook_url, watcher_instance, newly_created_events_for_this_watcher)
-                        elif transport_instance.type == "discord":
-                            notifier.notify_discord_embed(webhook_url, watcher_instance, newly_created_events_for_this_watcher)
-                    except Exception as e_notify:
-                        logger.exception(f"    ❌ [NOTIFICATION_DISPATCH_ERROR] Falló envío para Transport ID={transport_instance.id}: {e_notify!r}")
+            logger.info(f"  🔔 [NOTIFICATION_DISPATCH] {len(newly_created_events_for_this_watcher)} nuevo(s) evento(s) para Watcher ID={watcher_instance.id}. Despachando al notificador central...")
+            try:
+                # ÚNICA Y LIMPIA LLAMADA A NUESTRO NUEVO DISPATCHER EN NOTIFIER.PY
+                notifier.send_notifications_for_event_batch(
+                    watcher_obj=watcher_instance,
+                    events_list=newly_created_events_for_this_watcher
+                )
+            except Exception as e_dispatch:
+                logger.exception(f"    ❌ [DISPATCH_ERROR] Error inesperado en el dispatcher para Watcher ID={watcher_instance.id}: {e_dispatch!r}")
+        # ============================================
 
     logger.info("🔄 [POLL_CYCLE] Ciclo de sondeo y notificación finalizado.")
+
 
 if __name__ == "__main__":
     from .database import SessionLocal

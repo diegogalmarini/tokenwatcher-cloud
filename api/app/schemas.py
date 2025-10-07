@@ -2,10 +2,60 @@
 
 from pydantic import BaseModel, HttpUrl, EmailStr
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
+
+class OrmBase(BaseModel):
+    class Config:
+        from_attributes = True
+
+# --- SCHEMAS DE PLANES Y SUSCRIPCIONES ---
+class PlanBase(OrmBase):
+    name: str
+    description: Optional[str] = None
+    price_monthly: int
+    price_annually: int
+    watcher_limit: int
+    is_active: bool = True
+
+class PlanCreate(PlanBase):
+    stripe_price_id_monthly: Optional[str] = None
+    stripe_price_id_annually: Optional[str] = None
+
+class PlanRead(PlanBase):
+    id: int
+
+class PlanUpdatePayload(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price_monthly: Optional[int] = None
+    price_annually: Optional[int] = None
+    watcher_limit: Optional[int] = None
+    is_active: Optional[bool] = None
+    stripe_price_id_monthly: Optional[str] = None
+    stripe_price_id_annually: Optional[str] = None
+
+class PlanChangeRequest(BaseModel):
+    plan_id: int
+
+class SubscriptionBase(OrmBase):
+    user_id: int
+    plan_id: int
+    status: str
+    stripe_subscription_id: Optional[str] = None
+    current_period_end: Optional[datetime] = None
+
+class SubscriptionCreate(SubscriptionBase):
+    pass
+
+class SubscriptionRead(SubscriptionBase):
+    id: int
+    plan: PlanRead
+
+# ... (el resto del archivo schemas.py se mantiene igual)
+# (TokenEvent, Transport, Watcher, User, etc.)
 
 # --- SCHEMAS DE EVENTOS ---
-class TokenEventBase(BaseModel):
+class TokenEventBase(OrmBase):
     watcher_id: int
     token_address_observed: str
     from_address: str
@@ -24,16 +74,12 @@ class TokenEventRead(TokenEventBase):
     id: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
-class PaginatedTokenEventResponse(BaseModel):
+class PaginatedTokenEventResponse(OrmBase):
     total_events: int
     events: List[TokenEventRead]
 
-
 # --- SCHEMAS DE TRANSPORT ---
-class TransportBase(BaseModel):
+class TransportBase(OrmBase):
     type: str
     config: Dict[str, Any]
 
@@ -44,40 +90,40 @@ class TransportRead(TransportBase):
     id: int
     watcher_id: int
 
-    class Config:
-        from_attributes = True
-
+class TransportTest(BaseModel):
+    watcher_id: int
+    transport_type: Literal["slack", "discord", "email", "telegram"]
+    transport_target: str
 
 # --- SCHEMAS DE WATCHER ---
-class WatcherBase(BaseModel):
+class WatcherBase(OrmBase):
     name: str
     token_address: str
     threshold: float
     is_active: bool = True
 
 class WatcherCreate(WatcherBase):
-    webhook_url: HttpUrl
+    transport_type: Literal["slack", "discord", "email", "telegram"]
+    transport_target: str
+    send_test_notification: bool = False
 
 class WatcherUpdatePayload(BaseModel):
     name: Optional[str] = None
-    token_address: Optional[str] = None
     threshold: Optional[float] = None
-    webhook_url: Optional[HttpUrl] = None
     is_active: Optional[bool] = None
+    transport_type: Optional[Literal["slack", "discord", "email", "telegram"]] = None
+    transport_target: Optional[str] = None
+    send_test_notification: bool = False
 
 class WatcherRead(WatcherBase):
     id: int
     owner_id: int
     created_at: datetime
     updated_at: datetime
-    webhook_url: Optional[HttpUrl] = None
-
-    class Config:
-        from_attributes = True
-
+    transports: List[TransportRead] = []
 
 # --- SCHEMAS DE USUARIO ---
-class UserBase(BaseModel):
+class UserBase(OrmBase):
     email: EmailStr
 
 class UserCreate(UserBase):
@@ -91,55 +137,51 @@ class UserRead(UserBase):
     plan: str
     watcher_count: int
     watcher_limit: int
-
-    class Config:
-        from_attributes = True
+    subscription: Optional[SubscriptionRead] = None
 
 class UserUpdateAdmin(BaseModel):
     watcher_limit: Optional[int] = None
     is_active: Optional[bool] = None
     plan: Optional[str] = None
 
-
-class Token(BaseModel):
+class Token(OrmBase):
     access_token: str
     token_type: str
 
-class TokenData(BaseModel):
+class TokenData(OrmBase):
     email: Optional[str] = None
 
-class TokenRead(BaseModel):
+class TokenRead(OrmBase):
     contract: str
     volume: float
 
-    class Config:
-        from_attributes = True
-
-
-# --- NUEVO SCHEMA PARA LA INFORMACIÓN DE UN TOKEN ---
-class TokenInfo(BaseModel):
+class TokenInfo(OrmBase):
     price: float
     market_cap: float
     total_volume_24h: float
     suggested_threshold: float
     minimum_threshold: float
 
-
-# --- SCHEMAS PARA “FORGOT / RESET PASSWORD” ---
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
-class ForgotPasswordResponse(BaseModel):
+class ForgotPasswordResponse(OrmBase):
     msg: str
 
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
 
-class ResetPasswordResponse(BaseModel):
+class ResetPasswordResponse(OrmBase):
     msg: str
 
-# --- SCHEMA PARA FORMULARIO DE CONTACTO ---
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+    
+class DeleteAccountRequest(BaseModel):
+    password: str
+
 class ContactFormRequest(BaseModel):
     name: str
     email: EmailStr

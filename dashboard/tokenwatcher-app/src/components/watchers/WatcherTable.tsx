@@ -5,15 +5,16 @@ import React, { useState } from "react";
 import { Watcher, Transport } from "@/lib/useWatchers";
 import Image from "next/image";
 import ConfirmationModal from "@/components/common/ConfirmationModal";
+import Button from "@/components/ui/button";
 import { EnvelopeIcon, LinkIcon } from '@heroicons/react/24/outline';
 import { FaTelegramPlane } from "react-icons/fa";
-import Button from "@/components/ui/button"; // --- IMPORTACIÓN AÑADIDA Y CORREGIDA ---
 
 interface Props {
   watchers: Watcher[];
   onEdit: (watcher: Watcher) => void;
-  onDelete: (watcherId: number) => void;
-  onToggleActive: (watcher: Watcher) => void;
+  onDelete: (watcherId: number) => Promise<void>; // Aseguramos que sea una promesa
+  onToggleActive: (watcher: Watcher) => Promise<void>; // Aseguramos que sea una promesa
+  onTest: (watcher: Watcher) => void;
 }
 
 const ETHERSCAN_BASE_URL = process.env.NEXT_PUBLIC_ETHERSCAN_URL || "https://etherscan.io";
@@ -38,20 +39,30 @@ const TransportDisplay = ({ transport }: { transport: Transport | null }) => {
     if (type === 'discord' || type === 'slack') {
       const url = config.url || "";
       return (
-        <a href={url || "#"} className={`flex items-center space-x-2 ${url ? "text-blue-600 dark:text-blue-400 hover:underline" : "text-gray-400 dark:text-gray-500"}`} title={url || "No webhook configured"} target="_blank" rel="noopener noreferrer">
+        <a 
+          href={url || "#"} 
+          className={`flex items-center space-x-2 ${url ? "text-blue-600 dark:text-blue-400 hover:underline" : "text-gray-400 dark:text-gray-500"}`} 
+          title={url || "No webhook configured"} 
+          target="_blank" 
+          rel="noopener noreferrer"
+        >
           <LinkIcon className="h-4 w-4 flex-shrink-0" />
           <span className="truncate block">{url ? `${url.slice(0, 35)}...` : "Invalid Webhook"}</span>
         </a>
       );
     }
 
+    // --- CORRECCIÓN EN LA LÓGICA DE TELEGRAM ---
+    // El tipo de transporte en la BD es 'telegram', y la config debería tener bot_token y chat_id
     if (type === 'telegram') {
-        const chatId = config.chat_id || "Invalid Chat ID";
+        // Asumimos que config puede tener chat_id, aunque el tipo original no lo mostraba
+        // TypeScript puede quejarse aquí si el tipo Transport no se actualiza
+        const chatId = (config as any).chat_id || "Invalid Chat ID";
         return (
           <div className="flex items-center space-x-2" title={`Chat ID: ${chatId}`}>
             <FaTelegramPlane className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
             <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
-              Chat ID: {chatId}
+              Telegram
             </span>
           </div>
         );
@@ -61,21 +72,41 @@ const TransportDisplay = ({ transport }: { transport: Transport | null }) => {
 };
 
 
-export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActive }: Props) {
+export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActive, onTest }: Props) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false); // Estado de carga para el botón
   const [modalContent, setModalContent] = useState({
-    title: "", message: "", confirmAction: () => {}, confirmText: "Confirm",
+    title: "", message: "", confirmAction: async () => {}, confirmText: "Confirm",
     variant: "primary" as "primary" | "danger",
   });
 
-  const openModal = (title: string, message: string, confirmAction: () => void, confirmText: string, variant: "primary" | "danger") => {
+  const openModal = (title: string, message: string, confirmAction: () => Promise<void>, confirmText: string, variant: "primary" | "danger") => {
     setModalContent({ title, message, confirmAction, confirmText, variant });
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
+    setIsConfirming(false); // Reseteamos el estado de carga al cerrar
   };
+  
+  // --- FUNCIÓN onConfirm MEJORADA ---
+  const handleConfirm = async () => {
+    setIsConfirming(true);
+    try {
+      await modalContent.confirmAction();
+      closeModal(); // Se cierra solo si la acción tuvo éxito
+    } catch (error) {
+      console.error("Confirmation action failed:", error);
+      // Opcional: mostrar un error al usuario sin cerrar el modal
+    } finally {
+      // Nos aseguramos de que no se quede en estado de carga si falla
+      if (isModalOpen) {
+        setIsConfirming(false);
+      }
+    }
+  };
+
 
   if (!watchers || watchers.length === 0) {
     return (
@@ -164,6 +195,7 @@ export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActiv
                     >
                       {watcher.is_active ? "Pause" : "Activate"}
                     </Button>
+                    <Button intent="secondary" size="sm" onClick={() => onTest(watcher)}>Test</Button>
                     <Button
                       intent="destructive" size="sm"
                       onClick={() => openModal(
@@ -186,7 +218,8 @@ export default function WatcherTable({ watchers, onEdit, onDelete, onToggleActiv
       <ConfirmationModal
         isOpen={isModalOpen}
         onClose={closeModal}
-        onConfirm={modalContent.confirmAction}
+        onConfirm={handleConfirm} // --- CAMBIO CLAVE 1 ---
+        isConfirming={isConfirming} // --- CAMBIO CLAVE 2 ---
         title={modalContent.title}
         confirmButtonText={modalContent.confirmText}
         confirmButtonVariant={modalContent.variant}

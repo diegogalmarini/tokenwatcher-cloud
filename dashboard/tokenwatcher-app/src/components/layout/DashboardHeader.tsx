@@ -1,97 +1,100 @@
-// src/components/layout/DashboardHeader.tsx
 "use client";
 
 import React from "react";
 import Link from "next/link";
+import { usePathname } from 'next/navigation';
 import { useTheme } from "next-themes";
 import { useAuth } from "@/contexts/AuthContext";
-import LogoutButton from "@/components/auth/LogoutButton";
-import { usePathname } from 'next/navigation'; // <-- 1. Importamos usePathname
+import { SunIcon, MoonIcon } from '@heroicons/react/24/outline';
+import Button from "../ui/button";
+
+// Componente para un solo enlace de navegación
+const NavLink = ({ href, current, children }: { href: string; current: boolean; children: React.ReactNode; }) => (
+  <Link href={href} className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+      current 
+      ? 'bg-gray-100 text-blue-600 dark:bg-neutral-800 dark:text-blue-400'
+      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800'
+  }`}>
+    {children}
+  </Link>
+);
 
 export default function DashboardHeader() {
   const { theme, setTheme, systemTheme } = useTheme();
   const currentTheme = theme === "system" ? systemTheme : theme;
   const isDark = currentTheme === "dark";
 
-  const { user, isAuthenticated } = useAuth();
-  const pathname = usePathname(); // <-- 2. Obtenemos la ruta actual
+  const { user, isAuthenticated, logout } = useAuth();
+  const pathname = usePathname();
 
   const toggleDark = () => {
     setTheme(isDark ? "light" : "dark");
   };
 
+  const navItems = user ? [
+    { name: 'Dashboard', href: '/dashboard', current: pathname === '/dashboard' },
+    { name: 'Events', href: '/dashboard/events', current: pathname.startsWith('/dashboard/events') },
+    { name: 'Billing', href: '/dashboard/billing', current: pathname.startsWith('/dashboard/billing') },
+    { name: 'Settings', href: '/dashboard/settings', current: pathname.startsWith('/dashboard/settings') },
+    ...(user.is_admin ? [{ name: 'Admin Panel', href: '/dashboard/admin', current: pathname.startsWith('/dashboard/admin') }] : []),
+  ] : [];
+
   return (
     <header
-      className={`sticky top-0 left-0 w-full z-50 h-16 transition-colors ${
+      className={`sticky top-0 left-0 w-full z-50 h-16 transition-colors border-b ${
         isDark
-          ? "bg-neutral-900 text-white shadow-md"
-          : "bg-white text-gray-900 shadow-md"
+          ? "bg-neutral-900/80 border-neutral-800 backdrop-blur-sm"
+          : "bg-white/80 border-gray-200 backdrop-blur-sm"
       }`}
     >
-      <div className="w-full h-full flex items-center justify-between px-6">
-        {/* IZQUIERDA: Logo */}
-        <Link href="/dashboard" className="flex items-center h-full">
-          <div className="relative w-32 h-8 lg:w-36 lg:h-10">
-            {isDark ? (
-              <img src="/TokenWatcherW.svg" alt="TokenWatcher Dashboard" className="object-contain w-full h-full" />
-            ) : (
-              <img src="/TokenWatcherB.svg" alt="TokenWatcher Dashboard" className="object-contain w-full h-full" />
-            )}
-          </div>
-        </Link>
+      <div className="w-full h-full flex items-center justify-between px-4 sm:px-6">
+        <div className="flex items-center space-x-4">
+          {/* Logo */}
+          <Link href="/dashboard" className="flex items-center">
+            <div className="relative w-32 h-8">
+              <img src={isDark ? "/TokenWatcherW.svg" : "/TokenWatcherB.svg"} alt="TokenWatcher Dashboard" className="object-contain w-full h-full" />
+            </div>
+          </Link>
+          {/* Menú de Navegación del Dashboard */}
+          {isAuthenticated && (
+            <nav className="hidden md:flex items-center space-x-2">
+              {navItems.map(item => (
+                <NavLink key={item.name} href={item.href} current={item.current}>
+                  {item.name}
+                </NavLink>
+              ))}
+            </nav>
+          )}
+        </div>
 
-        {/* DERECHA: Menú de usuario y acciones */}
-        <div className="flex items-center space-x-4 md:space-x-6">
+        <div className="flex items-center space-x-2 sm:space-x-4">
           {isAuthenticated && user ? (
             <>
-              {/* --- 3. LÓGICA DE ENLACES DE ADMIN MEJORADA --- */}
-              {user.is_admin && (
-                <>
-                  {/* Si estamos en /admin, mostramos el enlace a /dashboard */}
-                  {pathname.startsWith('/dashboard/admin') ? (
-                    <Link href="/dashboard" className="text-sm font-semibold text-blue-500 hover:underline">
-                      Dashboard
-                    </Link>
-                  ) : (
-                    /* Si estamos en otra parte del dashboard, mostramos el enlace a /admin */
-                    <Link href="/dashboard/admin" className="text-sm font-semibold text-blue-500 hover:underline">
-                      Admin Panel
-                    </Link>
-                  )}
-                </>
-              )}
-              <span className="hidden sm:inline text-sm">Hello, {user.email}</span>
-              <LogoutButton />
+              <span className="hidden sm:inline text-sm font-medium text-gray-700 dark:text-gray-300">{user.email}</span>
+              <Button onClick={logout} intent="secondary" size="sm">
+                Logout
+              </Button>
             </>
           ) : (
             <>
-              <Link href="/login" className="text-sm hover:text-gray-500 transition-colors">
+              <Link href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors">
                 Login
               </Link>
-              <Link href="/register" className="ml-4 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary-hover transition-colors">
+              <Button as={Link} href="/register">
                 Sign Up
-              </Link>
+              </Button>
             </>
           )}
 
-          {/* Botón para alternar Light/Dark */}
           <button
             onClick={toggleDark}
-            className={`p-2 rounded-full transition-colors ${
-              isDark
-                ? "bg-neutral-800 hover:bg-neutral-700"
-                : "bg-gray-100 hover:bg-gray-200"
-            }`}
-            aria-label="Toggle Dark Mode"
+            className="p-2 rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-neutral-800"
+            aria-label="Toggle theme"
           >
             {isDark ? (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v2m0 16v2m8-10h2M2 12H4m15.364-6.364l1.414 1.414M4.222 19.778l1.414-1.414M19.778 19.778l-1.414-1.414M4.222 4.222l1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z" />
-              </svg>
+              <SunIcon className="h-5 w-5 text-gray-300" />
             ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z" />
-              </svg>
+              <MoonIcon className="h-5 w-5 text-gray-600" />
             )}
           </button>
         </div>

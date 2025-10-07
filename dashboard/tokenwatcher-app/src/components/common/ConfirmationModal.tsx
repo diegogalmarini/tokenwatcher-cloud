@@ -8,12 +8,13 @@ import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 interface ConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void> | void; // Puede ser una función asíncrona
   title: string;
   children: React.ReactNode;
   confirmButtonText?: string;
   cancelButtonText?: string;
   confirmButtonVariant?: 'primary' | 'danger';
+  isConfirming?: boolean; // Prop para el estado de carga
 }
 
 export default function ConfirmationModal({
@@ -24,11 +25,12 @@ export default function ConfirmationModal({
   children,
   confirmButtonText = 'Confirm',
   cancelButtonText = 'Cancel',
-  confirmButtonVariant = 'danger',
+  confirmButtonVariant = 'primary',
+  isConfirming = false, // Valor por defecto
 }: ConfirmationModalProps) {
   const confirmButtonClasses = {
     danger: 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-500',
-    primary: 'bg-primary hover:bg-primary-hover focus-visible:ring-primary',
+    primary: 'bg-blue-600 hover:bg-blue-700 focus-visible:ring-blue-500',
   };
 
   return (
@@ -43,8 +45,7 @@ export default function ConfirmationModal({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          {/* --- CAMBIO AQUÍ para usar el color hexadecimal exacto --- */}
-          <div className="fixed inset-0 bg-[#0000009c] transition-opacity" />
+          <div className="fixed inset-0 bg-[#0000009c] bg-opacity-60 transition-opacity" />
         </Transition.Child>
 
         <div className="fixed inset-0 z-10 w-screen overflow-y-auto">
@@ -79,18 +80,17 @@ export default function ConfirmationModal({
                 <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
                   <button
                     type="button"
-                    className={`inline-flex w-full justify-center rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm sm:ml-3 sm:w-auto ${confirmButtonClasses[confirmButtonVariant]}`}
-                    onClick={() => {
-                      onConfirm();
-                      onClose();
-                    }}
+                    className={`inline-flex w-full justify-center rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm sm:ml-3 sm:w-auto transition-colors disabled:opacity-50 ${confirmButtonClasses[confirmButtonVariant]}`}
+                    onClick={onConfirm}
+                    disabled={isConfirming}
                   >
-                    {confirmButtonText}
+                    {isConfirming ? 'Updating...' : confirmButtonText}
                   </button>
                   <button
                     type="button"
                     className="mt-3 inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-600 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-gray-200 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-500 hover:bg-gray-50 dark:hover:bg-gray-500 sm:mt-0 sm:w-auto"
                     onClick={onClose}
+                    disabled={isConfirming}
                   >
                     {cancelButtonText}
                   </button>
