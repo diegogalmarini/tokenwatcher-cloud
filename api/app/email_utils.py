@@ -61,7 +61,7 @@ def send_email(to_email: str, subject: str, html_content: str) -> bool:
             "html": html_content,
         }
         
-        response = resend.send(params)
+        response = resend.Emails.send(params)
         print(f"Email sent to {to_email}, response: {response}")
         return True
     except Exception as e:
