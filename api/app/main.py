@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import engine, get_db
 from . import models, schemas, crud, auth, email_utils, notifier
-from .auth import get_current_active_user
+from .auth import get_current_user
 from .config import settings
 from .clients import coingecko_client
 
@@ -442,7 +442,7 @@ def test_transport_notification(
 @limiter.limit("10/minute")
 def trigger_watcher_scan(
     request: Request, 
-    current_user: models.User = Depends(get_current_active_user),
+    current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
