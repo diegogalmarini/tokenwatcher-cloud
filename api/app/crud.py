@@ -165,6 +165,15 @@ def get_active_watchers(db: Session, skip: int = 0, limit: int = 100) -> List[mo
         .offset(skip).limit(limit).all()
     )
 
+def get_active_watchers_for_user(db: Session, user_id: int) -> List[models.Watcher]:
+    return (
+        db.query(models.Watcher)
+        .filter(models.Watcher.owner_id == user_id)
+        .filter(models.Watcher.is_active == True)
+        .options(selectinload(models.Watcher.transports))
+        .all()
+    )
+
 def get_watchers_for_owner(db: Session, owner_id: int, skip: int = 0, limit: int = 100) -> List[models.Watcher]:
     return (
         db.query(models.Watcher)

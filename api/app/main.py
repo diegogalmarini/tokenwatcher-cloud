@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import HttpUrl
 import json
+import logging
 from datetime import datetime, timezone
 
 from slowapi import _rate_limit_exceeded_handler
@@ -15,8 +16,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import engine, get_db
 from . import models, schemas, crud, auth, email_utils, notifier
+from .auth import get_current_active_user
 from .config import settings
 from .clients import coingecko_client
+
+logger = logging.getLogger(__name__)
 
 try:
     print("ℹ️ [DB_INIT] Intentando crear/verificar todas las tablas definidas en Base...")
@@ -433,6 +437,42 @@ def test_transport_notification(
     notifier.send_notifications_for_event_batch(watcher_obj=temp_watcher_obj, events_list=[test_event])
 
     return {"detail": "Test notification sent successfully."}
+
+@app.post("/watchers/trigger-scan", status_code=status.HTTP_200_OK, tags=["Watchers"])
+@limiter.limit("10/minute")
+def trigger_watcher_scan(
+    request: Request, 
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Manually trigger the watcher scan process for the current user's active watchers.
+    This will scan the blockchain for new transactions and create events if any are found.
+    """
+    from . import watcher as watcher_module
+    
+    # Get user's active watchers
+    def get_user_active_watchers():
+        return crud.get_active_watchers_for_user(db, user_id=current_user.id)
+    
+    # Create event function
+    def create_event_wrapper(event_data: schemas.TokenEventCreate):
+        return crud.create_event(db, event_data)
+    
+    # Run the polling process
+    try:
+        watcher_module.poll_and_notify(
+            db=db,
+            get_active_watchers_func=get_user_active_watchers,
+            create_event_func=create_event_wrapper
+        )
+        return {"detail": "Watcher scan completed successfully. Check events page for results."}
+    except Exception as e:
+        logger.error(f"Error during manual watcher scan: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error during watcher scan: {str(e)}"
+        )
 
 @app.get("/tokens/{contract_address}/volume", response_model=schemas.TokenRead, tags=["Tokens"])
 @limiter.limit("60/minute")
